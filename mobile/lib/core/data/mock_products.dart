@@ -1,3 +1,5 @@
+import '../services/woocommerce_service.dart';
+
 class DetailedProduct {
   final String id;
   final String title;
@@ -24,94 +26,126 @@ class DetailedProduct {
   });
 }
 
+/// Fallback fashion products matching https://livaan.in
 const mockProductList = <DetailedProduct>[
   DetailedProduct(
-    id: '20',
-    title: 'shirt 2',
-    price: 79.0,
-    originalPrice: 300.0,
+    id: '9274',
+    title: 'Black Dotted Shirt for Women',
+    price: 1200.0,
+    originalPrice: 1500.0,
     rating: 4.9,
-    reviewsCount: 86,
+    reviewsCount: 32,
     images: [
-      'https://testing.livaan.in/wp-content/uploads/2026/10/bd.png',
-      'https://testing.livaan.in/wp-content/uploads/2026/10/bg-1.png',
-      'https://testing.livaan.in/wp-content/uploads/2026/10/bg.png',
-      'https://testing.livaan.in/wp-content/uploads/2026/10/bg-image.png',
+      'https://livaan.in/wp-content/uploads/2025/02/black-solid-dots-dobby-shirt-theshimmerhouse-6_720x.webp',
     ],
     description:
-        'संयुक्त सैन्य अभ्यास के दौरान दोनों देशों के सैनिक आधुनिक युद्ध तकनीकों का अभ्यास कर रहे हैं। उच्च गुणवत्ता वाली शर्ट, दैनिक उपयोग और फॉर्मल वियर के लिए उपयुक्त।',
-    colors: ['#704FEE', '#1E1B4B', '#F59E0B', '#EF4444'],
+        'Chic black dotted dobby shirt for women. Premium lightweight breathable fabric perfect for smart-casual and formal styling.',
+    colors: [],
     features: [
-      '100% Authentic Quality',
-      'Direct from Testing Livaan',
-      'Fast Shipping Available',
-      'Easy 7-Day Returns',
+      'Premium dobby textured fabric',
+      'Elegant dot pattern',
+      'Comfortable breathable fit',
+      'Versatile smart-casual style',
     ],
   ),
   DetailedProduct(
-    id: '21',
-    title: 'shirt 2 (Copy)',
-    price: 79.0,
-    originalPrice: 300.0,
+    id: '9261',
+    title: 'Leopard Print Shirt for Women',
+    price: 1200.0,
+    originalPrice: 1500.0,
     rating: 4.8,
+    reviewsCount: 28,
+    images: [
+      'https://livaan.in/wp-content/uploads/2025/02/303a0ebd-8072-4e36-b2c4-4c889da0c6191676286619510-Hancock-Leopard-Printed-Regular-Fit-Casual-Shirt-54216762866-1.webp',
+    ],
+    description:
+        'Trendy leopard printed regular fit casual shirt. Elevate your wardrobe with this bold, stylish animal print statement piece.',
+    colors: [],
+    features: [
+      'Statement leopard print',
+      'Regular comfortable fit',
+      'Smooth soft-touch fabric',
+      'Great for day or night outings',
+    ],
+  ),
+  DetailedProduct(
+    id: '8803',
+    title: 'Solid Satin Formal Shirt for Women',
+    price: 1099.0,
+    originalPrice: 1500.0,
+    rating: 4.9,
+    reviewsCount: 45,
+    images: [
+      'https://livaan.in/wp-content/uploads/2025/01/LV1007-1-png.webp',
+      'https://livaan.in/wp-content/uploads/2025/01/LV1007-2-png.webp',
+      'https://livaan.in/wp-content/uploads/2025/01/LV1007-3-png.webp',
+      'https://livaan.in/wp-content/uploads/2025/01/LV1007-4-png.webp',
+      'https://livaan.in/wp-content/uploads/2025/01/LV1007-21-png.webp',
+      'https://livaan.in/wp-content/uploads/2025/01/LV1007-22-png.webp',
+    ],
+    description:
+        'Enhance your wardrobe with this formal satin shirt, a perfect blend of elegance and versatility designed to make a statement wherever you go.',
+    colors: ['Wine', 'pink', 'Maroon', 'Blue', 'Black'],
+    features: [
+      'Luxurious silky satin sheen',
+      'Tailored formal silhouette',
+      'Wrinkle-resistant fabric',
+      'Ideal for office and evening wear',
+    ],
+  ),
+  DetailedProduct(
+    id: '7818',
+    title: 'Navy Blue Women Capri Night Suit Set',
+    price: 1199.0,
+    originalPrice: 1499.0,
+    rating: 4.9,
     reviewsCount: 54,
     images: [
-      'https://testing.livaan.in/wp-content/uploads/2026/10/bd.png',
-      'https://testing.livaan.in/wp-content/uploads/2026/10/bg-1.png',
-      'https://testing.livaan.in/wp-content/uploads/2026/10/bg.png',
+      'https://livaan.in/wp-content/uploads/2025/01/4-12.avif',
+      'https://livaan.in/wp-content/uploads/2025/01/2-16.avif',
+      'https://livaan.in/wp-content/uploads/2025/01/3-16.avif',
+      'https://livaan.in/wp-content/uploads/2025/01/5-13.avif',
     ],
     description:
-        'प्रीमियम कॉटन फैब्रिक के साथ तैयार की गई स्टाइलिश और कम्फर्टेबल शर्ट।',
-    colors: ['#704FEE', '#1E1B4B', '#F59E0B'],
+        'Ultra-comfortable navy blue capri night suit set. Crafted from soft breathable cotton blend for peaceful night sleep.',
+    colors: [],
     features: [
-      '100% Authentic Quality',
-      'Direct from Testing Livaan',
-      'Fast Shipping Available',
+      'Includes soft top & capri bottom',
+      'Breathable cotton blend',
+      'Elasticated waistband with drawstrings',
+      'All-season loungewear comfort',
     ],
   ),
   DetailedProduct(
-    id: '22',
-    title: 'shirt 2 (Copy 2)',
-    price: 79.0,
-    originalPrice: 300.0,
-    rating: 4.7,
-    reviewsCount: 38,
+    id: '8409',
+    title: 'Square Neck High Waist Bikini for Women',
+    price: 1299.0,
+    originalPrice: 1699.0,
+    rating: 4.8,
+    reviewsCount: 19,
     images: [
-      'https://testing.livaan.in/wp-content/uploads/2026/10/bd.png',
-      'https://testing.livaan.in/wp-content/uploads/2026/10/bg-image.png',
+      'https://livaan.in/wp-content/uploads/2025/01/AC1166.jpg',
     ],
     description:
-        'क्लासिक डिजाइन और आरामदायक फिटिंग।',
-    colors: ['#704FEE', '#1E1B4B'],
+        'Chic square neck bikini with flattering high-waisted bottoms. Quick-drying stretch fabric perfect for tropical beach holidays.',
+    colors: [],
     features: [
-      '100% Authentic Quality',
-      'Direct from Testing Livaan',
-    ],
-  ),
-  DetailedProduct(
-    id: '19',
-    title: 'shirt (Copy)',
-    price: 79.0,
-    originalPrice: 300.0,
-    rating: 4.9,
-    reviewsCount: 92,
-    images: [
-      'https://testing.livaan.in/wp-content/uploads/2026/10/bd.png',
-      'https://testing.livaan.in/wp-content/uploads/2026/10/bg.png',
-    ],
-    description:
-        'प्रीमियम फैब्रिक, ड्यूरेबल स्टिचिंग और बेहतरीन लुक।',
-    colors: ['#704FEE', '#1E1B4B', '#EF4444'],
-    features: [
-      '100% Authentic Quality',
-      'Direct from Testing Livaan',
+      'Flattering square neck top',
+      'High waist silhouette',
+      'Quick-dry chlorine-resistant material',
+      'Four-way stretch for total mobility',
     ],
   ),
 ];
 
-DetailedProduct getProductById(String id) {
-  return mockProductList.firstWhere(
-    (p) => p.id == id,
-    orElse: () => mockProductList.first,
-  );
+DetailedProduct? getProductById(String id) {
+  final clean = id.trim();
+  final cached = WooCommerceService.getCachedProduct(clean);
+  if (cached != null) {
+    return cached.toDetailedProduct();
+  }
+  for (final p in mockProductList) {
+    if (p.id == clean) return p;
+  }
+  return null;
 }

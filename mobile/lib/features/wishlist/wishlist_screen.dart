@@ -6,33 +6,145 @@ import '../../core/data/mock_products.dart';
 import '../../core/providers/shop_providers.dart';
 import '../../core/services/woocommerce_service.dart';
 
-class WishlistScreen extends ConsumerWidget {
+class WishlistScreen extends ConsumerStatefulWidget {
   const WishlistScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final wishlistedIds = ref.watch(wishlistProvider);
+  ConsumerState<WishlistScreen> createState() => _WishlistScreenState();
+}
+
+class _WishlistScreenState extends ConsumerState<WishlistScreen> {
+  final Map<String, DetailedProduct> _asyncFetchedProducts = {};
+  final Set<String> _inFlightFetches = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndFetchMissing();
+    });
+  }
+
+  void _checkAndFetchMissing() {
+    final wishlistedIds = ref.read(wishlistProvider);
+    final allWc = ref.read(wcProductsProvider).value ?? WooCommerceService.initialProducts;
+    final cachedWishlist = ref.read(wishlistProvider.notifier).cachedProducts;
+
+    for (final rawId in wishlistedIds) {
+      final id = rawId.trim();
+      // Ignore legacy test IDs from earlier sessions
+      if (id == '20' || id == '21' || id == '22' || id == '19') continue;
+
+      if (_asyncFetchedProducts.containsKey(id) || _inFlightFetches.contains(id)) continue;
+
+      // Check if already in WooCommerceService cache
+      final cached = WooCommerceService.getCachedProduct(id);
+      if (cached != null) {
+        _asyncFetchedProducts[id] = cached.toDetailedProduct();
+        continue;
+      }
+
+      // Check in initial/loaded products
+      final inWc = allWc.where((p) => p.id == id).firstOrNull;
+      if (inWc != null) {
+        _asyncFetchedProducts[id] = inWc.toDetailedProduct();
+        continue;
+      }
+
+      // Check in wishlist notifier cache
+      if (cachedWishlist.containsKey(id)) {
+        _asyncFetchedProducts[id] = cachedWishlist[id]!;
+        continue;
+      }
+
+      // Fetch from WooCommerce API
+      _inFlightFetches.add(id);
+      WooCommerceService().fetchProductById(id).then((p) {
+        if (mounted && p != null) {
+          setState(() {
+            _asyncFetchedProducts[id] = p.toDetailedProduct();
+            _inFlightFetches.remove(id);
+          });
+        }
+      }).catchError((_) {
+        if (mounted) {
+          setState(() {
+            _inFlightFetches.remove(id);
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rawWishlistIds = ref.watch(wishlistProvider);
+    // Filter out legacy mock shirts if any were previously saved
+    final wishlistedIds = rawWishlistIds
+        .where((id) => id != '20' && id != '21' && id != '22' && id != '19')
+        .toList();
+
     final cartCount = ref.watch(cartCountProvider);
     final unreadNotifCount = ref.watch(unreadNotificationsCountProvider);
     final productsAsync = ref.watch(wcProductsProvider);
     final allWc = productsAsync.value ?? WooCommerceService.initialProducts;
+    final cachedWishlist = ref.watch(wishlistProvider.notifier).cachedProducts;
 
     const primaryColor = Color(0xFF704FEE);
     const darkTextColor = Color(0xFF1E1B4B);
 
-    final wishlistedProducts = wishlistedIds.map((id) {
-      for (final p in allWc) {
-        if (p.id == id) return p.toDetailedProduct();
+    // Resolve products
+    final List<DetailedProduct?> wishlistedProducts = [];
+    for (final id in wishlistedIds) {
+      if (_asyncFetchedProducts.containsKey(id)) {
+        wishlistedProducts.add(_asyncFetchedProducts[id]);
+        continue;
       }
-      return getProductById(id);
-    }).toList();
+      final cached = WooCommerceService.getCachedProduct(id);
+      if (cached != null) {
+        wishlistedProducts.add(cached.toDetailedProduct());
+        continue;
+      }
+      final inAll = allWc.where((p) => p.id == id).firstOrNull;
+      if (inAll != null) {
+        wishlistedProducts.add(inAll.toDetailedProduct());
+        continue;
+      }
+      if (cachedWishlist.containsKey(id)) {
+        wishlistedProducts.add(cachedWishlist[id]);
+        continue;
+      }
+      final fromMock = getProductById(id);
+      if (fromMock != null) {
+        wishlistedProducts.add(fromMock);
+        continue;
+      }
+      // If not yet resolved, trigger fetch and add null placeholder
+      wishlistedProducts.add(null);
+      if (!_inFlightFetches.contains(id)) {
+        _inFlightFetches.add(id);
+        WooCommerceService().fetchProductById(id).then((p) {
+          if (mounted && p != null) {
+            setState(() {
+              _asyncFetchedProducts[id] = p.toDetailedProduct();
+              _inFlightFetches.remove(id);
+            });
+          }
+        }).catchError((_) {
+          if (mounted) {
+            setState(() {
+              _inFlightFetches.remove(id);
+            });
+          }
+        });
+      }
+    }
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        // Left Corner: Back Arrow Icon (Navigates back to Home)
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: darkTextColor),
           tooltip: 'Back',
@@ -53,7 +165,6 @@ class WishlistScreen extends ConsumerWidget {
           ),
         ),
         centerTitle: true,
-        // Right Corner: Notifications + Add to Cart icons
         actions: [
           // Notification Bell with LIVE dynamic badge
           _buildHeaderIconButton(
@@ -73,7 +184,7 @@ class WishlistScreen extends ConsumerWidget {
         ],
       ),
       body: SafeArea(
-        child: wishlistedProducts.isEmpty
+        child: wishlistedIds.isEmpty
             ? _buildEmptyWishlist(context, primaryColor, darkTextColor)
             : SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 12.0),
@@ -85,7 +196,7 @@ class WishlistScreen extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          '${wishlistedProducts.length} Saved Items',
+                          '${wishlistedIds.length} Saved Items',
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
@@ -107,7 +218,7 @@ class WishlistScreen extends ConsumerWidget {
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      itemCount: wishlistedProducts.length,
+                      itemCount: wishlistedIds.length,
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
                         crossAxisSpacing: 14,
@@ -115,8 +226,11 @@ class WishlistScreen extends ConsumerWidget {
                         childAspectRatio: 0.68,
                       ),
                       itemBuilder: (context, index) {
-                        final product = wishlistedProducts[index];
-                        return _buildWishlistCard(context, ref, product, primaryColor, darkTextColor);
+                        final product = index < wishlistedProducts.length ? wishlistedProducts[index] : null;
+                        if (product == null) {
+                          return _buildLoadingWishlistCard();
+                        }
+                        return _buildWishlistCard(context, product, primaryColor, darkTextColor);
                       },
                     ),
                     const SizedBox(height: 24),
@@ -127,16 +241,71 @@ class WishlistScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildLoadingWishlistCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+              ),
+              child: const Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF704FEE)),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(10.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 14,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  height: 14,
+                  width: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildWishlistCard(
     BuildContext context,
-    WidgetRef ref,
     DetailedProduct product,
     Color primaryColor,
     Color darkTextColor,
   ) {
     final image = product.images.isNotEmpty
         ? product.images.first
-        : 'https://testing.livaan.in/wp-content/uploads/2026/10/bd.png';
+        : 'https://livaan.in/wp-content/uploads/2025/01/1-4.png';
 
     return GestureDetector(
       onTap: () => context.push('/product/${product.id}'),
@@ -221,7 +390,7 @@ class WishlistScreen extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '\$${product.price.toStringAsFixed(product.price % 1 == 0 ? 0 : 2)}',
+                '₹${product.price.toStringAsFixed(product.price % 1 == 0 ? 0 : 2)}',
                 style: const TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w800,
@@ -248,21 +417,20 @@ class WishlistScreen extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF704FEE).withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(8),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEDE9FE),
+                    borderRadius: BorderRadius.all(Radius.circular(8)),
                   ),
                   child: const Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.add_shopping_cart_rounded, size: 13, color: Color(0xFF704FEE)),
+                      Icon(Icons.shopping_cart_outlined, size: 13, color: Color(0xFF704FEE)),
                       SizedBox(width: 4),
                       Text(
                         'Cart',
                         style: TextStyle(
-                          color: Color(0xFF704FEE),
                           fontSize: 11,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF704FEE),
                         ),
                       ),
                     ],
@@ -272,63 +440,6 @@ class WishlistScreen extends ConsumerWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyWishlist(BuildContext context, Color primaryColor, Color darkTextColor) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 90,
-              height: 90,
-              decoration: const BoxDecoration(
-                color: Color(0xFFF5F3FF),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.favorite_border_rounded,
-                size: 42,
-                color: Color(0xFF704FEE),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Your wishlist is empty',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: darkTextColor,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Save your favorite items here to buy them anytime.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13.5,
-                color: Colors.grey.shade500,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () => context.go('/home'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: const Text('Explore Products', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -347,23 +458,23 @@ class WishlistScreen extends ConsumerWidget {
         decoration: BoxDecoration(
           color: const Color(0xFFF9FAFB),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200, width: 1),
+          border: Border.all(color: Colors.grey.shade200),
         ),
         child: Stack(
           alignment: Alignment.center,
           children: [
             Icon(icon, size: 19, color: const Color(0xFF1E1B4B)),
-            if (badgeCount != null)
+            if (badgeCount != null && badgeCount > 0)
               Positioned(
-                top: 3,
-                right: 3,
+                top: 4,
+                right: 4,
                 child: Container(
-                  padding: const EdgeInsets.all(3),
+                  padding: const EdgeInsets.all(3.5),
                   decoration: const BoxDecoration(
                     color: Color(0xFF704FEE),
                     shape: BoxShape.circle,
                   ),
-                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                  constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
                   child: Center(
                     child: Text(
                       '$badgeCount',
@@ -371,11 +482,79 @@ class WishlistScreen extends ConsumerWidget {
                         color: Colors.white,
                         fontSize: 8.5,
                         fontWeight: FontWeight.bold,
+                        height: 1,
                       ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyWishlist(
+    BuildContext context,
+    Color primaryColor,
+    Color darkTextColor,
+  ) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: const BoxDecoration(
+                color: Color(0xFFEDE9FE),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.favorite_rounded,
+                size: 48,
+                color: Color(0xFF704FEE),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Your Wishlist is Empty',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: darkTextColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Explore products and tap the heart icon to save your favorite items here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13.5,
+                color: Colors.grey.shade600,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => context.go('/home'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                'Explore Products',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+            ),
           ],
         ),
       ),

@@ -52,6 +52,14 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         'two_factor_secret'  => 'encrypted', // stored encrypted at rest
     ];
 
+    protected $appends = [
+        'is_super_admin',
+        'has_apps',
+        'apps_count',
+        'has_built_apps',
+        'latest_draft',
+    ];
+
     // ── Relationships ──────────────────────────────────────────────────────────
 
     public function tenant(): BelongsTo
@@ -64,11 +72,97 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         return $this->hasMany(AuditLog::class, 'actor_id');
     }
 
+    public function apps(): HasMany
+    {
+        return $this->hasMany(App::class, 'tenant_id', 'tenant_id');
+    }
+
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class, 'tenant_id', 'tenant_id');
+    }
+
+    public function getUsernameAttribute(): string
+    {
+        if (! empty($this->phone)) {
+            return $this->phone;
+        }
+
+        return \Illuminate\Support\Str::before($this->email, '@');
+    }
+
+    public function getAppsCountAttribute(): int
+    {
+        return App::withoutTenantScope()->where('tenant_id', $this->tenant_id)->count();
+    }
+
+    public function getHasAppsAttribute(): bool
+    {
+        return $this->apps_count > 0;
+    }
+
+    public function getHasBuiltAppsAttribute(): bool
+    {
+        return App::withoutTenantScope()
+            ->where('tenant_id', $this->tenant_id)
+            ->where(function ($q) {
+                $q->whereIn('status', ['completed', 'live', 'active'])
+                  ->orWhereHas('builds', function ($bq) {
+                      $bq->where('status', \App\Enums\BuildStatus::Ready);
+                  });
+            })->exists();
+    }
+
+    public function getLatestDraftApp(): ?App
+    {
+        return App::withoutTenantScope()
+            ->where('tenant_id', $this->tenant_id)
+            ->whereNotIn('status', ['completed', 'live', 'active'])
+            ->whereDoesntHave('builds', function ($bq) {
+                $bq->where('status', \App\Enums\BuildStatus::Ready);
+            })
+            ->latest('updated_at')
+            ->first();
+    }
+
+    public function getLatestDraftAttribute(): ?array
+    {
+        $draft = $this->getLatestDraftApp();
+        if (! $draft) {
+            return null;
+        }
+
+        return [
+            'id'         => $draft->id,
+            'ulid'       => $draft->ulid,
+            'name'       => $draft->name,
+            'platform'   => $draft->platform->value ?? (string) $draft->platform,
+            'setup_step' => $draft->setup_step->value ?? (string) $draft->setup_step,
+            'status'     => $draft->status->value ?? (string) $draft->status,
+        ];
+    }
+
+    public function getIsSuperAdminAttribute(): bool
+    {
+        return $this->isSuperAdmin();
+    }
+
+    public function getBuildsCountAttribute(): int
+    {
+        return Build::withoutGlobalScopes()->where('tenant_id', $this->tenant_id)->count();
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     public function isOwner(): bool
     {
         return $this->role === UserRole::Owner;
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->email === 'admin@webintoapp.com'
+            || ($this->role === UserRole::Owner && $this->tenant_id === 1 && str_contains($this->email, 'admin'));
     }
 
     public function isEditor(): bool
@@ -78,6 +172,6 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->role === UserRole::Owner;
+        return $this->isSuperAdmin() || $this->email === 'admin@webintoapp.com';
     }
 }

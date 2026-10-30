@@ -46,55 +46,374 @@ const COLOR_FIELDS = [
   { label: "Body Text Color", key: "text", default: "#1F2937", desc: "Standard body text and descriptions" },
 ];
 
-const BANNER_PRESETS = [
-  {
-    id: "fashion",
-    name: "Summer Fashion",
-    badge: "New Arrivals",
-    title: "Summer Collection 2026",
-    button_text: "Shop Collection →",
-    image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "luxury",
-    name: "Luxury Watches",
-    badge: "Limited Edition",
-    title: "Timeless Luxury Essentials",
-    button_text: "Discover Now →",
-    image: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "streetwear",
-    name: "Streetwear Drops",
-    badge: "Trending Drop",
-    title: "Urban Sneakers & Apparel",
-    button_text: "Get First Access →",
-    image: "https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "sale",
-    name: "Mega Sale 50%",
-    badge: "Flash Deal 50% Off",
-    title: "Biggest Clearance Sale",
-    button_text: "Claim Discounts →",
-    image: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "tech",
-    name: "Smart Audio & Gadgets",
-    badge: "Featured Tech",
-    title: "Next-Gen Smart Devices",
-    button_text: "Shop Electronics →",
-    image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "home",
-    name: "Nordic Living",
-    badge: "Cozy Space",
-    title: "Modern Home Interiors",
-    button_text: "Explore Home →",
-    image: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80",
-  },
+const NICHE_PRESETS_MAP: Record<string, Array<{
+  id: string;
+  name: string;
+  badge: string;
+  title: string;
+  button_text: string;
+  image: string;
+}>> = {
+  lighting: [
+    {
+      id: "h7_halogen",
+      name: "Formula Rally H7",
+      badge: "Super Bright 55W",
+      title: "Formula Rally H7 Halogen Headlights",
+      button_text: "Shop Halogen Lamps →",
+      image: "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp",
+    },
+    {
+      id: "h3_halogen",
+      name: "All-Weather H3 Halogen",
+      badge: "Fog & Auxiliary",
+      title: "All-Weather H3 Halogen Bulbs",
+      button_text: "Upgrade Vision →",
+      image: "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/sd-23.webp",
+    },
+    {
+      id: "auto_fuses",
+      name: "Blade & Mini Fuses",
+      badge: "Electrical Protection",
+      title: "Maxi & Mini Blade Fuse Packs",
+      button_text: "Shop Fuses →",
+      image: "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/PART-NO.-FLP0021-X3-1-5-INCH-OFF-ROAD-SPOT-LAMP-FOG-LAMP.png",
+    },
+    {
+      id: "capless",
+      name: "Capless Indicator Bulbs",
+      badge: "OEM Indicator",
+      title: "Capless Dashboard & Marker Lights",
+      button_text: "Find Bulbs →",
+      image: "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/sd-25.webp",
+    },
+    {
+      id: "night_fighter",
+      name: "Night Fighter 6000K",
+      badge: "Max Lumens",
+      title: "Ultra-Bright Night Fighter Halogen",
+      button_text: "See Clearly →",
+      image: "https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "clearance",
+      name: "Lighting Clearance",
+      badge: "Special Deals",
+      title: "Up to 35% Off Lighting & Fuses",
+      button_text: "Claim Deals →",
+      image: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80",
+    },
+  ],
+  electronics: [
+    {
+      id: "wireless_audio",
+      name: "Wireless ANC Audio",
+      badge: "Hi-Res Audio",
+      title: "Next-Gen Wireless Headphones & Buds",
+      button_text: "Shop Audio →",
+      image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "smartwatches",
+      name: "Smart Wearables",
+      badge: "Fitness & Health",
+      title: "AMOLED Waterproof Smartwatches",
+      button_text: "Explore Watches →",
+      image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "fast_chargers",
+      name: "GaN Fast Chargers",
+      badge: "Fast Charge 65W",
+      title: "Ultra-Compact Multi-Port Adapters",
+      button_text: "Get Powered →",
+      image: "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "gaming_gear",
+      name: "Pro Gaming Gear",
+      badge: "Ultra Low Latency",
+      title: "RGB Mechanical Keyboards & Mice",
+      button_text: "Level Up →",
+      image: "https://images.unsplash.com/photo-1612287233214-74cf4716fcbe?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "smart_home",
+      name: "Smart Home Hubs",
+      badge: "IoT Connected",
+      title: "Voice-Enabled Smart Home Automation",
+      button_text: "Automate Home →",
+      image: "https://images.unsplash.com/photo-1558089687-f282ffcbc126?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "tech_sale",
+      name: "Gadget Clearance",
+      badge: "Up to 40% Off",
+      title: "Limited-Time Tech Super Sale",
+      button_text: "Shop Deals →",
+      image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=800&q=80",
+    },
+  ],
+  fashion: [
+    {
+      id: "summer_fashion",
+      name: "Summer Fashion",
+      badge: "New Arrivals",
+      title: "Summer Collection 2026",
+      button_text: "Shop Collection →",
+      image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "streetwear",
+      name: "Streetwear Drops",
+      badge: "Trending Drop",
+      title: "Urban Sneakers & Graphic Tees",
+      button_text: "Get First Access →",
+      image: "https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "luxury_watches",
+      name: "Luxury Watches",
+      badge: "Limited Edition",
+      title: "Timeless Minimalist Essentials",
+      button_text: "Discover Now →",
+      image: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "athleisure",
+      name: "Athletic Activewear",
+      badge: "Breathable Fit",
+      title: "High-Performance Gym & Running Gear",
+      button_text: "Shop Active →",
+      image: "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "denim",
+      name: "Vintage Denim",
+      badge: "Classic Fit",
+      title: "Tailored Jackets & Distressed Jeans",
+      button_text: "Shop Denim →",
+      image: "https://images.unsplash.com/photo-1542272604-780c96856592?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "mega_sale",
+      name: "Mega Sale 50%",
+      badge: "Flash Deal 50% Off",
+      title: "Biggest Clearance Sale of Season",
+      button_text: "Claim Discounts →",
+      image: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=800&q=80",
+    },
+  ],
+  jewelry: [
+    {
+      id: "solitaire_rings",
+      name: "Solitaire Diamond Rings",
+      badge: "Certified Stones",
+      title: "Timeless Solitaire & Engagement Rings",
+      button_text: "Discover Rings →",
+      image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "gold_necklaces",
+      name: "Handcrafted Gold Sets",
+      badge: "Pure 22K Gold",
+      title: "Royal Traditional Gold Necklaces",
+      button_text: "Shop Collection →",
+      image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "luxury_watches",
+      name: "Chronograph Watches",
+      badge: "Limited Edition",
+      title: "Precision Swiss Made Timepieces",
+      button_text: "View Timepieces →",
+      image: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "silver_bracelets",
+      name: "Sterling Silver 925",
+      badge: "Modern Chic",
+      title: "Minimalist Sterling Silver Bangles",
+      button_text: "Shop Silver →",
+      image: "https://images.unsplash.com/photo-1611591475871-33234d8a5712?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "pearl_sets",
+      name: "South Sea Pearls",
+      badge: "Hand-Selected",
+      title: "Natural Lustrous Pearl Chokers",
+      button_text: "Explore Pearls →",
+      image: "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "festive_offer",
+      name: "Festive Jewelry Gift",
+      badge: "Free Gift Box",
+      title: "Exclusive Festive Jewelry Collection",
+      button_text: "Shop Gifts →",
+      image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=800&q=80",
+    },
+  ],
+  beauty: [
+    {
+      id: "skincare_serum",
+      name: "Glow Vitamin C Serum",
+      badge: "Radiance Boost",
+      title: "Active Botanical Glow Elixir",
+      button_text: "Explore Skincare →",
+      image: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "matte_lipstick",
+      name: "Velvet Lip Color",
+      badge: "Long-Wear 16H",
+      title: "Ultra-Pigmented Matte Lipstick Set",
+      button_text: "Find Your Shade →",
+      image: "https://images.unsplash.com/photo-1586495777744-4413f21062fa?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "organic_cream",
+      name: "Deep Hydration Cream",
+      badge: "100% Organic",
+      title: "Ceramide Nourishing Night Cream",
+      button_text: "Shop Moisturizer →",
+      image: "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "hair_oils",
+      name: "Ayurvedic Hair Oils",
+      badge: "Root Strengthen",
+      title: "Rosemary & Cold-Pressed Hair Care",
+      button_text: "Repair Hair →",
+      image: "https://images.unsplash.com/photo-1608248597359-338b25129668?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "fragrance",
+      name: "Artisan Perfumes",
+      badge: "Eau De Parfum",
+      title: "Signature French Lavender Fragrance",
+      button_text: "Smell Divine →",
+      image: "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "beauty_clearance",
+      name: "Clean Beauty Sale",
+      badge: "Special Bundle",
+      title: "Buy 2 Get 1 Free on All Beauty",
+      button_text: "Claim Free Gift →",
+      image: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=800&q=80",
+    },
+  ],
+  home: [
+    {
+      id: "nordic_decor",
+      name: "Nordic Minimal Living",
+      badge: "Cozy Space",
+      title: "Modern Scandinavian Living Interiors",
+      button_text: "Explore Living →",
+      image: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "ceramic_pottery",
+      name: "Artisan Ceramics",
+      badge: "Handmade",
+      title: "Handcrafted Terracotta & Ceramic Vases",
+      button_text: "Shop Decor →",
+      image: "https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "solid_wood",
+      name: "Oak & Teak Furniture",
+      badge: "100% Solid Wood",
+      title: "Ergonomic Wooden Dining & Coffee Tables",
+      button_text: "View Tables →",
+      image: "https://images.unsplash.com/photo-1538688525198-9b88f6f53126?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "ambient_lighting",
+      name: "Warm Floor Lamps",
+      badge: "Mood Lighting",
+      title: "Contemporary Brass & Bamboo Lamps",
+      button_text: "Brighten Up →",
+      image: "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "linen_bedding",
+      name: "Pure Washed Linen",
+      badge: "Breathable Comfort",
+      title: "Hotel Quality Linen Bedding Sets",
+      button_text: "Shop Bedding →",
+      image: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "home_clearance",
+      name: "Furniture Clearance",
+      badge: "Flat 30% Off",
+      title: "Upgrade Your Home for Less",
+      button_text: "Shop Room Sets →",
+      image: "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=800&q=80",
+    },
+  ],
+  grocery: [
+    {
+      id: "organic_farm",
+      name: "Farm-Fresh Harvest",
+      badge: "100% Organic",
+      title: "Locally Sourced Organic Fruit & Veggies",
+      button_text: "Shop Fresh →",
+      image: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "specialty_coffee",
+      name: "Single Origin Coffee",
+      badge: "Freshly Roasted",
+      title: "Artisanal Arabica Whole Bean Coffee",
+      button_text: "Brew Better →",
+      image: "https://images.unsplash.com/photo-1447933601403-0c6688de566e?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "gourmet_spices",
+      name: "Exotic Whole Spices",
+      badge: "Aromatic & Pure",
+      title: "Authentic Traditional Spice Blends",
+      button_text: "Add Flavor →",
+      image: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "dry_fruits",
+      name: "Superfood Dry Fruits",
+      badge: "California Almonds",
+      title: "Premium Walnuts, Cashews & Berries",
+      button_text: "Shop Healthy →",
+      image: "https://images.unsplash.com/photo-1509358271058-acd22cc93898?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "cold_pressed",
+      name: "Cold-Pressed Virgin Oils",
+      badge: "Unrefined & Pure",
+      title: "Extra Virgin Olive & Mustard Oils",
+      button_text: "Shop Pure Oils →",
+      image: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "grocery_bundle",
+      name: "Monthly Pantry Box",
+      badge: "Save 20%",
+      title: "Complete Monthly Kitchen Grocery Kit",
+      button_text: "Order Bundle →",
+      image: "https://images.unsplash.com/photo-1588964895597-cfccd6e2dbf9?auto=format&fit=crop&w=800&q=80",
+    },
+  ],
+};
+
+const NICHE_TABS = [
+  { key: "lighting", label: "Lighting & Electrical", icon: "💡" },
+  { key: "electronics", label: "Electronics & Tech", icon: "⚡" },
+  { key: "fashion", label: "Fashion & Apparel", icon: "👗" },
+  { key: "jewelry", label: "Jewelry & Luxury", icon: "💍" },
+  { key: "beauty", label: "Beauty & Skincare", icon: "🌿" },
+  { key: "home", label: "Home & Decor", icon: "🛋️" },
+  { key: "grocery", label: "Grocery & Foods", icon: "🛒" },
 ];
 
 export function StepPreview({ ulid, onNext }: StepPreviewProps) {
@@ -193,11 +512,35 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
             if (raw) savedLocalColors = JSON.parse(raw);
           } catch {}
 
+          let savedLocalBanner: string | null = null;
+          try {
+            savedLocalBanner = localStorage.getItem(`app_banner_${ulid}`);
+          } catch {}
+
           setConfig((prev: any) => {
-            const preservedHome =
+            let preservedHome =
               Array.isArray(res.config.home) && res.config.home.length > 0
-                ? res.config.home
+                ? [...res.config.home]
                 : prev.home;
+
+            // If a custom banner was uploaded or saved locally, prioritize it over generic placeholders
+            if (savedLocalBanner && !savedLocalBanner.includes("photo-1441986300917") && !savedLocalBanner.includes("placeholders/banner")) {
+              const bannerIdx = preservedHome?.findIndex((s: any) => s.type === "banner");
+              if (bannerIdx >= 0 && preservedHome[bannerIdx]?.items?.[0]) {
+                const currentImg = preservedHome[bannerIdx].items[0].image;
+                if (!currentImg || currentImg.includes("photo-1441986300917") || currentImg.includes("placeholders/banner")) {
+                  preservedHome[bannerIdx] = {
+                    ...preservedHome[bannerIdx],
+                    items: [
+                      {
+                        ...preservedHome[bannerIdx].items[0],
+                        image: savedLocalBanner,
+                      },
+                    ],
+                  };
+                }
+              }
+            }
 
             const finalName =
               res.config.app?.name ||
@@ -364,39 +707,174 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
     });
   };
 
-  const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      const updated = {
-        ...config,
-        app: {
-          ...config.app,
-          logo_url: url,
-        },
-        theme: {
-          ...config.theme,
-          logo_url: url,
-        },
-      };
-      updateConfigDebounced(updated);
+    if (!file) return;
+
+    // Instant local preview
+    const tempUrl = URL.createObjectURL(file);
+    const updated = {
+      ...config,
+      app: {
+        ...config.app,
+        logo_url: tempUrl,
+      },
+      theme: {
+        ...config.theme,
+        logo_url: tempUrl,
+      },
+    };
+    updateConfigDebounced(updated);
+
+    // Read base64 fallback in parallel
+    const reader = new FileReader();
+    const readBase64Promise = new Promise<string>((resolve) => {
+      reader.onload = (ev) => resolve((ev.target?.result as string) || "");
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(file);
+    });
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "logo");
+
+      let finalUrl = "";
+      const res = await fetch(`/api/apps/${ulid}/upload-asset`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) finalUrl = data.url;
+      } else {
+        const directRes = await fetch(`http://127.0.0.1:8000/api/apps/${ulid}/upload-asset`, {
+          method: "POST",
+          body: formData,
+        });
+        if (directRes.ok) {
+          const directData = await directRes.json();
+          if (directData.url) finalUrl = directData.url;
+        }
+      }
+
+      if (!finalUrl) {
+        finalUrl = await readBase64Promise;
+      }
+
+      if (finalUrl) {
+        const persisted = {
+          ...config,
+          app: {
+            ...config.app,
+            logo_url: finalUrl,
+          },
+          theme: {
+            ...config.theme,
+            logo_url: finalUrl,
+          },
+        };
+        updateConfigDebounced(persisted);
+      }
+    } catch (err) {
+      console.warn("Icon upload failed, fallback to base64", err);
+      const base64 = await readBase64Promise;
+      if (base64) {
+        const persisted = {
+          ...config,
+          app: {
+            ...config.app,
+            logo_url: base64,
+          },
+          theme: {
+            ...config.theme,
+            logo_url: base64,
+          },
+        };
+        updateConfigDebounced(persisted);
+      }
     }
   };
 
-  // ─── HERO BANNER EDITING LOGIC ───
+  // ─── HERO BANNER EDITING & NICHE ADAPTATION LOGIC ───
+  const [selectedNicheKey, setSelectedNicheKey] = useState<string>("auto");
+  const detectedNiche = previewData?.niche;
+  const detectedNicheKey = detectedNiche?.key || "lighting";
+  const activeNicheKey = selectedNicheKey === "auto" ? detectedNicheKey : selectedNicheKey;
+  const activePresets =
+    activeNicheKey === detectedNicheKey && Array.isArray(detectedNiche?.presets) && detectedNiche.presets.length > 0
+      ? detectedNiche.presets
+      : (NICHE_PRESETS_MAP[activeNicheKey] || NICHE_PRESETS_MAP.lighting);
+
   const homeBannerSection = Array.isArray(config.home)
     ? config.home.find((s: any) => s.type === "banner")
     : null;
   const bannerItem = homeBannerSection?.items?.[0] || {};
+
   const activeBannerImage =
-    bannerItem.image ||
-    config.app?.banner_url ||
-    config.theme?.banner_url ||
-    previewData?.banner_image ||
-    "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80";
-  const activeBannerTitle = bannerItem.title || "Exclusive Online Collection";
-  const activeBannerBadge = bannerItem.badge || "Featured Store Deal";
-  const activeBannerButton = bannerItem.button_text || "Shop Now →";
+    bannerItem.image &&
+    !bannerItem.image.includes("photo-1441986300917") &&
+    !bannerItem.image.includes("placeholders/banner1")
+      ? bannerItem.image
+      : detectedNiche?.hero_image ||
+        previewData?.banner_image ||
+        config.app?.banner_url ||
+        config.theme?.banner_url ||
+        "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp";
+
+  const activeBannerTitle =
+    bannerItem.title && bannerItem.title !== "Exclusive Online Collection"
+      ? bannerItem.title
+      : detectedNiche?.hero_title || "High-Performance Lighting & Bulbs";
+
+  const activeBannerBadge =
+    bannerItem.badge && bannerItem.badge !== "Featured Store Deal"
+      ? bannerItem.badge
+      : detectedNiche?.hero_badge || "SUPER BRIGHT • 2026 EDITION";
+
+  const activeBannerButton =
+    bannerItem.button_text && bannerItem.button_text !== "Shop Now →"
+      ? bannerItem.button_text
+      : detectedNiche?.hero_button || "Shop Halogen & LED →";
+
+  // Automatically calibrate initial banner to detected store niche when loaded (ONLY IF user hasn't uploaded/customized banner)
+  const hasSyncedNicheBanner = useRef(false);
+  useEffect(() => {
+    // Crucial: Wait until draft configuration has loaded from backend before checking
+    if (!hasLoadedDraft.current || !previewData?.niche || hasSyncedNicheBanner.current) return;
+
+    const currentBannerItem = Array.isArray(config?.home)
+      ? config.home.find((s: any) => s.type === "banner")?.items?.[0]
+      : null;
+
+    // Check if the current banner is just an unconfigured generic placeholder
+    const isPlaceholderImage =
+      !currentBannerItem?.image ||
+      currentBannerItem.image.includes("photo-1441986300917") ||
+      currentBannerItem.image.includes("placeholders/banner");
+
+    let hasLocalCustomBanner = false;
+    try {
+      const saved = localStorage.getItem(`app_banner_${ulid}`);
+      if (saved && !saved.includes("photo-1441986300917") && !saved.includes("placeholders/banner")) {
+        hasLocalCustomBanner = true;
+      }
+    } catch {}
+
+    // Only apply default niche image if user has NO custom banner set anywhere
+    if (isPlaceholderImage && !hasLocalCustomBanner && previewData.niche.hero_image) {
+      hasSyncedNicheBanner.current = true;
+      updateBanner({
+        image: previewData.niche.hero_image,
+        title: previewData.niche.hero_title,
+        badge: previewData.niche.hero_badge,
+        button_text: previewData.niche.hero_button,
+      });
+    } else {
+      hasSyncedNicheBanner.current = true;
+    }
+  }, [hasLoadedDraft.current, previewData?.niche, config?.home, ulid]);
 
   const updateBanner = (updates: {
     image?: string;
@@ -404,6 +882,11 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
     badge?: string;
     button_text?: string;
   }) => {
+    if (updates.image) {
+      try {
+        localStorage.setItem(`app_banner_${ulid}`, updates.image);
+      } catch {}
+    }
     setConfig((prev: any) => {
       const currentHome = Array.isArray(prev.home) ? [...prev.home] : [];
       const bannerIndex = currentHome.findIndex((s: any) => s.type === "banner");
@@ -469,33 +952,62 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
     const tempUrl = URL.createObjectURL(file);
     updateBanner({ image: tempUrl });
 
+    // Read base64 in parallel for offline/fallback resilience
+    const reader = new FileReader();
+    const readBase64Promise = new Promise<string>((resolve) => {
+      reader.onload = (ev) => resolve((ev.target?.result as string) || "");
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(file);
+    });
+
     try {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("type", "banner");
 
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
-      const res = await fetch(`http://localhost:8000/api/apps/${ulid}/upload-asset`, {
+      let finalUrl = "";
+      // 1. Send to relative Next.js proxy route with session cookies
+      const res = await fetch(`/api/apps/${ulid}/upload-asset`, {
         method: "POST",
-        headers: {
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
         body: formData,
       });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || "Failed to upload banner.");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) finalUrl = data.url;
+      } else {
+        // 2. Direct backend fallback
+        const directRes = await fetch(`http://127.0.0.1:8000/api/apps/${ulid}/upload-asset`, {
+          method: "POST",
+          body: formData,
+        });
+        if (directRes.ok) {
+          const directData = await directRes.json();
+          if (directData.url) finalUrl = directData.url;
+        }
       }
 
-      const data = await res.json();
-      if (data.url) {
-        updateBanner({ image: data.url });
+      // 3. Fallback to base64 Data URL if needed
+      if (!finalUrl) {
+        finalUrl = await readBase64Promise;
+      }
+
+      if (finalUrl) {
+        try {
+          localStorage.setItem(`app_banner_${ulid}`, finalUrl);
+        } catch {}
+        updateBanner({ image: finalUrl });
+        setBannerUploadError(null);
       }
     } catch (err: any) {
-      console.error("Banner upload error:", err);
-      setBannerUploadError(err.message || "Upload failed. Image is active in local preview.");
+      console.warn("Banner upload error, falling back to base64 data URL:", err);
+      const base64 = await readBase64Promise;
+      if (base64) {
+        updateBanner({ image: base64 });
+        setBannerUploadError(null);
+      } else {
+        setBannerUploadError(err.message || "Failed to upload banner.");
+      }
     } finally {
       setIsUploadingBanner(false);
       if (bannerFileInputRef.current) {
@@ -520,6 +1032,17 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
   const handlePublish = async () => {
     setIsPublishing(true);
     try {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+
+      // 1. Immediately persist current state to draft
+      await apiClient(`/api/apps/${ulid}/config/draft`, {
+        method: "PUT",
+        body: JSON.stringify(config),
+      });
+
+      // 2. Publish snapshot
       await apiClient(`/api/apps/${ulid}/config/publish`, {
         method: "POST",
       });
@@ -654,15 +1177,16 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
                 onClick={() =>
                   updateBanner({
                     image:
+                      previewData?.niche?.hero_image ||
                       previewData?.banner_image ||
-                      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80",
-                    title: "Exclusive Online Collection",
-                    badge: "Featured Store Deal",
-                    button_text: "Shop Now →",
+                      "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp",
+                    title: previewData?.niche?.hero_title || "High-Performance Lighting & Bulbs",
+                    badge: previewData?.niche?.hero_badge || "SUPER BRIGHT • 2026 EDITION",
+                    button_text: previewData?.niche?.hero_button || "Shop Halogen & LED →",
                   })
                 }
                 className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1 hover:bg-white px-2 py-1 rounded-lg border border-transparent hover:border-slate-200 transition cursor-pointer"
-                title="Reset banner to default"
+                title="Reset banner to store niche default"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Reset</span>
@@ -763,56 +1287,6 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
               </div>
             </div>
 
-            {/* Curated 1-Click Banner Presets */}
-            <div className="space-y-2 pt-2 border-t border-slate-200/60">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                  Curated E-Commerce Presets (1-Click)
-                </span>
-                <span className="text-[10px] text-slate-400">High-res banners</span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {BANNER_PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() =>
-                      updateBanner({
-                        image: preset.image,
-                        title: preset.title,
-                        badge: preset.badge,
-                        button_text: preset.button_text,
-                      })
-                    }
-                    className={`group relative overflow-hidden rounded-xl border p-1 text-left transition-all cursor-pointer ${
-                      activeBannerImage === preset.image
-                        ? "border-indigo-600 ring-2 ring-indigo-500 bg-indigo-50/50 shadow-xs"
-                        : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs"
-                    }`}
-                  >
-                    <div className="w-full h-12 rounded-lg overflow-hidden bg-slate-100 mb-1 relative">
-                      <img
-                        src={preset.image}
-                        alt={preset.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                      />
-                      {activeBannerImage === preset.image && (
-                        <div className="absolute top-1 right-1 w-4 h-4 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-xs">
-                          <Check className="w-2.5 h-2.5 stroke-[3]" />
-                        </div>
-                      )}
-                    </div>
-                    <span className="block text-[10.5px] font-bold text-slate-800 truncate px-0.5">
-                      {preset.name}
-                    </span>
-                    <span className="block text-[9px] text-slate-500 truncate px-0.5">
-                      {preset.badge}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
 
             {/* Banner Promotional Text Customization (Collapsible) */}
             <div className="pt-2.5 mt-2 border-t border-slate-200/60">
@@ -1152,6 +1626,7 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
             categories={previewData?.categories}
             logoUrl={config?.app?.logo_url || config?.theme?.logo_url || previewData?.website_logo}
             bannerUrl={activeBannerImage}
+            niche={previewData?.niche}
             onEditBanner={handleEditBannerFromPhone}
           />
         </div>

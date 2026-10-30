@@ -10,6 +10,7 @@ import '../../features/notifications/notifications_screen.dart';
 import '../../features/orders/orders_screen.dart';
 import '../../features/product/product_details_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../features/search/search_screen.dart';
 import '../../features/splash/splash_screen.dart';
 import '../../features/wishlist/wishlist_screen.dart';
 import '../../layouts/main_layout.dart';
@@ -89,6 +90,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ],
           ),
         ],
+      ),
+      GoRoute(
+        path: '/search',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final q = state.uri.queryParameters['q'];
+          return SearchScreen(initialQuery: q);
+        },
       ),
       GoRoute(
         path: '/cart',

@@ -169,6 +169,11 @@ class BuildWorker
                 'finished_at'   => now(),
             ]);
 
+            $app->update([
+                'status'     => \App\Enums\AppStatus::Completed,
+                'setup_step' => \App\Enums\SetupStep::Build,
+            ]);
+
             // Clean up temporary workspace
             @unlink("{$buildDir}/android/key.properties");
         } catch (Throwable $e) {

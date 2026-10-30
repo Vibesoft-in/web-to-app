@@ -12,6 +12,8 @@ import {
   ArrowRight,
   Building,
   CheckCircle2,
+  Eye,
+  EyeOff,
   Loader2,
   Lock,
   Mail,
@@ -85,83 +87,123 @@ type SignupFormData = z.infer<typeof signupSchema>;
 
 interface SignupClientProps {
   initialTheme?: string;
+  initialPlan?: string;
 }
 
-export function SignupClient({ initialTheme }: SignupClientProps) {
+export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const clientQueryTheme = searchParams.get("theme")?.toLowerCase();
+  const clientQueryPlan = searchParams.get("plan")?.toLowerCase();
 
   const effectiveTheme = (clientQueryTheme || initialTheme || "").toLowerCase();
+  const effectivePlan = (clientQueryPlan || initialPlan || "").toLowerCase();
 
-  const [selectedThemeSlug, setSelectedThemeSlug] = useState<string>(() => {
+  const [selectedThemeSlug, setSelectedThemeSlug] = useState<string | null>(() => {
     if (effectiveTheme && THEME_OPTIONS.some((t) => t.slug === effectiveTheme)) {
       return effectiveTheme;
     }
-    return "minimal";
+    return null;
   });
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Sync with URL query parameter or localStorage
+  // Sync with URL query parameter or localStorage ONLY if user particularly selected a theme
   useEffect(() => {
-    let activeSlug = "minimal";
+    let explicitlySelectedSlug: string | null = null;
 
     if (clientQueryTheme && THEME_OPTIONS.some((t) => t.slug === clientQueryTheme)) {
-      activeSlug = clientQueryTheme;
+      explicitlySelectedSlug = clientQueryTheme;
     } else if (initialTheme && THEME_OPTIONS.some((t) => t.slug === initialTheme.toLowerCase())) {
-      activeSlug = initialTheme.toLowerCase();
+      explicitlySelectedSlug = initialTheme.toLowerCase();
     } else {
       try {
         const saved = localStorage.getItem("appifyhub_selected_theme");
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (parsed.slug && THEME_OPTIONS.some((t) => t.slug === parsed.slug)) {
-            activeSlug = parsed.slug;
+          // Only honor if explicitly selected by user beforehand
+          if (parsed.selectedByUser && parsed.slug && THEME_OPTIONS.some((t) => t.slug === parsed.slug)) {
+            explicitlySelectedSlug = parsed.slug;
           }
         }
       } catch {}
     }
 
-    setSelectedThemeSlug(activeSlug);
+    setSelectedThemeSlug(explicitlySelectedSlug);
 
-    // Persist active selection to localStorage
-    const matched = THEME_OPTIONS.find((t) => t.slug === activeSlug);
-    if (matched) {
+    // ONLY persist if the user explicitly selected this theme!
+    if (explicitlySelectedSlug) {
+      const matched = THEME_OPTIONS.find((t) => t.slug === explicitlySelectedSlug);
+      if (matched) {
+        try {
+          localStorage.setItem(
+            "appifyhub_selected_theme",
+            JSON.stringify({
+              name: matched.name,
+              slug: matched.slug,
+              price: matched.price,
+              badge: matched.badge,
+              selectedByUser: true,
+            })
+          );
+        } catch {}
+      }
+    }
+
+    if (effectivePlan) {
       try {
-        localStorage.setItem(
-          "appifyhub_selected_theme",
-          JSON.stringify({
-            name: matched.name,
-            slug: matched.slug,
-            price: matched.price,
-            badge: matched.badge,
-          })
-        );
+        localStorage.setItem("appifyhub_selected_plan", effectivePlan);
+      } catch {}
+    } else {
+      try {
+        localStorage.removeItem("appifyhub_selected_plan");
+        localStorage.removeItem("appifyhub_selected_plan_info");
+        localStorage.removeItem("appifyhub_selected_plan_id");
       } catch {}
     }
-  }, [clientQueryTheme, initialTheme]);
+  }, [clientQueryTheme, initialTheme, effectivePlan]);
 
-  const activeTheme =
-    THEME_OPTIONS.find((t) => t.slug === selectedThemeSlug) || THEME_OPTIONS[0];
+  const activeTheme = selectedThemeSlug
+    ? THEME_OPTIONS.find((t) => t.slug === selectedThemeSlug) || null
+    : null;
 
-  const handleSelectThemeOption = (slug: string) => {
-    setSelectedThemeSlug(slug);
-    const matched = THEME_OPTIONS.find((t) => t.slug === slug);
-    if (matched) {
+  // Check if user is already authenticated when visiting /signup
+  useEffect(() => {
+    let isMounted = true;
+    const checkActiveSession = async () => {
       try {
-        localStorage.setItem(
-          "appifyhub_selected_theme",
-          JSON.stringify({
-            name: matched.name,
-            slug: matched.slug,
-            price: matched.price,
-            badge: matched.badge,
-          })
-        );
+        const meRes = await apiClient("/api/auth/me");
+        if (meRes?.user && isMounted) {
+          if (meRes.user.is_super_admin || meRes.user.email === "admin@webintoapp.com") {
+            window.location.href = "http://localhost:8000/admin";
+            return;
+          }
+          if (meRes.user.has_built_apps) {
+            router.replace("/dashboard");
+          } else if (meRes.user.latest_draft?.ulid) {
+            const step = meRes.user.latest_draft.setup_step || "platform";
+            router.replace(`/dashboard/apps/${meRes.user.latest_draft.ulid}/setup/${step}`);
+          } else {
+            router.replace("/dashboard/apps/new");
+          }
+        }
       } catch {}
-    }
+    };
+
+    checkActiveSession();
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
+
+  const handleClearSelectedTheme = () => {
+    setSelectedThemeSlug(null);
+    try {
+      localStorage.removeItem("appifyhub_selected_theme");
+    } catch {}
   };
 
   const {
@@ -182,7 +224,14 @@ export function SignupClient({ initialTheme }: SignupClientProps) {
         body: JSON.stringify(data),
       });
 
-      router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
+      // Directly redirect new users to the app building steps (preserving explicit theme/plan choices)
+      const params = new URLSearchParams();
+      if (selectedThemeSlug) params.set("theme", selectedThemeSlug);
+      if (effectivePlan) params.set("plan", effectivePlan);
+      const qs = params.toString();
+      const targetUrl = qs ? `/dashboard/apps/new?${qs}` : "/dashboard/apps/new";
+      router.push(targetUrl);
+      router.refresh();
     } catch (err: any) {
       setErrorMessage(
         err.message || "Failed to create account. Please check the form and try again."
@@ -305,14 +354,23 @@ export function SignupClient({ initialTheme }: SignupClientProps) {
               <Lock className="w-5 h-5 absolute left-3.5 top-3.5 text-slate-400" />
               <input
                 {...register("password")}
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="••••••••••••"
-                className={`w-full pl-11 pr-4 py-2.5 rounded-xl border text-sm transition focus:outline-none focus:ring-2 ${
+                className={`w-full pl-11 pr-11 py-2.5 rounded-xl border text-sm transition focus:outline-none focus:ring-2 ${
                   errors.password
                     ? "border-rose-300 focus:ring-rose-200 bg-rose-50/20"
                     : "border-slate-200 focus:border-amber-800 focus:ring-amber-100"
                 }`}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-700 transition"
+                tabIndex={-1}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
             {errors.password && (
               <p className="text-xs text-rose-600 mt-1">{errors.password.message}</p>
@@ -327,14 +385,23 @@ export function SignupClient({ initialTheme }: SignupClientProps) {
               <CheckCircle2 className="w-5 h-5 absolute left-3.5 top-3.5 text-slate-400" />
               <input
                 {...register("password_confirmation")}
-                type="password"
+                type={showConfirmPassword ? "text" : "password"}
                 placeholder="••••••••••••"
-                className={`w-full pl-11 pr-4 py-2.5 rounded-xl border text-sm transition focus:outline-none focus:ring-2 ${
+                className={`w-full pl-11 pr-11 py-2.5 rounded-xl border text-sm transition focus:outline-none focus:ring-2 ${
                   errors.password_confirmation
                     ? "border-rose-300 focus:ring-rose-200 bg-rose-50/20"
                     : "border-slate-200 focus:border-amber-800 focus:ring-amber-100"
                 }`}
               />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-700 transition"
+                tabIndex={-1}
+                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+              >
+                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
             {errors.password_confirmation && (
               <p className="text-xs text-rose-600 mt-1">{errors.password_confirmation.message}</p>

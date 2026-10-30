@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -28,6 +28,75 @@
   --foreground-rgb: 28, 25, 23;
   --background-start-rgb: 247, 245, 240;
   --background-end-rgb: 255, 255, 255;
+
+  /* Mavora Commerce Desk Design Tokens */
+  --mav-bg: #f6f1eb;
+  --mav-glow-a: #e6eecf;
+  --mav-glow-b: #f5e7d2;
+  --mav-surface: #fffcf9;
+  --mav-surface-2: #f8f5ee;
+  --mav-raised: #ffffff;
+  --mav-well: #302e1c0e;
+  --mav-line: #302e1c1a;
+  --mav-line-2: #302e1c2e;
+  --mav-shadow: 0 1px 2px #302e1c0a, 0 14px 32px -22px #302e1c47;
+  --mav-shadow-pop: 0 26px 60px -20px #302e1c57, 0 2px 6px #302e1c14;
+  --mav-text: #23241b;
+  --mav-muted: #5c5d4e;
+  --mav-faint: #6f7060;
+  --mav-primary: #55692c;
+  --mav-on-primary: #fbfdf4;
+  --mav-side: #fdfcf6;
+  --mav-on-side: #23241b;
+  --mav-side-dim: #6f7060;
+  --mav-side-hover: #55692c12;
+  --mav-side-pill: #e2ebc5;
+  --mav-on-side-pill: #2f3d12;
+  --mav-olive: #6f8a35;
+  --mav-coral: #e8894a;
+  --mav-sky: #4b86d6;
+  --mav-amber: #cf9a16;
+  --mav-moss: #3c9585;
+  --mav-rose: #d65a5a;
+  --mav-plum: #8b63c9;
+  --mav-good: #2b8550;
+  --mav-warn: #95640a;
+  --mav-bad: #c23b2f;
+}
+
+[data-theme="dark"] {
+  --mav-bg: #121410;
+  --mav-glow-a: #8caa5024;
+  --mav-glow-b: #4b86d612;
+  --mav-surface: #191c16;
+  --mav-surface-2: #1e221b;
+  --mav-raised: #242920;
+  --mav-well: #ffffff0e;
+  --mav-line: #ffffff14;
+  --mav-line-2: #ffffff29;
+  --mav-shadow: 0 1px 0 #ffffff09 inset, 0 18px 40px -26px #000000d9;
+  --mav-shadow-pop: 0 26px 60px -18px #000000c7, 0 0 0 1px #ffffff14;
+  --mav-text: #eef0e6;
+  --mav-muted: #b0b4a2;
+  --mav-faint: #93978a;
+  --mav-primary: #b8d07c;
+  --mav-on-primary: #172007;
+  --mav-side: #171a14;
+  --mav-on-side: #eef0e6;
+  --mav-side-dim: #eef0e699;
+  --mav-side-hover: #ffffff0f;
+  --mav-side-pill: #d5e4a6;
+  --mav-on-side-pill: #253010;
+  --mav-olive: #a9c76a;
+  --mav-coral: #ffad73;
+  --mav-sky: #85b4f5;
+  --mav-amber: #f2c94c;
+  --mav-moss: #6fcfbd;
+  --mav-rose: #f08a8a;
+  --mav-plum: #c4a4f0;
+  --mav-good: #66cf8c;
+  --mav-warn: #f2c94c;
+  --mav-bad: #f2806e;
 }
 
 html {

@@ -13,15 +13,34 @@ class Plan extends Model
 
     protected $fillable = [
         'name',
+        'slug',
         'price_monthly',
+        'description',
+        'can_apk',
+        'can_aab',
+        'has_admin_panel',
+        'badge',
+        'sort_order',
+        'features_list',
         'features',
         'limits',
         'is_active',
     ];
 
     protected $casts = [
-        'features'  => 'array',
-        'limits'    => 'array',
-        'is_active' => 'boolean',
+        'price_monthly'   => 'integer',
+        'features'        => 'array',
+        'features_list'   => 'array',
+        'limits'          => 'array',
+        'is_active'       => 'boolean',
+        'can_apk'         => 'boolean',
+        'can_aab'         => 'boolean',
+        'has_admin_panel' => 'boolean',
+        'sort_order'      => 'integer',
     ];
+
+    public function getFormattedPriceAttribute(): string
+    {
+        return '₹' . number_format($this->price_monthly / 100);
+    }
 }

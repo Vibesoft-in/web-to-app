@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import {
@@ -15,6 +15,7 @@ import {
   Globe,
   Image as ImageIcon,
   Layers,
+  Link as LinkIcon,
   Loader2,
   Lock,
   Palette,
@@ -26,6 +27,8 @@ import {
   Sliders,
   Sparkles,
   Type,
+  Upload,
+  X,
   Zap,
 } from "lucide-react";
 
@@ -40,6 +43,14 @@ export function StepDataCollection({ ulid, onNext }: StepDataCollectionProps) {
   const [isApplying, setIsApplying] = useState(false);
   const [scanStage, setScanStage] = useState<number>(4);
 
+  // Logo customization state
+  const [customLogoUrl, setCustomLogoUrl] = useState<string | null>(null);
+  const [isChangingLogo, setIsChangingLogo] = useState(false);
+  const [logoMode, setLogoMode] = useState<"upload" | "url">("upload");
+  const [logoInputUrl, setLogoInputUrl] = useState("");
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Editable brand colors (taken from website and customizable by user)
   const [customColors, setCustomColors] = useState<Record<string, string>>({
     primary: "#046BD2",
@@ -50,6 +61,63 @@ export function StepDataCollection({ ulid, onNext }: StepDataCollectionProps) {
   });
   const [hasCustomizedColors, setHasCustomizedColors] = useState(false);
 
+  // Load any previously customized logo from localStorage
+  useEffect(() => {
+    try {
+      const savedLogo = localStorage.getItem(`app_draft_${ulid}_logo`);
+      if (savedLogo) {
+        setCustomLogoUrl(savedLogo);
+      }
+    } catch {}
+  }, [ulid]);
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setLogoError("Image exceeds 5MB limit. Please choose a smaller file.");
+      return;
+    }
+
+    setLogoError(null);
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      const dataUrl = uploadEvent.target?.result as string;
+      if (dataUrl) {
+        setCustomLogoUrl(dataUrl);
+        setIsChangingLogo(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleApplyLogoUrl = () => {
+    const trimmed = logoInputUrl.trim();
+    if (!trimmed) {
+      setLogoError("Please enter an image URL.");
+      return;
+    }
+    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://") && !trimmed.startsWith("data:")) {
+      setLogoError("URL must start with https:// or http://");
+      return;
+    }
+    setLogoError(null);
+    setCustomLogoUrl(trimmed);
+    setLogoInputUrl("");
+    setIsChangingLogo(false);
+  };
+
+  const handleResetLogo = () => {
+    setCustomLogoUrl(null);
+    setLogoError(null);
+    setLogoInputUrl("");
+    setIsChangingLogo(false);
+    try {
+      localStorage.removeItem(`app_draft_${ulid}_logo`);
+    } catch {}
+  };
+
   // Fetch website extracted data
   const {
     data: siteData,
@@ -58,48 +126,8 @@ export function StepDataCollection({ ulid, onNext }: StepDataCollectionProps) {
   } = useQuery({
     queryKey: ["website-data", ulid],
     queryFn: async () => {
-      try {
-        const res = await apiClient(`/api/apps/${ulid}/website-data`);
-        return res;
-      } catch {
-        // Fallback simulated website data if API unavailable
-        return {
-          website_url: "https://testing.livaan.in",
-          store_name: "My Store",
-          brand: {
-            logo_url: "https://testing.livaan.in/wp-content/uploads/2026/10/bd.png",
-            logo_source: "WordPress Custom Logo",
-            favicon_url: "https://testing.livaan.in/wp-content/uploads/2026/10/bg-image-100x100.png",
-            font_heading: "Inter",
-            font_body: "Cardo",
-            detected_fonts: ["Inter", "Cardo"],
-            colors: {
-              primary: "#046BD2",
-              secondary: "#045CB4",
-              accent: "#1E293B",
-              background: "#FFFFFF",
-              surface: "#F0F5FA",
-            },
-          },
-          catalog: {
-            total_products: 4,
-            total_categories: 3,
-            currency: "INR",
-            currency_symbol: "₹",
-            categories: [
-              { id: 17, name: "Fashion", count: 4 },
-              { id: 18, name: "Apparel", count: 4 },
-              { id: 19, name: "Clothing", count: 4 },
-            ],
-          },
-          metrics: {
-            latency_ms: 118,
-            ssl_secure: true,
-            platform: "woo",
-            calculated_at: new Date().toISOString(),
-          },
-        };
-      }
+      const res = await apiClient(`/api/apps/${ulid}/website-data`);
+      return res;
     },
     refetchOnWindowFocus: false,
   });
@@ -175,33 +203,37 @@ export function StepDataCollection({ ulid, onNext }: StepDataCollectionProps) {
 
   const handleApplyAndContinue = async () => {
     setIsApplying(true);
+    const finalLogoUrl = customLogoUrl || siteData?.brand?.logo_url || "";
     try {
-      if (siteData?.brand) {
+      if (siteData?.brand || finalLogoUrl) {
         await apiClient(`/api/apps/${ulid}/website-data/apply`, {
           method: "POST",
           body: JSON.stringify({
-            logo_url: siteData.brand.logo_url,
-            font: siteData.brand.font_heading,
+            logo_url: finalLogoUrl,
+            font: siteData?.brand?.font_heading,
             colors: customColors,
-            app_name: siteData.store_name,
+            app_name: siteData?.store_name,
           }),
         });
 
         // Store in localStorage for branding and theme wizards
         try {
           localStorage.setItem(`app_draft_${ulid}_colors`, JSON.stringify(customColors));
-          if (siteData.brand.colors) {
+          if (finalLogoUrl) {
+            localStorage.setItem(`app_draft_${ulid}_logo`, finalLogoUrl);
+          }
+          if (siteData?.brand?.colors) {
             localStorage.setItem(`app_draft_${ulid}_extracted_colors`, JSON.stringify(siteData.brand.colors));
           }
           localStorage.setItem(
             "appifyhub_extracted_website_brand",
             JSON.stringify({
-              logo_url: siteData.brand.logo_url,
-              font_heading: siteData.brand.font_heading,
-              font_body: siteData.brand.font_body,
+              logo_url: finalLogoUrl,
+              font_heading: siteData?.brand?.font_heading,
+              font_body: siteData?.brand?.font_body,
               colors: customColors,
-              store_name: siteData.store_name,
-              store_url: siteData.website_url,
+              store_name: siteData?.store_name,
+              store_url: siteData?.website_url,
             })
           );
         } catch {}
@@ -228,6 +260,8 @@ export function StepDataCollection({ ulid, onNext }: StepDataCollectionProps) {
       surface: "#F9F7F4",
     },
   };
+
+  const activeLogo = customLogoUrl || brand.logo_url || "";
 
   const catalog = siteData?.catalog || {
     total_products: 0,
@@ -308,7 +342,7 @@ export function StepDataCollection({ ulid, onNext }: StepDataCollectionProps) {
 
       {/* ── 3 COLUMN GRID: LOGO, FONT, COLOR CODES ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {/* 1. EXTRACTED LOGO CARD */}
+        {/* 1. EXTRACTED / CUSTOM LOGO CARD */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -317,23 +351,35 @@ export function StepDataCollection({ ulid, onNext }: StepDataCollectionProps) {
                   <ImageIcon className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Extracted Logo</h3>
-                  <span className="text-[11px] text-slate-400 block">{brand.logo_source}</span>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    {customLogoUrl ? "Custom Store Logo" : "Extracted Logo"}
+                  </h3>
+                  <span className="text-[11px] text-slate-400 block truncate max-w-[150px]">
+                    {customLogoUrl ? "Customized by user" : brand.logo_source}
+                  </span>
                 </div>
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Verified
-              </span>
+              <div className="flex items-center gap-1.5">
+                {customLogoUrl ? (
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                    Custom
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Verified
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Logo Preview Box */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 mb-4 flex flex-col items-center justify-center min-h-[140px] relative group">
-              {brand.logo_url ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 mb-3 flex flex-col items-center justify-center min-h-[140px] relative group">
+              {activeLogo ? (
                 <div className="flex flex-col items-center gap-2">
                   <div className="bg-white p-2.5 rounded-xl border border-slate-200/90 shadow-xs flex items-center justify-center max-w-[200px] min-h-[64px]">
                     <img
-                      src={brand.logo_url}
-                      alt="Extracted Store Logo"
+                      src={activeLogo}
+                      alt="Store Logo"
                       className="max-h-14 max-w-[170px] object-contain drop-shadow-xs"
                       onError={(e) => {
                         (e.target as HTMLElement).style.display = "none";
@@ -341,7 +387,7 @@ export function StepDataCollection({ ulid, onNext }: StepDataCollectionProps) {
                     />
                   </div>
                   <div className="flex items-center gap-2 mt-1">
-                    {brand.favicon_url && (
+                    {brand.favicon_url && !customLogoUrl && (
                       <img
                         src={brand.favicon_url}
                         alt="Favicon"
@@ -350,17 +396,123 @@ export function StepDataCollection({ ulid, onNext }: StepDataCollectionProps) {
                       />
                     )}
                     <span className="text-[11px] text-slate-500 font-medium">
-                      {siteData?.store_name || "Store"} Official Logo
+                      {customLogoUrl ? "Selected Custom Logo" : `${siteData?.store_name || "Store"} Official Logo`}
                     </span>
                   </div>
                 </div>
               ) : (
                 <div className="text-center text-xs text-slate-400">
                   <ImageIcon className="w-8 h-8 mx-auto mb-1 text-slate-300" />
-                  <span>Favicon / Logo Loaded</span>
+                  <span>No Logo Detected</span>
                 </div>
               )}
             </div>
+
+            {/* Change Logo Actions / Controls */}
+            {!isChangingLogo ? (
+              <div className="flex items-center gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setIsChangingLogo(true)}
+                  className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>Change Logo</span>
+                </button>
+
+                {customLogoUrl && (
+                  <button
+                    type="button"
+                    onClick={handleResetLogo}
+                    title="Reset to website's extracted logo"
+                    className="py-2 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Reset</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl mb-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800">Change Store Logo:</span>
+                  <button
+                    type="button"
+                    onClick={() => { setIsChangingLogo(false); setLogoError(null); }}
+                    className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Sub-tabs: Upload file or URL */}
+                <div className="flex border-b border-slate-200 text-[11px] font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => { setLogoMode("upload"); setLogoError(null); }}
+                    className={`pb-1.5 px-2 border-b-2 transition cursor-pointer ${
+                      logoMode === "upload"
+                        ? "border-amber-900 text-amber-900 font-bold"
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    Upload File
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setLogoMode("url"); setLogoError(null); }}
+                    className={`pb-1.5 px-2 border-b-2 transition cursor-pointer ${
+                      logoMode === "url"
+                        ? "border-amber-900 text-amber-900 font-bold"
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    Image URL
+                  </button>
+                </div>
+
+                {logoMode === "upload" ? (
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                      className="hidden"
+                      onChange={handleLogoUpload}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-2.5 px-3 border border-dashed border-slate-300 hover:border-amber-600 bg-white hover:bg-amber-50/50 rounded-xl text-xs font-semibold text-slate-700 transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-amber-800" />
+                      <span>Choose Image (PNG, JPG, SVG, WebP)</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-1.5">
+                    <input
+                      type="url"
+                      placeholder="https://example.com/logo.png"
+                      value={logoInputUrl}
+                      onChange={(e) => setLogoInputUrl(e.target.value)}
+                      className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyLogoUrl}
+                      className="px-3 py-1.5 bg-amber-900 hover:bg-amber-950 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                )}
+
+                {logoError && (
+                  <p className="text-[11px] text-rose-600 font-medium">{logoError}</p>
+                )}
+              </div>
+            )}
 
             <p className="text-xs text-slate-500 leading-relaxed">
               This logo will be automatically configured for your mobile app splash screen, header navigation, and push notifications.

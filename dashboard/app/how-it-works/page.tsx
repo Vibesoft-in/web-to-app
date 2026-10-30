@@ -217,10 +217,10 @@ export default function HowItWorksPage() {
             <Link href="/themes" className="nav-link">
               Themes
             </Link>
-            <Link href="/pricing" className="nav-link">
-              Pricing
+            <Link href="/plans" className="nav-link">
+              Plans
             </Link>
-            <Link href="/#faq" className="nav-link">
+            <Link href="/support" className="nav-link">
               Support
             </Link>
           </nav>
@@ -1002,7 +1002,7 @@ export default function HowItWorksPage() {
                             Complete payment securely via integrated gateways (Razorpay / Stripe) with server-side HMAC verification. No surprise fees or hidden sales commissions.
                           </p>
                           <div className="hiw-step-action-row">
-                            <Link href="/pricing" className="btn-step-action">
+                            <Link href="/plans" className="btn-step-action">
                               <span>View Pricing Plans &rarr;</span>
                             </Link>
                           </div>
@@ -1232,13 +1232,13 @@ export default function HowItWorksPage() {
                   <Link href="/how-it-works">How It Works</Link>
                 </li>
                 <li>
-                  <Link href="/#features">Features</Link>
-                </li>
-                <li>
                   <Link href="/themes">Themes</Link>
                 </li>
                 <li>
-                  <Link href="/pricing">Pricing</Link>
+                  <Link href="/plans">Plans &amp; Add-ons</Link>
+                </li>
+                <li>
+                  <Link href="/support">Support</Link>
                 </li>
               </ul>
             </div>

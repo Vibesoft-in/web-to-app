@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api-client";
 
 interface ThemeItem {
   id: number;
@@ -93,6 +95,29 @@ const THEMES: ThemeItem[] = [
     visualStyle: "Trendy Style",
     highlights: "Dynamic Hero Banners, Lookbook Grid, Instant Wishlist",
   },
+  {
+    id: 4,
+    name: "Elite Dark Luxe",
+    slug: "elite",
+    category: "elite" as any,
+    badge: "Premium Exclusive",
+    formatted_price: "Included in Premium",
+    description:
+      "An ultra-premium obsidian dark theme with brushed amber-gold accents designed for luxury and high-ticket eCommerce.",
+    image: "/assets/images/theme_modern_minimalist.jpg",
+    features: [
+      "Obsidian Dark Mode",
+      "Brushed Gold Accents",
+      "VIP Member Badges",
+      "Haptic Micro-interactions",
+      "Cinzel Luxury Typography",
+    ],
+    demo_url: "/themes/elite/demo",
+    details_url: "/themes/elite/demo",
+    bestFor: "Luxury Brands & Premium Stores",
+    visualStyle: "Elite Luxe Style",
+    highlights: "Obsidian Dark Mode, Gold Accents, VIP Member Badges",
+  },
 ];
 
 export default function ThemesPage() {
@@ -118,8 +143,59 @@ export default function ThemesPage() {
   };
 
   const router = useRouter();
+  const queryClient = useQueryClient();
 
-  // Select Theme handler: saves selection and redirects to create account / signup page
+  const { data: authData } = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: () => apiClient("/api/auth/me"),
+    retry: false,
+  });
+
+  const user = authData?.user;
+  const isAdmin = Boolean(user?.is_super_admin || user?.email === "admin@webintoapp.com");
+
+  const { data: appsData } = useQuery({
+    queryKey: ["apps"],
+    queryFn: async () => {
+      try {
+        const res = await apiClient("/api/apps");
+        return Array.isArray(res) ? res : res.apps || [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: Boolean(user && !isAdmin),
+  });
+
+  const apps = appsData || [];
+  const hasPreviouslyBuiltApps = Boolean(
+    apps.length > 0 &&
+    apps.some((a: any) => {
+      const bList = a.builds || [];
+      return (
+        bList.length > 0 ||
+        a.status === "live" ||
+        a.status === "active" ||
+        a.status === "building" ||
+        a.status === "paid" ||
+        a.setup_step === "build"
+      );
+    })
+  );
+
+  const dashboardHref = apps.length > 0 ? "/dashboard" : "/dashboard/apps/new";
+
+  const handleLogout = async () => {
+    try {
+      await apiClient("/api/auth/logout", { method: "POST" });
+    } finally {
+      queryClient.setQueryData(["auth", "me"], { user: null });
+      queryClient.removeQueries({ queryKey: ["auth", "me"] });
+      window.location.reload();
+    }
+  };
+
+  // Select Theme handler: saves selection and redirects
   const handleSelectTheme = (theme: ThemeItem) => {
     setSelectedThemeId(theme.id);
     try {
@@ -131,13 +207,26 @@ export default function ThemesPage() {
           slug: theme.slug,
           price: theme.formatted_price,
           badge: theme.badge,
+          selectedByUser: true,
         })
       );
     } catch {
       // Ignore if localStorage unavailable
     }
-    triggerToast(`Selected ${theme.name}! Redirecting to create account...`);
-    router.push(`/signup?theme=${theme.slug}`);
+
+    if (user) {
+      if (isAdmin) {
+        triggerToast("Super Admin oversight active. Redirecting to Filament Admin...");
+        window.location.href = "http://localhost:8000/admin";
+        return;
+      } else {
+        triggerToast(`Selected ${theme.name}! Opening app builder...`);
+        router.push(`/dashboard/apps/new?theme=${theme.slug}`);
+      }
+    } else {
+      triggerToast(`Selected ${theme.name}! Redirecting to create account...`);
+      router.push(`/signup?theme=${theme.slug}`);
+    }
   };
 
   // Filtered themes list
@@ -212,34 +301,53 @@ export default function ThemesPage() {
             <Link href="/themes" className="nav-link active">
               Themes
             </Link>
-            <Link href="/pricing" className="nav-link">
-              Pricing
+            <Link href="/plans" className="nav-link">
+              Plans
             </Link>
-            <a href="/#faq" className="nav-link">
+            <Link href="/support" className="nav-link">
               Support
-            </a>
+            </Link>
           </nav>
 
-          <div className="header-actions">
+          <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <Link href="/login" className="btn-text">
               Login
             </Link>
-            <Link href="/signup" className="btn-outline">
-              <span>Get Started</span>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="3" y1="8" x2="13" y2="8" />
-                <polyline points="9 4 13 8 9 12" />
-              </svg>
-            </Link>
+            {user ? (
+              <>
+                <Link
+                  href={isAdmin ? "http://localhost:8000/admin" : dashboardHref}
+                  className="btn-outline"
+                >
+                  <span>{isAdmin ? "Admin Oversight" : apps.length > 0 ? "Dashboard" : "Create App"}</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="btn-text"
+                  style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <Link href="/signup" className="btn-outline">
+                  <span>Get Started</span>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="3" y1="8" x2="13" y2="8" />
+                    <polyline points="9 4 13 8 9 12" />
+                  </svg>
+                </Link>
+            )}
           </div>
         </div>
       </header>
@@ -321,6 +429,16 @@ export default function ThemesPage() {
                 >
                   Trendy
                 </button>
+                <button
+                  type="button"
+                  className={`filter-pill ${activeCategory === "elite" ? "is-active" : ""}`}
+                  onClick={() => {
+                    setActiveCategory("elite");
+                    triggerToast("Category: Elite Dark Luxe (Premium Exclusive)");
+                  }}
+                >
+                  Elite (Premium)
+                </button>
               </div>
 
               <div className="themes-search-input-wrap">
@@ -352,6 +470,27 @@ export default function ThemesPage() {
         {/* ─── 2. THEME MARKETPLACE GRID ─── */}
         <section className="themes-grid-section" id="themeCatalog">
           <div className="themes-container">
+            {/* Admin Policy Notice */}
+            <div
+              style={{
+                background: "rgba(254, 243, 199, 0.6)",
+                border: "1px solid #FCD34D",
+                borderRadius: "16px",
+                padding: "1rem 1.25rem",
+                marginBottom: "2rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+                fontSize: "0.85rem",
+                color: "#78350F",
+              }}
+            >
+              <span style={{ fontSize: "1.25rem" }}>👑</span>
+              <div>
+                <strong>Website Admin Theme Policy:</strong> The official free mobile theme is assigned directly by the Website Administrator. Standard users cannot change or swap themes. Theme switching and the exclusive 4th theme (<em>Elite Dark Luxe</em>) are unlocked on the <strong>Premium Plan</strong> or via Admin assignment.
+              </div>
+            </div>
+
             {filteredThemes.length > 0 ? (
               <div className="themes-marketplace-grid" id="themesMarketplaceGrid">
                 {filteredThemes.map((theme) => {
@@ -816,13 +955,13 @@ export default function ThemesPage() {
                   <Link href="/how-it-works">How It Works</Link>
                 </li>
                 <li>
-                  <a href="/#features">Features</a>
-                </li>
-                <li>
                   <Link href="/themes">Themes</Link>
                 </li>
                 <li>
-                  <Link href="/pricing">Pricing</Link>
+                  <Link href="/plans">Plans &amp; Add-ons</Link>
+                </li>
+                <li>
+                  <Link href="/support">Support</Link>
                 </li>
               </ul>
             </div>

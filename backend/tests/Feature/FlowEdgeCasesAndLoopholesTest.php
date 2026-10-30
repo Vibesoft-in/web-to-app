@@ -56,7 +56,7 @@ class FlowEdgeCasesAndLoopholesTest extends TestCase
             'tenant_id'         => $this->tenant->id,
             'name'              => 'User Two',
             'email'             => 'user2@example.com',
-            'role'              => 'member',
+            'role'              => 'editor',
             'email_verified_at' => now(),
         ]);
 

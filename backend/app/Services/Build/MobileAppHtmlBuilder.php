@@ -183,18 +183,49 @@ class MobileAppHtmlBuilder
         }
         $categories = array_values(array_unique($categories));
 
-        // 2. Fetch Theme Settings
-        $config = $app->configs()->where('state', 'published')->first()?->config
-            ?? $app->configs()->where('state', 'draft')->first()?->config
+        // 2. Fetch Theme Settings (Always prioritize latest published version, fallback to draft)
+        $config = $app->configs()->where('state', 'published')->latest('version')->first()?->config
+            ?? $app->configs()->where('state', 'draft')->latest()->first()?->config
             ?? [];
 
-        $primaryColor = $config['theme']['colors']['primary'] ?? '#4F46E5';
-        $secondaryColor = $config['theme']['colors']['secondary'] ?? '#0F172A';
-        $bgColor = $config['theme']['colors']['background'] ?? '#F8FAFC';
-        $surfaceColor = $config['theme']['colors']['surface'] ?? '#FFFFFF';
+        $primaryColor = $config['theme']['colors']['primary'] ?? '#046BD2';
+        $secondaryColor = $config['theme']['colors']['secondary'] ?? '#045CB4';
+        $bgColor = $config['theme']['colors']['background'] ?? '#FFFFFF';
+        $surfaceColor = $config['theme']['colors']['surface'] ?? '#F8FAFC';
         $textColor = $config['theme']['colors']['text'] ?? '#0F172A';
-        $radius = (int) ($config['theme']['radius'] ?? 16);
-        $accentColor = '#E11D48';
+        $radius = (int) ($config['theme']['radius'] ?? 14);
+        $accentColor = '#EF4444';
+
+        // Extract Hero Banner from Home sections or app config
+        $homeBanner = null;
+        if (!empty($config['home']) && is_array($config['home'])) {
+            foreach ($config['home'] as $sec) {
+                if (($sec['type'] ?? '') === 'banner' && !empty($sec['items'][0])) {
+                    $homeBanner = $sec['items'][0];
+                    break;
+                }
+            }
+        }
+
+        $bannerImage = $homeBanner['image']
+            ?? ($config['app']['banner_url'] ?? ($config['theme']['banner_url'] ?? ''));
+
+        if (str_contains((string) $bannerImage, 'photo-1441986300917') || str_contains((string) $bannerImage, 'placeholders/banner')) {
+            $bannerImage = '';
+        }
+        if (empty($bannerImage) && !empty($products[0]['images'][0])) {
+            $bannerImage = $products[0]['images'][0];
+        }
+
+        $bannerBadge = htmlspecialchars($homeBanner['badge'] ?? 'SUPER BRIGHT • 2026 EDITION', ENT_QUOTES, 'UTF-8');
+        $bannerTitle = htmlspecialchars($homeBanner['title'] ?? 'High-Performance Lighting & Bulbs', ENT_QUOTES, 'UTF-8');
+        $bannerButton = htmlspecialchars($homeBanner['button_text'] ?? 'Shop Store Catalog →', ENT_QUOTES, 'UTF-8');
+
+        $bannerImageHtml = !empty($bannerImage)
+            ? "<img src=\"{$bannerImage}\" class=\"hero-bg-img\" alt=\"Banner\" onerror=\"this.style.display='none'\">"
+            : '';
+
+        $searchPlaceholder = "Search " . htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') . " catalog, products...";
 
         // Typography Support (Google Fonts)
         $selectedFont = $config['theme']['font'] ?? 'Poppins';
@@ -431,12 +462,14 @@ class MobileAppHtmlBuilder
 
     /* ── APP HEADER ── */
     header {
-      background: var(--surface);
-      padding: 14px 18px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      padding: 12px 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid rgba(226, 232, 240, 0.8);
       position: sticky;
       top: 0;
       z-index: 100;
@@ -447,61 +480,100 @@ class MobileAppHtmlBuilder
       gap: 10px;
     }
     .brand-logo {
-      width: 36px;
-      height: 36px;
+      width: 38px;
+      height: 38px;
       background: var(--primary);
-      border-radius: 10px;
+      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
       color: white;
       font-weight: 800;
-      font-size: 16px;
-      box-shadow: 0 4px 10px rgba(79,70,229,0.3);
+      font-size: 17px;
+      box-shadow: 0 4px 12px rgba(4, 107, 210, 0.25);
     }
     .brand-logo-img {
-      width: 36px;
-      height: 36px;
+      width: 38px;
+      height: 38px;
       object-fit: contain;
-      border-radius: 10px;
+      border-radius: 12px;
       background: white;
       padding: 3px;
-      border: 1px solid rgba(0,0,0,0.08);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      border: 1.5px solid rgba(226, 232, 240, 0.8);
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
+    }
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .brand-name-wrap {
+      display: flex;
+      align-items: center;
+      gap: 5px;
     }
     .brand-name {
       font-weight: 800;
-      font-size: 16px;
+      font-size: 15px;
       color: var(--text);
-      max-width: 170px;
+      max-width: 160px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      letter-spacing: -0.3px;
+    }
+    .verified-badge {
+      width: 14px;
+      height: 14px;
+      fill: var(--primary);
+      flex-shrink: 0;
+    }
+    .brand-sub {
+      font-size: 10px;
+      font-weight: 700;
+      color: #10B981;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .status-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #10B981;
+      display: inline-block;
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
     }
     .header-icons {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
     .icon-btn {
       position: relative;
       width: 36px;
       height: 36px;
-      border-radius: 10px;
-      background: #F1F5F9;
+      border-radius: 12px;
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      color: #475569;
+      color: #334155;
+      transition: transform 0.15s ease;
+    }
+    .icon-btn:active {
+      transform: scale(0.92);
     }
     .badge {
       position: absolute;
       top: -4px;
       right: -4px;
-      background: var(--accent);
+      background: linear-gradient(135deg, #EF4444 0%, #E11D48 100%);
       color: white;
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: 800;
       width: 18px;
       height: 18px;
@@ -510,13 +582,14 @@ class MobileAppHtmlBuilder
       align-items: center;
       justify-content: center;
       border: 2px solid white;
+      box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
     }
 
     /* ── MAIN CONTENT & VIEWS ── */
     main {
       flex: 1;
       overflow-y: auto;
-      padding-bottom: 90px;
+      padding-bottom: 95px;
     }
     .tab-view {
       display: none;
@@ -532,68 +605,196 @@ class MobileAppHtmlBuilder
 
     /* ── SEARCH BAR ── */
     .search-box {
-      margin: 14px 18px;
+      margin: 12px 16px 14px 16px;
       position: relative;
+      display: flex;
+      align-items: center;
     }
     .search-input {
       width: 100%;
-      padding: 12px 14px 12px 42px;
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      background: white;
+      height: 46px;
+      padding: 0 44px 0 44px;
+      border-radius: 99px;
+      border: 1.5px solid #E2E8F0;
+      background: #FFFFFF;
       font-size: 13px;
+      font-weight: 500;
       color: var(--text);
       outline: none;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+      transition: all 0.2s;
+    }
+    .search-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-light), 0 4px 16px rgba(4, 107, 210, 0.12);
     }
     .search-icon {
       position: absolute;
-      left: 14px;
+      left: 16px;
       top: 50%;
       transform: translateY(-50%);
       color: #94A3B8;
+      pointer-events: none;
+    }
+    .search-filter-icon {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #64748B;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #F8FAFC;
     }
 
     /* ── HERO BANNER ── */
     .hero-banner {
-      margin: 0 18px 18px 18px;
-      height: 140px;
+      margin: 8px 16px 14px 16px;
+      height: 180px;
       border-radius: var(--radius);
-      background: linear-gradient(135deg, var(--primary) 0%, #312E81 100%);
-      color: white;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
       position: relative;
       overflow: hidden;
-      box-shadow: 0 12px 24px rgba(79,70,229,0.25);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 18px 20px;
+      box-shadow: 0 12px 28px -6px rgba(4, 107, 210, 0.35);
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+    }
+    .hero-bg-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .hero-banner:active .hero-bg-img {
+      transform: scale(1.04);
+    }
+    .hero-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(15,23,42,0.1) 0%, rgba(15,23,42,0.45) 45%, rgba(15,23,42,0.92) 100%);
+      pointer-events: none;
+    }
+    .hero-content {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
     }
     .banner-badge {
-      background: rgba(255,255,255,0.2);
-      backdrop-filter: blur(10px);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
       padding: 4px 10px;
       border-radius: 99px;
       font-size: 10px;
       font-weight: 800;
-      align-self: flex-start;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.6px;
       text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.22);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: #FFFFFF;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .badge-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #22C55E;
+      display: inline-block;
+      box-shadow: 0 0 6px #22C55E;
     }
     .banner-title {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 800;
       line-height: 1.25;
+      color: #FFFFFF;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      max-width: 90%;
     }
     .banner-btn {
-      align-self: flex-start;
+      margin-top: 3px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       padding: 6px 14px;
-      background: white;
+      background: #FFFFFF;
       color: var(--primary);
       border-radius: 99px;
       font-size: 11px;
       font-weight: 800;
       border: none;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.22);
       cursor: pointer;
+      transition: all 0.2s;
+    }
+    .banner-btn:active {
+      transform: scale(0.96);
+    }
+    .banner-dots {
+      position: absolute;
+      bottom: 12px;
+      right: 16px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      z-index: 10;
+    }
+    .b-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.45);
+      transition: all 0.2s ease;
+    }
+    .b-dot.active {
+      width: 16px;
+      border-radius: 99px;
+      background: #FFFFFF;
+    }
+
+    /* ── PERKS / TRUST STRIP ── */
+    .perks-strip {
+      margin: 0 16px 16px 16px;
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+    }
+    .perk-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #334155;
+    }
+    .perk-divider {
+      width: 1px;
+      height: 16px;
+      background: #E2E8F0;
     }
 
     /* ── CATEGORIES ── */
@@ -601,12 +802,13 @@ class MobileAppHtmlBuilder
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 18px 10px 18px;
+      padding: 0 16px 10px 16px;
     }
     .section-title {
       font-size: 15px;
       font-weight: 800;
       color: var(--text);
+      letter-spacing: -0.2px;
     }
     .section-link {
       font-size: 12px;
@@ -616,139 +818,217 @@ class MobileAppHtmlBuilder
 
     .category-scroll {
       display: flex;
-      gap: 8px;
-      padding: 0 18px 16px 18px;
+      gap: 9px;
+      padding: 0 16px 16px 16px;
       overflow-x: auto;
       scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
     }
     .category-scroll::-webkit-scrollbar { display: none; }
     .cat-chip {
       padding: 8px 16px;
       border-radius: 99px;
-      background: white;
-      border: 1px solid var(--border);
+      background: #FFFFFF;
+      border: 1.5px solid #E2E8F0;
       font-size: 12px;
       font-weight: 700;
       white-space: nowrap;
       cursor: pointer;
-      color: #64748B;
-      transition: all 0.2s;
+      color: #334155;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cat-chip:active {
+      transform: scale(0.95);
     }
     .cat-chip.active {
-      background: var(--primary);
-      color: white;
-      border-color: var(--primary);
-      box-shadow: 0 4px 12px rgba(79,70,229,0.3);
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: #FFFFFF;
+      border-color: transparent;
+      box-shadow: 0 4px 14px rgba(4, 107, 210, 0.35);
+      transform: translateY(-1px);
     }
 
-    /* ── PRODUCT GRID ── */
+    /* ── PRODUCT GRID (Strict 2-Column Responsive) ── */
     .product-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
-      padding: 0 18px;
+      padding: 0 16px 24px 16px;
     }
     .product-card {
-      background: white;
+      background: #FFFFFF;
       border-radius: var(--radius);
-      border: 1px solid var(--border);
+      border: 1px solid rgba(226, 232, 240, 0.85);
       padding: 10px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       position: relative;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.02);
-      transition: transform 0.15s;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+      min-width: 0;
+      overflow: hidden;
     }
     .product-card:active {
-      transform: scale(0.98);
+      transform: scale(0.97);
     }
     .card-img-wrap {
       width: 100%;
-      height: 130px;
-      border-radius: 12px;
+      height: 140px;
+      border-radius: calc(var(--radius) - 4px);
       overflow: hidden;
-      background: #F1F5F9;
+      background: #F8FAFC;
       position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .card-img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      object-position: center;
+      transition: transform 0.35s ease;
+    }
+    .product-card:active .card-img {
+      transform: scale(1.06);
     }
     .wish-btn {
       position: absolute;
-      top: 8px;
-      right: 8px;
-      width: 30px;
-      height: 30px;
+      top: 7px;
+      right: 7px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
-      background: white;
-      border: none;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(226, 232, 240, 0.8);
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       cursor: pointer;
       color: #94A3B8;
       transition: all 0.2s;
+      z-index: 5;
+    }
+    .wish-btn:active {
+      transform: scale(0.9);
     }
     .wish-btn.active {
-      color: var(--accent);
+      color: #EF4444;
+      background: #FFFFFF;
+      border-color: #FECDD3;
     }
     .discount-badge {
       position: absolute;
-      bottom: 8px;
-      left: 8px;
-      background: var(--accent);
-      color: white;
+      bottom: 7px;
+      left: 7px;
+      background: linear-gradient(135deg, #EF4444 0%, #E11D48 100%);
+      color: #FFFFFF;
       font-size: 9px;
       font-weight: 800;
-      padding: 2px 6px;
+      letter-spacing: 0.4px;
+      padding: 3px 7px;
       border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(239, 68, 68, 0.35);
+      z-index: 5;
     }
     .card-info {
       margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex-grow: 1;
+      min-width: 0;
+    }
+    .card-rating {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #D97706;
+      margin-bottom: 2px;
     }
     .card-title {
       font-size: 12px;
       font-weight: 700;
       color: var(--text);
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      word-break: break-word;
+      min-height: 32px;
     }
     .card-meta {
       display: flex;
       align-items: baseline;
       gap: 6px;
       margin-top: 4px;
+      flex-wrap: wrap;
     }
     .price-current {
-      font-size: 14px;
-      font-weight: 900;
+      font-size: 15px;
+      font-weight: 800;
       color: var(--primary);
+      letter-spacing: -0.3px;
     }
     .price-old {
       font-size: 11px;
       color: #94A3B8;
       text-decoration: line-through;
+      font-weight: 500;
     }
     .btn-add-cart {
       margin-top: 10px;
       width: 100%;
-      padding: 8px;
+      height: 36px;
       border-radius: 10px;
       background: var(--primary);
-      color: white;
+      color: #FFFFFF !important;
       border: none;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 700;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
       cursor: pointer;
+      box-shadow: 0 4px 12px rgba(4, 107, 210, 0.25);
+      transition: all 0.2s ease;
+      line-height: 1;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .btn-add-cart span {
+      color: #FFFFFF !important;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      display: inline-block;
+    }
+    .btn-add-cart svg {
+      width: 14px;
+      height: 14px;
+      stroke: #FFFFFF !important;
+      fill: none;
+      flex-shrink: 0;
+    }
+    .btn-add-cart:active {
+      transform: scale(0.96);
+      filter: brightness(0.92);
+    }
+    .btn-add-cart.in-cart {
+      background: #059669;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
     }
 
     /* ── CART VIEW ── */
@@ -793,38 +1073,97 @@ class MobileAppHtmlBuilder
     }
 
     /* ── BOTTOM NAV ── */
+    /* ── FLOATING QUICK-CART BAR ── */
+    #floating-cart-bar {
+      position: fixed;
+      bottom: 74px;
+      left: 14px;
+      right: 14px;
+      background: #0F172A;
+      color: #FFFFFF;
+      border-radius: 14px;
+      padding: 10px 16px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 99;
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.35);
+      cursor: pointer;
+      animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    #floating-cart-bar.active {
+      display: flex;
+    }
+    .fc-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .fc-badge {
+      background: rgba(255, 255, 255, 0.16);
+      padding: 3px 8px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .fc-total {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #10B981;
+    }
+    .fc-right {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #FFFFFF;
+    }
+
+    /* ── BOTTOM NAV ── */
     nav.bottom-nav {
       position: fixed;
       bottom: 0;
       left: 0;
       right: 0;
-      height: 68px;
-      background: var(--surface);
-      border-top: 1px solid var(--border);
+      height: 64px;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(226, 232, 240, 0.85);
       display: flex;
       align-items: center;
       justify-content: space-around;
       z-index: 100;
-      padding-bottom: 6px;
+      padding-bottom: 4px;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.04);
     }
     .nav-item {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 4px;
-      color: #94A3B8;
+      gap: 3px;
+      color: #64748B;
       font-size: 10px;
       font-weight: 700;
       cursor: pointer;
-      transition: color 0.2s;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       position: relative;
+      padding: 5px 12px;
+      border-radius: 99px;
     }
     .nav-item.active {
       color: var(--primary);
+      background: var(--primary-light);
     }
     .nav-item svg {
       width: 20px;
       height: 20px;
+      transition: transform 0.2s ease;
+    }
+    .nav-item.active svg {
+      transform: translateY(-1px);
     }
 
     /* ── TOAST NOTIFICATION ── */
@@ -854,7 +1193,9 @@ class MobileAppHtmlBuilder
     .modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.6);
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
       z-index: 1000;
       display: none;
       align-items: flex-end;
@@ -869,7 +1210,7 @@ class MobileAppHtmlBuilder
       padding: 24px 20px;
       max-height: 85vh;
       overflow-y: auto;
-      animation: slideUp 0.3s ease;
+      animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
     @keyframes slideUp {
       from { transform: translateY(100%); }
@@ -930,14 +1271,20 @@ class MobileAppHtmlBuilder
   <header>
     <div class="brand">
       {$logoHeaderHtml}
-      <div class="brand-name">{$appName}</div>
+      <div class="brand-text">
+        <div class="brand-name-wrap">
+          <span class="brand-name">{$appName}</span>
+          <svg class="verified-badge" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+        </div>
+        <div class="brand-sub"><span class="status-dot"></span>Official Store • Verified</div>
+      </div>
     </div>
     <div class="header-icons">
-      <div class="icon-btn" onclick="switchTab('wishlist')">
+      <div class="icon-btn" onclick="switchTab('wishlist')" title="Wishlist">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
         <span class="badge" id="wishlist-count" style="display:none;">0</span>
       </div>
-      <div class="icon-btn" onclick="switchTab('cart')">
+      <div class="icon-btn" onclick="switchTab('cart')" title="Cart">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
         <span class="badge" id="cart-count" style="display:none;">0</span>
       </div>
@@ -949,15 +1296,48 @@ class MobileAppHtmlBuilder
     <!-- TAB 1: HOME -->
     <div id="view-home" class="tab-view active">
       <div class="search-box">
-        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" class="search-input" placeholder="Search fashion, shirts, accessories..." oninput="handleSearch(this.value)">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" class="search-input" placeholder="{$searchPlaceholder}" oninput="handleSearch(this.value)">
+        <div class="search-filter-icon" onclick="filterCategory('All')" title="Filter">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+        </div>
       </div>
 
       <!-- Hero Banner -->
-      <div class="hero-banner">
-        <span class="banner-badge">Mega Mobile Sale</span>
-        <div class="banner-title">Exclusive Store Deals<br>Flat 30% OFF Today</div>
-        <button class="banner-btn" onclick="filterCategory('All')">Shop Now &rarr;</button>
+      <div class="hero-banner" onclick="filterCategory('All')">
+        {$bannerImageHtml}
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+          <span class="banner-badge"><span class="badge-dot"></span>{$bannerBadge}</span>
+          <div class="banner-title">{$bannerTitle}</div>
+          <button class="banner-btn" type="button">
+            <span>{$bannerButton}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+        <div class="banner-dots">
+          <span class="b-dot active"></span>
+          <span class="b-dot"></span>
+          <span class="b-dot"></span>
+        </div>
+      </div>
+
+      <!-- Perks Strip -->
+      <div class="perks-strip">
+        <div class="perk-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          <span>Free Delivery</span>
+        </div>
+        <div class="perk-divider"></div>
+        <div class="perk-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>100% Genuine</span>
+        </div>
+        <div class="perk-divider"></div>
+        <div class="perk-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <span>Fast Dispatch</span>
+        </div>
       </div>
 
       <!-- Category Filter Carousel -->
@@ -1070,6 +1450,18 @@ class MobileAppHtmlBuilder
       </div>
     </div>
   </main>
+
+  <!-- FLOATING QUICK-CART BAR -->
+  <div id="floating-cart-bar" onclick="switchTab('cart')">
+    <div class="fc-left">
+      <div class="fc-badge"><span id="fc-count">0</span> items</div>
+      <div class="fc-total" id="fc-total">₹0</div>
+    </div>
+    <div class="fc-right">
+      <span>View Cart</span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </div>
+  </div>
 
   <!-- 5. BOTTOM NAVIGATION BAR -->
   <nav class="bottom-nav">
@@ -1329,26 +1721,32 @@ class MobileAppHtmlBuilder
       const html = filtered.map(prod => {
         const sId = String(prod.id);
         const isWish = isWishlisted(sId);
+        const inCart = cart.some(item => String(item.id) === sId);
         const img = (prod.images && prod.images[0]) || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&q=80';
         return `
           <div class="product-card" onclick="openProductModal('\${sId}')">
             <div class="card-img-wrap">
-              <img src="\${img}" class="card-img" alt="\${escapeHtml(prod.title)}" loading="lazy">
-              <button class="wish-btn \${isWish ? 'active' : ''}" onclick="toggleWishlist(event, '\${sId}')">
+              <img src="\${img}" class="card-img" alt="\${escapeHtml(prod.title)}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&q=80'">
+              <button class="wish-btn \${isWish ? 'active' : ''}" onclick="toggleWishlist(event, '\${sId}')" title="Wishlist">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="\${isWish ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               </button>
               <span class="discount-badge">SAVE 30%</span>
             </div>
             <div class="card-info">
+              <div class="card-rating">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <span>4.8</span>
+                <span style="color:#94A3B8; font-weight:500;">(24)</span>
+              </div>
               <div class="card-title">\${escapeHtml(prod.title)}</div>
               <div class="card-meta">
                 <span class="price-current">₹\${prod.price}</span>
                 <span class="price-old">₹\${prod.old_price}</span>
               </div>
             </div>
-            <button class="btn-add-cart" onclick="addToCart(event, '\${sId}')">
+            <button class="btn-add-cart \${inCart ? 'in-cart' : ''}" onclick="addToCart(event, '\${sId}')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-              Add to Cart
+              <span>\${inCart ? 'In Bag ✓' : 'Add to Cart'}</span>
             </button>
           </div>
         `;
@@ -1412,7 +1810,8 @@ class MobileAppHtmlBuilder
                 </div>
               </div>
               <button class="btn-add-cart" onclick="addToCart(event, '\${sId}')">
-                Move to Cart
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+                <span>Move to Cart</span>
               </button>
             </div>
           `;
@@ -1436,6 +1835,7 @@ class MobileAppHtmlBuilder
       localStorage.setItem('appify_cart', JSON.stringify(cart));
       updateBadgeCounts();
       showToast('Item added to cart!');
+      renderProducts();
       renderCartTab();
     }
 
@@ -1510,11 +1910,31 @@ class MobileAppHtmlBuilder
         wishBadge.style.display = wishlist.length > 0 ? 'flex' : 'none';
       }
 
+      const totalQty = cart.reduce((sum, item) => sum + (item.qty || 1), 0);
+      const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 1)), 0);
+
       if (cartBadge) {
-        const totalQty = cart.reduce((sum, item) => sum + (item.qty || 1), 0);
         cartBadge.innerText = totalQty;
         cartBadge.style.display = totalQty > 0 ? 'flex' : 'none';
       }
+
+      // Update floating cart bar
+      const fcBar = document.getElementById('floating-cart-bar');
+      const fcCount = document.getElementById('fc-count');
+      const fcTotal = document.getElementById('fc-total');
+      if (fcBar) {
+        const curTab = getCurrentActiveTab();
+        const shouldShow = totalQty > 0 && (curTab === 'home' || curTab === 'explore');
+        fcBar.classList.toggle('active', shouldShow);
+        if (fcCount) fcCount.innerText = totalQty;
+        if (fcTotal) fcTotal.innerText = '₹' + subtotal;
+      }
+    }
+
+    function getCurrentActiveTab() {
+      const activeNav = document.querySelector('.nav-item.active');
+      if (!activeNav) return 'home';
+      return activeNav.id.replace('nav-', '');
     }
 
     // ── NAVIGATION TABS ──
@@ -1534,6 +1954,8 @@ class MobileAppHtmlBuilder
 
       if (tabId === 'cart') renderCartTab();
       if (tabId === 'wishlist') renderWishlistTab();
+
+      updateBadgeCounts();
     }
 
     // ── PRODUCT MODAL ──

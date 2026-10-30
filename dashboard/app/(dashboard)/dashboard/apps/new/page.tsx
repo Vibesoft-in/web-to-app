@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { apiClient } from "@/lib/api-client";
-import { ArrowRight, Loader2, Palette, Sparkles, Store } from "lucide-react";
+import { ArrowRight, Loader2, Palette, Rocket, Shield, Sparkles, Store } from "lucide-react";
 
 const newAppSchema = z.object({
   name: z.string().min(2, "App name must be at least 2 characters").max(50),
@@ -17,20 +19,110 @@ type NewAppForm = z.infer<typeof newAppSchema>;
 
 export default function NewAppPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedThemeInfo, setSelectedThemeInfo] = useState<{ name: string; price?: string } | null>(null);
+  const [selectedPlanInfo, setSelectedPlanInfo] = useState<{
+    id?: number | string;
+    name: string;
+    price?: string;
+  } | null>(null);
+
+  const { data: authData } = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: () => apiClient("/api/auth/me"),
+    retry: false,
+  });
+
+  const isAdmin = Boolean(authData?.user?.is_super_admin || authData?.user?.email === "admin@webintoapp.com");
+
+  useEffect(() => {
+    try {
+      const planParam = searchParams.get("plan");
+
+      // ONLY display a selected package if explicitly passed via query parameter (e.g. from homepage selection or explicit choice)
+      if (!planParam) {
+        setSelectedPlanInfo(null);
+        try {
+          localStorage.removeItem("appifyhub_selected_plan_info");
+          localStorage.removeItem("appifyhub_selected_plan");
+          localStorage.removeItem("appifyhub_selected_plan_id");
+        } catch {}
+        return;
+      }
+
+      const normalized = planParam.toLowerCase();
+      let planName = "Pro Package";
+      let planPrice = "₹7,999";
+      let planId: number | string = 2;
+
+      if (normalized.includes("starter") || normalized.includes("basic")) {
+        planName = "Starter (Basic) Package";
+        planPrice = "₹2,999";
+        planId = 1;
+      } else if (normalized.includes("enterprise") || normalized.includes("premium")) {
+        planName = "Enterprise Suite";
+        planPrice = "₹14,999";
+        planId = 3;
+      } else if (normalized.includes("pro")) {
+        planName = "Pro Combo";
+        planPrice = "₹7,999";
+        planId = 2;
+      } else {
+        const cap = planParam.charAt(0).toUpperCase() + planParam.slice(1);
+        planName = `${cap} Package`;
+      }
+
+      // Check if we also have saved full plan info from commercial packages API matching this plan
+      const saved = localStorage.getItem("appifyhub_selected_plan_info");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.name && (parsed.slug === normalized || String(parsed.id) === normalized)) {
+            planName = parsed.name;
+            if (parsed.price_monthly) {
+              planPrice = `₹${(parsed.price_monthly / 100).toLocaleString("en-IN")}`;
+            }
+            if (parsed.id) planId = parsed.id;
+          }
+        } catch {}
+      }
+
+      setSelectedPlanInfo({
+        id: planId,
+        name: planName,
+        price: planPrice,
+      });
+
+      // Keep localStorage in sync with the explicitly selected plan
+      try {
+        localStorage.setItem("appifyhub_selected_plan", normalized);
+        localStorage.setItem("appifyhub_selected_plan_id", String(planId));
+      } catch {}
+    } catch {
+      setSelectedPlanInfo(null);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem("appifyhub_selected_theme");
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.name) {
+        if (parsed.selectedByUser && parsed.name) {
           setSelectedThemeInfo({ name: parsed.name, price: parsed.price });
+        } else {
+          localStorage.removeItem("appifyhub_selected_theme");
+          setSelectedThemeInfo(null);
         }
+      } else {
+        setSelectedThemeInfo(null);
       }
-    } catch {}
+    } catch {
+      setSelectedThemeInfo(null);
+    }
   }, []);
 
   const {
@@ -49,7 +141,35 @@ export default function NewAppPage() {
 
   const selectedPlatform = watch("platform");
 
+  if (isAdmin) {
+    return (
+      <div className="max-w-xl mx-auto py-12">
+        <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center shadow-lg space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center justify-center mx-auto">
+            <Shield className="w-6 h-6" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">Admin Oversight Mode</h2>
+          <p className="text-xs text-slate-500 leading-relaxed max-w-md mx-auto">
+            As a Super Admin, you have system-wide oversight to inspect customer applications, store syncs, and subscriptions. Personal app creation and builds are disabled for admin profiles.
+          </p>
+          <div className="pt-2">
+            <a
+              href="http://localhost:8000/admin"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-sm"
+            >
+              <span>Go to Filament Admin Panel</span>
+              <ArrowRight className="w-4 h-4" />
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+
   const onSubmit = async (data: NewAppForm) => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     setErrorMsg(null);
 
@@ -59,16 +179,25 @@ export default function NewAppPage() {
         body: JSON.stringify(data),
       });
 
+      // Clear the one-time selected theme and plan after application initialization
+      try {
+        localStorage.removeItem("appifyhub_selected_theme");
+        localStorage.removeItem("appifyhub_selected_plan_info");
+        localStorage.removeItem("appifyhub_selected_plan");
+        localStorage.removeItem("appifyhub_selected_plan_id");
+      } catch {}
+
       const ulid = res.ulid || res.app?.ulid;
       if (ulid) {
         router.push(`/dashboard/apps/${ulid}/setup/platform`);
       } else {
         router.push("/dashboard");
       }
+      // Keep isSubmitting = true during the navigation transition to prevent accidental duplicate submission
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to initialize application.");
-    } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
+      setErrorMsg(err.message || "Failed to initialize application.");
     }
   };
 
@@ -87,6 +216,80 @@ export default function NewAppPage() {
           </p>
         </div>
 
+        {authData?.user?.latest_draft && (
+          <div className="mb-6 p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                <Store className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-indigo-950">
+                  Unfinished Project: <span className="font-extrabold text-indigo-700">{authData.user.latest_draft.name}</span>
+                </p>
+                <p className="text-[11px] text-indigo-600 mt-0.5">
+                  Saved at Step: <span className="font-bold uppercase tracking-wider">{authData.user.latest_draft.setup_step}</span>
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/dashboard/apps/${authData.user.latest_draft.ulid}/setup/${authData.user.latest_draft.setup_step || "platform"}`}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition self-start sm:self-auto"
+            >
+              <span>Resume Project</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        )}
+
+        {selectedPlanInfo && (
+          <div className="mb-6 p-4 rounded-2xl bg-[#F7F5F0] border border-[#78593D]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-[#78593D] text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Rocket className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-[#1C1917] flex items-center gap-2">
+                  <span>Selected Package:</span>
+                  <span className="text-[#78593D] font-black">{selectedPlanInfo.name}</span>
+                  {selectedPlanInfo.price && (
+                    <span className="text-[#7E756B] font-medium">({selectedPlanInfo.price} / lifetime)</span>
+                  )}
+                </div>
+                <p className="text-[11px] text-[#7E756B] mt-0.5">
+                  Your new app will be configured with this package. Pre-selected for checkout.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 self-end sm:self-center">
+              <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/25">
+                Active Choice
+              </span>
+              <Link
+                href="/plans"
+                className="text-xs text-[#78593D] hover:underline font-bold"
+              >
+                Change Plan
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem("appifyhub_selected_plan_info");
+                    localStorage.removeItem("appifyhub_selected_plan");
+                    localStorage.removeItem("appifyhub_selected_plan_id");
+                  } catch {}
+                  setSelectedPlanInfo(null);
+                }}
+                className="text-slate-400 hover:text-slate-700 px-1.5 py-0.5 rounded transition text-xs font-bold leading-none"
+                title="Remove selected package"
+                aria-label="Remove selected package"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+        )}
+
         {selectedThemeInfo && (
           <div className="mb-6 p-3 rounded-xl bg-amber-50/70 border border-amber-200/90 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
@@ -96,9 +299,25 @@ export default function NewAppPage() {
                 {selectedThemeInfo.price && <span className="text-amber-900">({selectedThemeInfo.price})</span>}
               </span>
             </div>
-            <span className="text-[11px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full">
-              Ready to apply
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full">
+                Ready to apply
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem("appifyhub_selected_theme");
+                  } catch {}
+                  setSelectedThemeInfo(null);
+                }}
+                className="text-slate-400 hover:text-slate-700 px-1 py-0.5 rounded transition text-xs font-bold leading-none"
+                title="Remove pre-selected theme"
+                aria-label="Remove pre-selected theme"
+              >
+                &times;
+              </button>
+            </div>
           </div>
         )}
 

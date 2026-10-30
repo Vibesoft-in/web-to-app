@@ -18,7 +18,7 @@ class RegisterRequest extends FormRequest
         return [
             'name'          => ['required', 'string', 'max:100'],
             'business_name' => ['required', 'string', 'max:150'],
-            'email'         => ['required', app()->environment('testing') ? 'email:rfc' : 'email:rfc,dns', 'max:255', 'unique:users,email'],
+            'email'         => ['required', app()->environment(['testing', 'local']) ? 'email:rfc' : 'email:rfc,dns', 'max:255', 'unique:users,email'],
             // min 10 chars as per doc §4
             'password'      => ['required', 'string', 'min:10', 'confirmed'],
         ];

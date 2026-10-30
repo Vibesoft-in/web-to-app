@@ -289,4 +289,38 @@ class BillingAndEntitlementTest extends TestCase
         $withAddon = $calculator->calculate($this->starterPlan, 'monthly', ['whatsapp' => 1]);
         $this->assertEquals(99900 + 99900, $withAddon['total']);
     }
+
+    /**
+     * Test: PricingCalculator accurately applies theme pricing and inclusions.
+     */
+    public function test_pricing_calculator_computes_theme_pricing(): void
+    {
+        $calculator = new PricingCalculator();
+
+        // 1. Free theme (theme_a): ₹0 theme charge
+        $freeCalc = $calculator->calculate($this->starterPlan, 'monthly', [], null, 'theme_a');
+        $this->assertEquals(0, $freeCalc['theme_charge']);
+        $this->assertEquals(99900, $freeCalc['total']);
+
+        // 2. Paid theme (theme_b = ₹999 / 99900 paise)
+        $paidCalc = $calculator->calculate($this->starterPlan, 'monthly', [], null, 'theme_b');
+        $this->assertEquals(99900, $paidCalc['theme_charge']);
+        $this->assertEquals(99900 + 99900, $paidCalc['total']);
+
+        // 3. Paid theme (theme_c = ₹1,499 / 149900 paise)
+        $trendyCalc = $calculator->calculate($this->starterPlan, 'monthly', [], null, 'theme_c');
+        $this->assertEquals(149900, $trendyCalc['theme_charge']);
+        $this->assertEquals(99900 + 149900, $trendyCalc['total']);
+
+        // 4. Premium plan includes themes for free (₹0 theme charge)
+        $premiumPlan = Plan::create([
+            'name'          => 'Premium',
+            'price_monthly' => 1499900,
+            'features'      => [],
+            'is_active'     => true,
+        ]);
+        $premiumCalc = $calculator->calculate($premiumPlan, 'monthly', [], null, 'theme_d');
+        $this->assertEquals(0, $premiumCalc['theme_charge']);
+        $this->assertTrue($premiumCalc['is_theme_included']);
+    }
 }

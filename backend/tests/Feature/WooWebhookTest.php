@@ -29,7 +29,7 @@ class WooWebhookTest extends TestCase
             'platform'     => 'woo',
             'package_name' => 'com.store.webhook',
             'app_key'      => 'app_wh_test_key_999',
-            'setup_step'   => 'live',
+            'setup_step'   => 'build',
             'status'       => 'live',
         ]);
 

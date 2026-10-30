@@ -125,6 +125,39 @@ const THEMES_CONFIG: Record<string, ThemeMeta> = {
       border: "#E2E8F0",
     },
   },
+  elite: {
+    id: 4,
+    slug: "elite",
+    name: "Elite Dark Luxe",
+    category: "PREMIUM",
+    badge: "Premium Exclusive",
+    price: "Included in Premium",
+    description:
+      "An ultra-premium obsidian dark theme with brushed amber-gold accents designed for luxury and high-ticket eCommerce.",
+    capabilities: [
+      "Obsidian Dark Mode",
+      "Brushed Gold Accents",
+      "VIP Member Badges",
+      "Haptic Micro-interactions",
+      "Cinzel Luxury Typography",
+    ],
+    specs: [
+      "Obsidian Deep Contrast Mobile UI",
+      "Curated Luxury Lookbook & Story Panels",
+      "Exclusive High-Roller Flash Deal Carousel",
+      "Bi-directional Inventory & Order Tracking",
+      "Dedicated App Admin Panel Remote Management",
+    ],
+    colors: {
+      primary: "#D97706",
+      accent: "#F59E0B",
+      bg: "#0B0F19",
+      card: "#111827",
+      text: "#F9FAFB",
+      muted: "#9CA3AF",
+      border: "#1F2937",
+    },
+  },
 };
 
 interface CartItem {
@@ -381,12 +414,12 @@ export default function ThemeLiveDemoPage() {
             <Link href="/themes" className="nav-link active">
               Themes
             </Link>
-            <Link href="/pricing" className="nav-link">
-              Pricing
+            <Link href="/plans" className="nav-link">
+              Plans
             </Link>
-            <a href="/#faq" className="nav-link">
+            <Link href="/support" className="nav-link">
               Support
-            </a>
+            </Link>
           </nav>
 
           <div className="header-actions">
@@ -515,6 +548,7 @@ export default function ThemeLiveDemoPage() {
                           slug: theme.slug,
                           price: theme.price,
                           badge: theme.badge,
+                          selectedByUser: true,
                         })
                       );
                     } catch {}
@@ -1401,13 +1435,13 @@ export default function ThemeLiveDemoPage() {
                   <Link href="/how-it-works">How It Works</Link>
                 </li>
                 <li>
-                  <a href="/#features">Features</a>
-                </li>
-                <li>
                   <Link href="/themes">Themes</Link>
                 </li>
                 <li>
-                  <Link href="/pricing">Pricing</Link>
+                  <Link href="/plans">Plans &amp; Add-ons</Link>
+                </li>
+                <li>
+                  <Link href="/support">Support</Link>
                 </li>
               </ul>
             </div>

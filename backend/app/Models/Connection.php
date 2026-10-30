@@ -18,6 +18,11 @@ class Connection extends Model
     use HasFactory;
     use SoftDeletes;
 
+    protected $attributes = [
+        'platform' => Platform::WooCommerce,
+        'status'   => ConnectionStatus::NotStarted,
+    ];
+
     protected $fillable = [
         'tenant_id',
         'app_id',

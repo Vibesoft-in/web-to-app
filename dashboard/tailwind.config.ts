@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: ["class", '[data-theme="dark"]'],
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,6 +10,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
+        mavora: ['"Manrope"', "sans-serif"],
+        mavoraMono: ['"Geist Mono"', "monospace"],
         sans: [
           '"Plus Jakarta Sans"',
           "-apple-system",

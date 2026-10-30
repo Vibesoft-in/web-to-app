@@ -3,10 +3,88 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api-client";
 
 export default function HomePage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [isYearly, setIsYearly] = useState(false);
   const [activeTheme, setActiveTheme] = useState("modern");
+  const [quickUrl, setQuickUrl] = useState("");
+
+  const { data: authData } = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: () => apiClient("/api/auth/me"),
+    retry: false,
+  });
+
+  const user = authData?.user;
+  const isAdmin = Boolean(user?.is_super_admin || user?.email === "admin@webintoapp.com");
+
+  const { data: appsData } = useQuery({
+    queryKey: ["apps"],
+    queryFn: async () => {
+      try {
+        const res = await apiClient("/api/apps");
+        return Array.isArray(res) ? res : res.apps || [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: Boolean(user && !isAdmin),
+  });
+
+  const apps = appsData || [];
+  const isAppDraft = (appItem: any) => {
+    const builds = appItem?.builds || [];
+    const hasReadyBuild = builds.some((b: any) => b.is_ready || b.status === "ready");
+    return Boolean(
+      !appItem?.is_completed &&
+      !hasReadyBuild &&
+      appItem?.status !== "completed" &&
+      appItem?.status !== "live" &&
+      appItem?.status !== "active"
+    );
+  };
+
+  const hasPreviouslyBuiltApps = Boolean(
+    user?.has_built_apps ||
+    (apps.length > 0 && apps.some((a: any) => !isAppDraft(a)))
+  );
+
+  const latestDraft = user?.latest_draft || apps.find((a: any) => isAppDraft(a));
+  const draftHref = latestDraft?.ulid
+    ? `/dashboard/apps/${latestDraft.ulid}/setup/${latestDraft.setup_step || "platform"}`
+    : "/dashboard/apps/new";
+
+  const primaryTargetHref = hasPreviouslyBuiltApps ? "/dashboard" : draftHref;
+
+  const handleLogout = async () => {
+    try {
+      await apiClient("/api/auth/logout", { method: "POST" });
+    } finally {
+      queryClient.setQueryData(["auth", "me"], { user: null });
+      queryClient.removeQueries({ queryKey: ["auth", "me"] });
+      window.location.reload();
+    }
+  };
+
+  const handleQuickConvert = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanUrl = quickUrl.trim();
+    if (user) {
+      if (isAdmin) {
+        window.location.href = "http://localhost:8000/admin";
+        return;
+      } else {
+        router.push(primaryTargetHref);
+      }
+    } else {
+      router.push(cleanUrl ? `/signup?url=${encodeURIComponent(cleanUrl)}` : "/signup");
+    }
+  };
 
   return (
     <div className="home-page-root">
@@ -40,34 +118,53 @@ export default function HomePage() {
             <Link href="/themes" className="nav-link">
               Themes
             </Link>
-            <Link href="/pricing" className="nav-link">
-              Pricing
+            <Link href="/plans" className="nav-link">
+              Plans
             </Link>
-            <a href="#features" className="nav-link">
-              Features
-            </a>
+            <Link href="/support" className="nav-link">
+              Support
+            </Link>
           </nav>
 
-          <div className="header-actions">
+          <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <Link href="/login" className="btn-text">
               Login
             </Link>
-            <Link href="/signup" className="btn-outline">
-              <span>Get Started</span>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="3" y1="8" x2="13" y2="8" />
-                <polyline points="9 4 13 8 9 12" />
-              </svg>
-            </Link>
+            {user ? (
+              <>
+                <Link
+                  href={isAdmin ? "http://localhost:8000/admin" : primaryTargetHref}
+                  className="btn-outline"
+                >
+                  <span>{isAdmin ? "Admin Oversight" : hasPreviouslyBuiltApps ? "Dashboard" : latestDraft ? "Resume App" : "Create App"}</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="btn-text"
+                  style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <Link href="/signup" className="btn-outline">
+                  <span>Get Started</span>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="3" y1="8" x2="13" y2="8" />
+                    <polyline points="9 4 13 8 9 12" />
+                  </svg>
+                </Link>
+            )}
           </div>
         </div>
       </header>
@@ -92,23 +189,57 @@ export default function HomePage() {
                   beautiful mobile app &mdash; quickly, easily and without
                   coding.
                 </p>
-                <div className="hero-action">
-                  <Link href="/signup" className="btn-action-pill">
-                    <span>Convert My Website</span>
-                    <svg
-                      width="15"
-                      height="15"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                <div className="hero-action" style={{ display: "flex", flexDirection: "column", gap: "1rem", alignItems: "center" }}>
+                  <form
+                    onSubmit={handleQuickConvert}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      background: "#FFFFFF",
+                      padding: "0.4rem 0.5rem 0.4rem 1rem",
+                      borderRadius: "9999px",
+                      border: "1.5px solid #E8DFD8",
+                      boxShadow: "0 4px 20px -2px rgba(120, 89, 61, 0.12)",
+                      maxWidth: "480px",
+                      width: "100%",
+                    }}
+                  >
+                    <input
+                      type="url"
+                      value={quickUrl}
+                      onChange={(e) => setQuickUrl(e.target.value)}
+                      placeholder="https://yourstore.com"
+                      style={{
+                        border: "none",
+                        outline: "none",
+                        flex: 1,
+                        fontSize: "0.9rem",
+                        color: "#3B3026",
+                        background: "transparent",
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      className="btn-action-pill"
+                      style={{ padding: "0.6rem 1.2rem", margin: 0 }}
                     >
-                      <line x1="3" y1="8" x2="13" y2="8" />
-                      <polyline points="9 4 13 8 9 12" />
-                    </svg>
-                  </Link>
+                      <span>{user ? (isAdmin ? "Admin Dashboard" : "Build App Now") : "Convert My Website"}</span>
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="3" y1="8" x2="13" y2="8" />
+                        <polyline points="9 4 13 8 9 12" />
+                      </svg>
+                    </button>
+                  </form>
                 </div>
               </div>
             </div>
@@ -138,7 +269,7 @@ export default function HomePage() {
               <div className="platforms-cards-strip">
                 {/* WordPress Card */}
                 <Link
-                  href="/signup?platform=wordpress"
+                  href={user ? (isAdmin ? "http://localhost:8000/admin" : "/dashboard/apps/new?platform=woo") : "/signup?platform=wordpress"}
                   className="platform-pill-card platform-pill-card-wp"
                   style={{ textDecoration: "none", color: "inherit", display: "flex" }}
                 >
@@ -162,7 +293,7 @@ export default function HomePage() {
 
                 {/* WooCommerce Card */}
                 <Link
-                  href="/signup?platform=woocommerce"
+                  href={user ? (isAdmin ? "http://localhost:8000/admin" : "/dashboard/apps/new?platform=woo") : "/signup?platform=woocommerce"}
                   className="platform-pill-card platform-pill-card-woo"
                   style={{ textDecoration: "none", color: "inherit", display: "flex" }}
                 >
@@ -186,7 +317,7 @@ export default function HomePage() {
 
                 {/* Shopify Card */}
                 <Link
-                  href="/signup?platform=shopify"
+                  href={user ? (isAdmin ? "http://localhost:8000/admin" : "/dashboard/apps/new?platform=shopify") : "/signup?platform=shopify"}
                   className="platform-pill-card platform-pill-card-shopify"
                   style={{ textDecoration: "none", color: "inherit", display: "flex" }}
                 >
@@ -527,102 +658,6 @@ export default function HomePage() {
             </div>
           </section>
 
-          {/* ─── 6. NATIVE CAPABILITIES & FEATURES GRID ─── */}
-          <section className="features-grid-section" id="features">
-            <div className="features-container">
-              <div className="features-header text-center">
-                <span className="eyebrow-tag">BUILT FOR MOBILE PERFORMANCE</span>
-                <h2 className="section-heading">Everything You Need in a Native App</h2>
-                <p className="section-subheading">
-                  Don't settle for sluggish web wrappers. AppifyHub builds high-speed, native mobile experiences that elevate your brand and drive repeat purchases.
-                </p>
-              </div>
-
-              <div className="features-grid">
-                <div className="feature-card">
-                  <div className="feature-icon-box">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#78593D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                    </svg>
-                  </div>
-                  <span className="feature-badge">70% Open Rate</span>
-                  <h3 className="feature-title">Instant Push Notifications</h3>
-                  <p className="feature-desc">
-                    Re-engage cart abandoners and send personalized alerts for flash sales, back-in-stock items, and order updates straight to user lockscreens.
-                  </p>
-                </div>
-
-                <div className="feature-card">
-                  <div className="feature-icon-box">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#78593D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 004 11m0 0a8 8 0 008 8c.706 0 1.396-.062 2.064-.18" />
-                    </svg>
-                  </div>
-                  <span className="feature-badge">1-Tap Login</span>
-                  <h3 className="feature-title">Biometric Authentication</h3>
-                  <p className="feature-desc">
-                    Frictionless FaceID and Fingerprint access allows return shoppers to browse and check out instantly without typing passwords.
-                  </p>
-                </div>
-
-                <div className="feature-card">
-                  <div className="feature-icon-box">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#78593D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="23 4 23 10 17 10" />
-                      <polyline points="1 20 1 14 7 14" />
-                      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                    </svg>
-                  </div>
-                  <span className="feature-badge">Bidirectional</span>
-                  <h3 className="feature-title">Real-Time Catalog Sync</h3>
-                  <p className="feature-desc">
-                    All products, inventories, pricing, discounts, and customer orders stay in synchronized lockstep with your website database.
-                  </p>
-                </div>
-
-                <div className="feature-card">
-                  <div className="feature-icon-box">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#78593D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
-                    </svg>
-                  </div>
-                  <span className="feature-badge">60fps Smooth</span>
-                  <h3 className="feature-title">Offline Browsing &amp; Cache</h3>
-                  <p className="feature-desc">
-                    Smart client caching ensures fast navigation, smooth animations, and product catalog browsing even with intermittent mobile signals.
-                  </p>
-                </div>
-
-                <div className="feature-card">
-                  <div className="feature-icon-box">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#78593D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="2" y="5" width="20" height="14" rx="2" />
-                      <line x1="2" y1="10" x2="22" y2="10" />
-                    </svg>
-                  </div>
-                  <span className="feature-badge">3x Conversion</span>
-                  <h3 className="feature-title">Native 1-Click Checkout</h3>
-                  <p className="feature-desc">
-                    Streamlined checkout with support for Apple Pay, Google Pay, Razorpay, Stripe, and saved addresses dramatically slashes checkout abandonment.
-                  </p>
-                </div>
-
-                <div className="feature-card">
-                  <div className="feature-icon-box">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#78593D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    </svg>
-                  </div>
-                  <span className="feature-badge">99.8% Passed</span>
-                  <h3 className="feature-title">App Store &amp; Play Store Ready</h3>
-                  <p className="feature-desc">
-                    Receive fully compliant Google Play (.aab) and iOS (.ipa) builds with end-to-end guidance to guarantee immediate marketplace approval.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
 
           {/* ─── 7. CHOOSE A THEME SECTION ─── */}
           <section className="theme-showcase-section" id="themes">
@@ -638,8 +673,11 @@ export default function HomePage() {
                   Your website content, products and data remain the same. Select a design style that matches your business.
                 </p>
                 <div className="theme-action">
-                  <Link href="/signup" className="btn-action-pill">
-                    <span>Explore Themes</span>
+                  <Link
+                    href={user ? (isAdmin ? "http://localhost:8000/admin" : "/themes") : "/themes"}
+                    className="btn-action-pill"
+                  >
+                    <span>{user && !isAdmin ? "Choose Theme & Build" : "Explore Themes"}</span>
                     <svg
                       width="15"
                       height="15"
@@ -793,113 +831,141 @@ export default function HomePage() {
           </section>
 
           {/* ─── 9. PRICING & PLANS SECTION ─── */}
-          <section className="pricing-section" id="pricing">
+          <section className="pricing-section" id="plans">
+            <span id="pricing" className="sr-only" />
             <div className="pricing-container">
               <div className="pricing-header text-center">
                 <span className="eyebrow-tag">SIMPLE &amp; TRANSPARENT PLANS</span>
                 <h2 className="section-heading">Invest in Your Mobile Growth</h2>
                 <p className="section-subheading">
-                  No hidden transaction percentages. Keep 100% of your sales revenue.
+                  No hidden transaction percentages. Lifetime app ownership with zero revenue commissions.
                 </p>
 
                 <div className="pricing-toggle-wrap">
-                  <span className={`toggle-label ${!isYearly ? "font-bold" : ""}`}>Monthly</span>
+                  <span className={`toggle-label ${!isYearly ? "font-bold" : ""}`}>Standard One-Time</span>
                   <button
                     type="button"
                     onClick={() => setIsYearly(!isYearly)}
                     className={`pricing-switch ${isYearly ? "active" : ""}`}
-                    aria-label="Toggle annual billing"
+                    aria-label="Toggle annual plan"
                     role="switch"
                     aria-checked={isYearly}
                   >
                     <span className="switch-handle" />
                   </button>
                   <span className={`toggle-label ${isYearly ? "font-bold" : ""}`}>
-                    Yearly <span className="save-tag">Save 20%</span>
+                    Annual License <span className="save-tag">Save 20%</span>
                   </span>
                 </div>
               </div>
 
               <div className="pricing-cards-grid">
-                {/* Starter Plan */}
+                {/* Starter App */}
                 <div className="pricing-card">
                   <div className="plan-header">
-                    <h3 className="plan-name">Starter</h3>
+                    <h3 className="plan-name">Starter App</h3>
                     <p className="plan-tagline">
-                      Ideal for personal blogs, news sites &amp; emerging shops.
+                      Ideal for single Android store apps with standard features.
                     </p>
                     <div className="plan-price-wrap">
-                      <span className="currency">$</span>
-                      <span className="price-val">{isYearly ? "23" : "29"}</span>
-                      <span className="period">{isYearly ? "/ mo, billed yearly" : "/ month"}</span>
+                      <span className="currency">₹</span>
+                      <span className="price-val">{isYearly ? "3,999" : "4,999"}</span>
+                      <span className="period">{isYearly ? "/ year" : " one-time"}</span>
+                    </div>
+                    <div className="text-[11px] text-amber-800/80 font-medium mt-1">
+                      Approx. $50 USD &bull; Lifetime App Files
                     </div>
                   </div>
                   <ul className="plan-features">
-                    <li><span className="check-icon">✓</span> Android App (.aab / .apk)</li>
+                    <li><span className="check-icon">✓</span> Android App (.aab / .apk files)</li>
                     <li><span className="check-icon">✓</span> Standard Clean Theme Layout</li>
-                    <li><span className="check-icon">✓</span> 5,000 Push Notifications / mo</li>
-                    <li><span className="check-icon">✓</span> Real-Time Product &amp; Post Sync</li>
-                    <li><span className="check-icon">✓</span> Unlimited App Downloads</li>
-                    <li><span className="check-icon">✓</span> Email Support (48h turnaround)</li>
+                    <li><span className="check-icon">✓</span> Push Notifications (Basic)</li>
+                    <li><span className="check-icon">✓</span> Standard App Icon &amp; Splash Screen</li>
+                    <li><span className="check-icon">✓</span> Real-Time Product &amp; Order Sync</li>
+                    <li><span className="check-icon">✓</span> 3 Months Technical Support</li>
                   </ul>
-                  <Link href="/signup" className="btn-plan btn-plan-outline">
+                  <Link
+                    href={user ? (isAdmin ? "http://localhost:8000/admin" : "/dashboard/apps/new?plan=starter-app") : "/signup?plan=starter-app"}
+                    className="btn-plan btn-plan-outline"
+                  >
                     Get Started
                   </Link>
                 </div>
 
-                {/* Professional Plan (Featured) */}
+                {/* Pro Combo (Featured) */}
                 <div className="pricing-card featured">
                   <div className="featured-badge">MOST POPULAR</div>
                   <div className="plan-header">
-                    <h3 className="plan-name">Professional</h3>
+                    <h3 className="plan-name">Pro Combo</h3>
                     <p className="plan-tagline">
-                      Built for active WooCommerce &amp; Shopify merchants.
+                      Complete mobile presence for Android and iOS devices.
                     </p>
                     <div className="plan-price-wrap">
-                      <span className="currency">$</span>
-                      <span className="price-val">{isYearly ? "63" : "79"}</span>
-                      <span className="period">{isYearly ? "/ mo, billed yearly" : "/ month"}</span>
+                      <span className="currency">₹</span>
+                      <span className="price-val">{isYearly ? "7,199" : "8,999"}</span>
+                      <span className="period">{isYearly ? "/ year" : " one-time"}</span>
+                    </div>
+                    <div className="text-[11px] text-amber-900 font-bold mt-1">
+                      Approx. $90 USD &bull; Lifetime App Files
                     </div>
                   </div>
                   <ul className="plan-features">
                     <li><span className="check-icon">✓</span> <strong>Both Android &amp; iOS Apps</strong></li>
                     <li><span className="check-icon">✓</span> All Premium Themes Included</li>
-                    <li><span className="check-icon">✓</span> <strong>Unlimited Push Notifications</strong></li>
-                    <li><span className="check-icon">✓</span> Biometric 1-Tap Login (FaceID)</li>
-                    <li><span className="check-icon">✓</span> Native 1-Click Fast Checkout</li>
+                    <li><span className="check-icon">✓</span> <strong>Native Push Notifications</strong></li>
+                    <li><span className="check-icon">✓</span> Payment Gateway Sync &amp; 1-Tap Checkout</li>
+                    <li><span className="check-icon">✓</span> Custom Branding &amp; Full Color Palette</li>
                     <li><span className="check-icon">✓</span> WhatsApp &amp; In-App Chat Integration</li>
-                    <li><span className="check-icon">✓</span> <strong>24/7 Priority Support</strong></li>
+                    <li><span className="check-icon">✓</span> <strong>6 Months Priority Support</strong></li>
                   </ul>
-                  <Link href="/signup" className="btn-plan btn-plan-primary">
-                    Get Professional
+                  <Link
+                    href={user ? (isAdmin ? "http://localhost:8000/admin" : "/dashboard/apps/new?plan=pro-combo") : "/signup?plan=pro-combo"}
+                    className="btn-plan btn-plan-primary"
+                  >
+                    Get Pro Combo
                   </Link>
                 </div>
 
-                {/* Enterprise Plan */}
+                {/* Enterprise Suite */}
                 <div className="pricing-card">
                   <div className="plan-header">
-                    <h3 className="plan-name">Enterprise</h3>
+                    <h3 className="plan-name">Enterprise Suite</h3>
                     <p className="plan-tagline">
-                      For established multi-brand retailers &amp; high-volume stores.
+                      For high-scale commerce sites requiring full integration.
                     </p>
                     <div className="plan-price-wrap">
-                      <span className="currency">$</span>
-                      <span className="price-val">{isYearly ? "159" : "199"}</span>
-                      <span className="period">{isYearly ? "/ mo, billed yearly" : "/ month"}</span>
+                      <span className="currency">₹</span>
+                      <span className="price-val">{isYearly ? "11,999" : "14,999"}</span>
+                      <span className="period">{isYearly ? "/ year" : " one-time"}</span>
+                    </div>
+                    <div className="text-[11px] text-amber-800/80 font-medium mt-1">
+                      Approx. $150 USD &bull; Lifetime App Files
                     </div>
                   </div>
                   <ul className="plan-features">
-                    <li><span className="check-icon">✓</span> Multi-Brand &amp; Multi-Currency Support</li>
-                    <li><span className="check-icon">✓</span> Bespoke Custom Theme Customization</li>
-                    <li><span className="check-icon">✓</span> White-Glove Store Submission Guarantee</li>
-                    <li><span className="check-icon">✓</span> Dedicated Technical Account Manager</li>
+                    <li><span className="check-icon">✓</span> <strong>Both Android &amp; iOS Apps Included</strong></li>
+                    <li><span className="check-icon">✓</span> All Premium Add-ons &amp; Themes Included</li>
+                    <li><span className="check-icon">✓</span> Priority App Store &amp; Play Store Publishing</li>
+                    <li><span className="check-icon">✓</span> Dedicated Technical App Manager</li>
                     <li><span className="check-icon">✓</span> Custom ERP &amp; API Integrations</li>
-                    <li><span className="check-icon">✓</span> 99.9% Uptime SLA Agreement</li>
+                    <li><span className="check-icon">✓</span> 1 Year Dedicated Support &amp; Updates</li>
                   </ul>
-                  <Link href="/signup" className="btn-plan btn-plan-outline">
-                    Contact Sales
+                  <Link
+                    href={user ? (isAdmin ? "http://localhost:8000/admin" : "/dashboard/apps/new?plan=enterprise-suite") : "/signup?plan=enterprise-suite"}
+                    className="btn-plan btn-plan-outline"
+                  >
+                    Get Enterprise
                   </Link>
                 </div>
+              </div>
+
+              <div className="text-center mt-10">
+                <Link
+                  href="/plans"
+                  className="inline-flex items-center gap-2 text-sm font-bold text-amber-900 hover:text-amber-950 underline underline-offset-4 transition"
+                >
+                  <span>Looking for modular add-ons, APK/AAB builds, or interactive configuration? Explore Full Plans &amp; Add-ons &rarr;</span>
+                </Link>
               </div>
             </div>
           </section>
@@ -975,8 +1041,11 @@ export default function HomePage() {
                   No coding required. Works seamlessly with WordPress, WooCommerce and Shopify.
                 </p>
                 <div className="bottom-cta-action">
-                  <Link href="/signup" className="btn-action-pill">
-                    <span>Convert My Website</span>
+                  <Link
+                    href={user ? (isAdmin ? "http://localhost:8000/admin" : primaryTargetHref) : "/signup"}
+                    className="btn-action-pill"
+                  >
+                    <span>{user ? (isAdmin ? "Open Admin Dashboard" : hasPreviouslyBuiltApps ? "Go to My Dashboard" : latestDraft ? "Resume Building App" : "Build My App Now") : "Convert My Website"}</span>
                     <svg
                       width="15"
                       height="15"
@@ -1039,9 +1108,9 @@ export default function HomePage() {
               <h4 className="footer-title">Product</h4>
               <ul className="footer-links">
                 <li><Link href="/how-it-works">How It Works</Link></li>
-                <li><a href="#features">Features</a></li>
                 <li><Link href="/themes">Themes</Link></li>
-                <li><Link href="/pricing">Pricing</Link></li>
+                <li><Link href="/plans">Plans &amp; Add-ons</Link></li>
+                <li><Link href="/support">Support</Link></li>
               </ul>
             </div>
 

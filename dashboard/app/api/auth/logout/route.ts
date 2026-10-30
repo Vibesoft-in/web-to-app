@@ -4,7 +4,8 @@ import { cookies } from "next/headers";
 const BACKEND_BASE_URL = process.env.BACKEND_API_URL || "http://127.0.0.1:8000";
 
 export async function POST(req: NextRequest) {
-  const token = cookies().get("auth_token")?.value;
+  const cookieStore = cookies();
+  const token = cookieStore.get("auth_token")?.value;
 
   if (token) {
     try {
@@ -20,7 +21,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const res = NextResponse.json({ message: "Logged out successfully" });
+  cookieStore.delete("auth_token");
+
+  const res = NextResponse.json({ message: "Logged out successfully", user: null });
+  res.cookies.set({
+    name: "auth_token",
+    value: "",
+    path: "/",
+    expires: new Date(0),
+    maxAge: 0,
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
   res.cookies.delete("auth_token");
+
   return res;
 }

@@ -16,40 +16,27 @@ use Illuminate\Support\Facades\DB;
 
 class SetupStateController extends Controller
 {
+    private function resolveApp(Request $request, string $ulid): App
+    {
+        $user = auth('sanctum')->user() ?? $request->user();
+        $query = $user ? App::where('tenant_id', $user->tenant_id) : App::withoutTenantScope();
+
+        return $query->where('ulid', $ulid)->firstOrFail();
+    }
+
     /**
      * Get the setup wizard state for an app.
      *
      * GET /api/apps/{ulid}/setup-state
      */
-    public function show(string $ulid): JsonResponse
+    public function show(Request $request, string $ulid): JsonResponse
     {
-        $app = App::withoutTenantScope()->where('ulid', $ulid)->firstOrFail();
+        $app = $this->resolveApp($request, $ulid);
 
         $currentStep = $app->setup_step;
 
-        // Once connection is verified, advance setup_step to theme so analysis, features, and theme are unlocked
-        if ($app->connection && $app->connection->status === ConnectionStatus::Verified) {
-            if ($currentStep->order() < SetupStep::Theme->order()) {
-                $app->update(['setup_step' => SetupStep::Theme]);
-                $currentStep = SetupStep::Theme;
-            }
-        }
-
-        // If draft config exists with theme, unlock preview
-        if ($app->configs()->where('state', 'draft')->exists()) {
-            if ($currentStep->order() < SetupStep::Preview->order()) {
-                $app->update(['setup_step' => SetupStep::Preview]);
-                $currentStep = SetupStep::Preview;
-            }
-        }
-
-        // If published config exists, unlock up to build
-        if ($app->configs()->where('state', 'published')->exists()) {
-            if ($currentStep->order() < SetupStep::Build->order()) {
-                $app->update(['setup_step' => SetupStep::Build]);
-                $currentStep = SetupStep::Build;
-            }
-        }
+        // Only real progress made by the user dictates the setup step.
+        // No premature auto-advance during state retrieval.
 
         $allSteps = SetupStep::cases();
 
@@ -65,17 +52,16 @@ class SetupStateController extends Controller
             }
         }
 
-        $activeSub = \App\Models\Subscription::withoutTenantScope()
-            ->where('app_id', $app->id)
-            ->where('status', 'active')
-            ->latest('id')
-            ->first();
-        $plan = $activeSub?->plan;
-        $planName = $plan?->name ?? 'Starter';
+        $activePlan = $app->getActivePlan();
+        $hasActive = ($activePlan !== null);
+        $planName = $activePlan?->name ?? null;
+        $paidAmountPaise = $activePlan ? (int) $activePlan->price_monthly : 0;
+        $paidAmountRupees = (int) round($paidAmountPaise / 100);
+
         $canDownloadApk = true;
-        $canDownloadAab = in_array($planName, ['Pro Growth', 'Enterprise']);
-        $canDownloadIpa = in_array($planName, ['Pro Growth', 'Enterprise']);
-        $hasAdminPanel = $planName === 'Enterprise';
+        $canDownloadAab = true;
+        $canDownloadIpa = $app->canDownloadIpa();
+        $hasAdminPanel = $app->hasAdminPanelAccess();
 
         return response()->json([
             'app' => [
@@ -90,10 +76,27 @@ class SetupStateController extends Controller
             'allowed_steps'   => $allowedSteps,
             'build_allowed'   => $app->isBuildAllowed(),
             'build_blockers'  => $app->getBuildBlockers(),
+            'selected_theme'  => (function () use ($app) {
+                $draft = $app->configs()->where('state', 'draft')->latest()->first();
+                $themeKey = $draft?->config['selected_theme_key'] ?? $draft?->config['theme']['key'] ?? $app->assigned_theme_key ?? 'theme_a';
+                $themeModel = \App\Models\Theme::where('key', $themeKey)->first();
+                $price = (int) ($themeModel?->price ?? 0);
+
+                return [
+                    'key'             => $themeKey,
+                    'name'            => $themeModel?->name ?? 'Modern Retail',
+                    'price'           => $price,
+                    'price_rupees'    => (int) round($price / 100),
+                    'price_formatted' => $price > 0 ? ('₹' . number_format(round($price / 100))) : 'Free',
+                    'is_free_theme'   => (bool) ($themeModel?->is_free_theme ?? ($themeKey === 'theme_a')),
+                ];
+            })(),
             'subscription'    => [
-                'has_active'         => $app->hasActiveSubscription(),
-                'plan_id'            => $plan?->id ?? 1,
+                'has_active'         => $hasActive,
+                'plan_id'            => $activePlan?->id ?? null,
                 'plan_name'          => $planName,
+                'paid_amount'        => $paidAmountPaise,
+                'paid_amount_rupees' => $paidAmountRupees,
                 'can_download_apk'   => $canDownloadApk,
                 'can_download_aab'   => $canDownloadAab,
                 'can_download_ipa'   => $canDownloadIpa,
@@ -112,7 +115,7 @@ class SetupStateController extends Controller
      */
     public function setPlatform(Request $request, string $ulid): JsonResponse
     {
-        $app = App::where('ulid', $ulid)->firstOrFail();
+        $app = $this->resolveApp($request, $ulid);
 
         $validated = $request->validate([
             'platform' => ['required', 'string', 'in:woo,shopify'],
@@ -172,7 +175,7 @@ class SetupStateController extends Controller
      */
     public function rollback(Request $request, string $ulid): JsonResponse
     {
-        $app = App::where('ulid', $ulid)->firstOrFail();
+        $app = $this->resolveApp($request, $ulid);
 
         $validated = $request->validate([
             'target_step' => ['required', 'string', 'in:platform,connect,theme,branding'],
@@ -224,4 +227,38 @@ class SetupStateController extends Controller
             'current_step' => $app->setup_step->value,
         ]);
     }
+
+    /**
+     * Advance setup wizard to the next or specified step as the user progresses.
+     *
+     * Invariant: Wizard steps are travelled strictly in forward sequence.
+     * Users can revisit past completed steps without losing their furthest unlocked progress.
+     *
+     * POST /api/apps/{ulid}/advance-step
+     */
+    public function advanceStep(Request $request, string $ulid): JsonResponse
+    {
+        $app = $this->resolveApp($request, $ulid);
+
+        $validated = $request->validate([
+            'step' => ['required', 'string'],
+        ]);
+
+        $target = SetupStep::tryFrom($validated['step']);
+        if (!$target) {
+            return response()->json(['error' => 'Invalid step identifier.'], 422);
+        }
+
+        // Advance forward to the target step
+        if ($target->order() > $app->setup_step->order()) {
+            $app->update([
+                'setup_step' => $target,
+            ]);
+        }
+
+        $app->refresh();
+
+        return $this->show($request, $ulid);
+    }
 }
+

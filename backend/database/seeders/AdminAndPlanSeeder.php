@@ -15,14 +15,15 @@ class AdminAndPlanSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Seed Pricing Plans
+        // 1. Seed Pricing Plans matching Landing Page
         Plan::updateOrCreate(
-            ['name' => 'Starter'],
+            ['id' => 1],
             [
-                'price_monthly' => 0, // ₹0/mo
+                'name'          => 'Starter App',
+                'price_monthly' => 499900, // ₹4,999 one-time (Annual ₹3,999)
                 'features'      => [
                     'apk_download'  => true,
-                    'aab_download'  => false,
+                    'aab_download'  => true,
                     'ipa_download'  => false,
                     'admin_panel'   => false,
                     'wishlist'      => true,
@@ -40,9 +41,10 @@ class AdminAndPlanSeeder extends Seeder
         );
 
         Plan::updateOrCreate(
-            ['name' => 'Pro Growth'],
+            ['id' => 2],
             [
-                'price_monthly' => 199900, // ₹1,999/mo
+                'name'          => 'Pro Combo',
+                'price_monthly' => 899900, // ₹8,999 one-time (Annual ₹7,199)
                 'features'      => [
                     'apk_download'  => true,
                     'aab_download'  => true,
@@ -52,7 +54,7 @@ class AdminAndPlanSeeder extends Seeder
                     'otp_login'     => true,
                     'notifications' => true,
                     'reviews'       => true,
-                    'whatsapp'      => false,
+                    'whatsapp'      => true,
                 ],
                 'limits'        => [
                     'builds_per_month' => 10,
@@ -63,9 +65,10 @@ class AdminAndPlanSeeder extends Seeder
         );
 
         Plan::updateOrCreate(
-            ['name' => 'Enterprise'],
+            ['id' => 3],
             [
-                'price_monthly' => 499900, // ₹4,999/mo
+                'name'          => 'Enterprise Suite',
+                'price_monthly' => 1499900, // ₹14,999 one-time (Annual ₹11,999)
                 'features'      => [
                     'apk_download'  => true,
                     'aab_download'  => true,
@@ -104,6 +107,47 @@ class AdminAndPlanSeeder extends Seeder
                 'password'          => 'Admin@12345',
                 'role'              => UserRole::Owner,
                 'email_verified_at' => now(),
+            ]
+        );
+
+        // 4. Standalone Add-ons
+        \App\Models\AddOn::updateOrCreate(
+            ['slug' => 'ios_bundle'],
+            [
+                'name'         => 'Apple iOS App Store Package (.IPA)',
+                'price'        => 299900,
+                'billing_type' => 'one_time',
+                'category'     => 'Publishing',
+                'description'  => 'Production signed iOS .IPA binary package ready for TestFlight distribution and Apple App Store publishing.',
+                'badge'        => 'iOS Package',
+                'features'     => [
+                    'Production signed iOS .IPA package',
+                    'TestFlight distribution ready',
+                    'App Store Connect publishing compatible',
+                    'Direct .IPA binary download',
+                ],
+                'is_active'    => true,
+                'sort_order'   => 9,
+            ]
+        );
+
+        \App\Models\AddOn::updateOrCreate(
+            ['slug' => 'admin_panel_addon'],
+            [
+                'name'         => 'Dedicated App Admin Panel Access Module',
+                'price'        => 299900,
+                'billing_type' => 'one_time',
+                'category'     => 'Admin',
+                'description'  => 'Web-based dedicated admin portal to manage catalog sync, push broadcasts, and telemetry.',
+                'badge'        => 'Admin Panel',
+                'features'     => [
+                    'Dedicated web management portal',
+                    'Push notification composer & history',
+                    'Live catalog sync trigger',
+                    'Multi-staff role access',
+                ],
+                'is_active'    => true,
+                'sort_order'   => 5,
             ]
         );
     }

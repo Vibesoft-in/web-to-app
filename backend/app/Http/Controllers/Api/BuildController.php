@@ -44,6 +44,16 @@ class BuildController extends Controller
     {
         $app = App::where('ulid', $ulid)->firstOrFail();
 
+        // Super Admins have system oversight and cannot trigger personal app builds
+        if ($request->user() && $request->user()->isSuperAdmin()) {
+            return response()->json([
+                'error' => [
+                    'code'    => 'ADMIN_CANNOT_BUILD',
+                    'message' => 'Super Admins oversee customer apps and cannot trigger personal builds. Builds must be initiated by customer accounts.',
+                ],
+            ], 403);
+        }
+
         // Part B Attack 3: Build without payment is forbidden (403 PAYMENT_REQUIRED)
         if (! $app->hasActiveSubscription()) {
             return response()->json([
@@ -100,15 +110,15 @@ class BuildController extends Controller
             $format = 'apk';
         }
 
-        // Validate plan capabilities: Starter = APK only; Pro & Enterprise = APK, AAB, IPA
+        // Validate plan capabilities: Starter App = APK & AAB; Pro Combo & Enterprise Suite = APK, AAB, IPA
         $activeSub = $app->subscriptions()->where('status', 'active')->latest('id')->first();
-        $planName = $activeSub?->plan?->name ?? 'Starter';
+        $planName = $activeSub?->plan?->name ?? 'Starter App';
 
-        if (in_array($format, ['aab', 'ipa']) && $planName === 'Starter') {
+        if ($format === 'ipa' && in_array($planName, ['Starter', 'Starter App'])) {
             return response()->json([
                 'error' => [
                     'code'    => 'UPGRADE_REQUIRED',
-                    'message' => strtoupper($format) . ' format requires a Pro Growth or Enterprise plan. Starter tier includes APK only.',
+                    'message' => 'iOS IPA format requires a Pro Combo or Enterprise Suite plan. Starter App includes Android APK & AAB.',
                 ],
             ], 403);
         }
@@ -153,17 +163,32 @@ class BuildController extends Controller
             ->where('status', 'active')
             ->latest('id')
             ->first();
-        $planName = $activeSub?->plan?->name ?? 'Starter';
+        $planName = $activeSub?->plan?->name ?? 'Starter App';
 
-        if (in_array($format, ['aab', 'ipa']) && $planName === 'Starter') {
+        if ($format === 'aab' && ! $app->canDownloadAab()) {
             return response()->json([
-                'error' => strtoupper($format) . ' package requires a Pro Growth or Enterprise subscription.',
+                'error' => [
+                    'code'    => 'FORBIDDEN_AAB_REQUIRES_PRO_UPGRADE',
+                    'message' => 'Google Play Store .AAB bundle generation requires a Pro or Premium package. Please upgrade your package to download .AAB bundles.',
+                ],
             ], 403);
         }
 
-        if ($format === 'admin' && $planName !== 'Enterprise') {
+        if ($format === 'admin' && ! $app->hasAdminPanelAccess()) {
             return response()->json([
-                'error' => 'Dedicated Admin Panel access requires an Enterprise subscription.',
+                'error' => [
+                    'code'    => 'FORBIDDEN_ADMIN_PANEL_REQUIRES_PREMIUM',
+                    'message' => 'Admin Panel access requires a Premium package or the Admin Panel Add-on. Please upgrade your package to unlock Admin Panel access.',
+                ],
+            ], 403);
+        }
+
+        if ($format === 'ipa' && ! $app->canDownloadIpa()) {
+            return response()->json([
+                'error' => [
+                    'code'    => 'FORBIDDEN_IPA_REQUIRES_UPGRADE',
+                    'message' => 'iOS IPA package requires a Pro plan or the Apple iOS Bundle Add-on.',
+                ],
             ], 403);
         }
 
@@ -209,6 +234,10 @@ class BuildController extends Controller
                         'status'        => BuildStatus::Ready,
                         'artifact_path' => "{$dir}/{$filenameWithoutExt}.aab",
                         'error'         => null,
+                    ]);
+                    $app->update([
+                        'status'     => \App\Enums\AppStatus::Completed,
+                        'setup_step' => \App\Enums\SetupStep::Build,
                     ]);
                     $fullPath = Storage::disk('local')->path($formatSpecificPath);
                 } catch (\Throwable $e) {

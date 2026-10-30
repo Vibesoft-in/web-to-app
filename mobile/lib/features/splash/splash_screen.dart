@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/env/app_env.dart';
 import '../../core/providers/core_providers.dart';
+import '../../core/services/woocommerce_service.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -106,35 +108,52 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Modern 3D Glowing Business Logo
+                      // Official Website Brand Logo
                       Container(
-                        width: 110,
-                        height: 110,
-                        padding: const EdgeInsets.all(22),
+                        width: 125,
+                        height: 125,
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF8B5CF6), Color(0xFF704FEE)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(32),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(30),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF704FEE).withOpacity(0.4),
+                              color: const Color(0xFF704FEE).withOpacity(0.18),
                               blurRadius: 30,
-                              offset: const Offset(0, 15),
+                              offset: const Offset(0, 14),
+                            ),
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.06),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.shopping_bag_rounded,
-                            size: 56,
-                            color: Colors.white,
+                        child: CachedNetworkImage(
+                          imageUrl: WooCommerceService.siteLogoUrl,
+                          fit: BoxFit.contain,
+                          placeholder: (context, url) => const Center(
+                            child: SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Color(0xFF704FEE),
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Image.network(
+                            WooCommerceService.siteIconUrl,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, err, stack) => const Icon(
+                              Icons.bolt_rounded,
+                              size: 56,
+                              color: Color(0xFF704FEE),
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 24),
 
                       // Store / Business Name
                       Text(

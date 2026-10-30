@@ -33,8 +33,26 @@ class CatalogController extends Controller
             'category' => $request->input('category'),
         ]);
 
+        $config = $app->configs()->latest('version')->first()?->config ?? [];
+        $overrides = $config['admin_product_status_overrides'] ?? [];
+        $deleted = $config['admin_deleted_product_ids'] ?? [];
+
+        $items = [];
+        foreach ($paginated->items as $p) {
+            $pIdStr = (string) $p->id;
+            if (in_array($pIdStr, $deleted, true)) {
+                continue;
+            }
+            $arr = $p->toArray();
+            if (isset($overrides[$pIdStr]['stock_status'])) {
+                $overrideStatus = $overrides[$pIdStr]['stock_status'];
+                $arr['in_stock'] = ($overrideStatus !== 'outofstock');
+            }
+            $items[] = $arr;
+        }
+
         return response()->json([
-            'data'         => array_map(fn ($p) => $p->toArray(), $paginated->items),
+            'data'         => $items,
             'total'        => $paginated->total,
             'current_page' => $paginated->currentPage,
             'total_pages'  => $paginated->totalPages,
@@ -52,10 +70,26 @@ class CatalogController extends Controller
             ], 404);
         }
 
+        $config = $app->configs()->latest('version')->first()?->config ?? [];
+        $deleted = $config['admin_deleted_product_ids'] ?? [];
+        if (in_array((string) $id, $deleted, true)) {
+            return response()->json([
+                'error' => ['code' => 'NOT_FOUND', 'message' => 'Product not found.'],
+            ], 404);
+        }
+
         try {
             $connector = $this->connectorFactory->make($app->connection);
             $product = $connector->getProduct($id);
-            return response()->json(['data' => $product->toArray()]);
+            $arr = $product->toArray();
+
+            $overrides = $config['admin_product_status_overrides'] ?? [];
+            if (isset($overrides[(string) $id]['stock_status'])) {
+                $overrideStatus = $overrides[(string) $id]['stock_status'];
+                $arr['in_stock'] = ($overrideStatus !== 'outofstock');
+            }
+
+            return response()->json(['data' => $arr]);
         } catch (\Throwable $e) {
             return response()->json([
                 'error' => ['code' => 'NOT_FOUND', 'message' => 'Product not found.'],

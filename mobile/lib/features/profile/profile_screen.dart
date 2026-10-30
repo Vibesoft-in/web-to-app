@@ -1,6 +1,10 @@
+import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/providers/core_providers.dart';
 import '../../core/providers/shop_providers.dart';
 
@@ -20,6 +24,8 @@ class ProfileScreen extends ConsumerWidget {
     await secureStore.clearAll();
     await configCache.clear();
     ref.read(userProfileProvider.notifier).logout();
+    ref.read(cartItemsProvider.notifier).clearCart();
+    ref.read(wishlistProvider.notifier).clear();
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -44,6 +50,8 @@ class ProfileScreen extends ConsumerWidget {
     await secureStore.clearAll();
     await configCache.clear();
     ref.read(userProfileProvider.notifier).logout();
+    ref.read(cartItemsProvider.notifier).clearCart();
+    ref.read(wishlistProvider.notifier).clear();
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -69,29 +77,35 @@ class ProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      body: SingleChildScrollView(
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
         child: Column(
           children: [
-            // 1. Sleek Compact Header with Back Arrow, Title, Notification & User Info
+            // 1. Sleek Compact Header with Back Arrow, Title, Notification & User Info (FIXED / PINNED AT TOP)
             Container(
               width: double.infinity,
               decoration: const BoxDecoration(
                 color: darkHeaderBg,
                 borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(22),
-                  bottomRight: Radius.circular(22),
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
                 ),
               ),
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
-                  child: Column(
-                    children: [
-                      // Top Bar Row: Back Button (Left), 'My Account' Title, Notifications (Right)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
+                child: SafeArea(
+                  top: true,
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Column(
+                      children: [
+                        // Top Bar Row: Back Button (Left), 'My Account' Title, Notifications (Right)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
                           // Left Corner: Back Arrow Icon (Navigates back to Home / Previous)
                           InkWell(
                             onTap: () {
@@ -174,17 +188,12 @@ class ProfileScreen extends ConsumerWidget {
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
                             ),
-                            child: CircleAvatar(
+                            child: _buildAvatarWidget(
+                              avatar: user.avatar,
+                              name: displayName,
                               radius: 22,
                               backgroundColor: Colors.white,
-                              child: Text(
-                                displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  color: darkHeaderBg,
-                                ),
-                              ),
+                              textColor: darkHeaderBg,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -242,12 +251,15 @@ class ProfileScreen extends ConsumerWidget {
               ),
             ),
 
-            // Main Body Content
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            // Main Body Content (Scrollable below the pinned header)
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   // 2. Benefits & Rewards Pill Bar (Like Image 2)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -263,31 +275,36 @@ class ProfileScreen extends ConsumerWidget {
                       ],
                     ),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildBenefitItem(
-                          icon: Icons.flash_on_rounded,
-                          iconColor: const Color(0xFF3B82F6),
-                          bgColor: const Color(0xFFEFF6FF),
-                          label: 'Reward Pts',
-                          value: '120 Pts',
+                        Expanded(
+                          child: _buildBenefitItem(
+                            icon: Icons.flash_on_rounded,
+                            iconColor: const Color(0xFF3B82F6),
+                            bgColor: const Color(0xFFEFF6FF),
+                            label: 'Reward Pts',
+                            value: '120 Pts',
+                          ),
                         ),
                         Container(height: 28, width: 1, color: Colors.grey.shade200),
-                        _buildBenefitItem(
-                          icon: Icons.account_balance_wallet_rounded,
-                          iconColor: const Color(0xFF059669),
-                          bgColor: const Color(0xFFECFDF5),
-                          label: 'Wallet Cash',
-                          value: '₹50.00',
+                        Expanded(
+                          child: _buildBenefitItem(
+                            icon: Icons.account_balance_wallet_rounded,
+                            iconColor: const Color(0xFF059669),
+                            bgColor: const Color(0xFFECFDF5),
+                            label: 'Wallet Cash',
+                            value: '₹50.00',
+                          ),
                         ),
                         Container(height: 28, width: 1, color: Colors.grey.shade200),
-                        _buildBenefitItem(
-                          icon: Icons.favorite_rounded,
-                          iconColor: const Color(0xFFEF4444),
-                          bgColor: const Color(0xFFFEF2F2),
-                          label: 'Wishlist',
-                          value: '${wishlist.length} Saved',
-                          onTap: () => context.push('/wishlist'),
+                        Expanded(
+                          child: _buildBenefitItem(
+                            icon: Icons.favorite_rounded,
+                            iconColor: const Color(0xFFEF4444),
+                            bgColor: const Color(0xFFFEF2F2),
+                            label: 'Wishlist',
+                            value: '${wishlist.length} Saved',
+                            onTap: () => context.push('/wishlist'),
+                          ),
                         ),
                       ],
                     ),
@@ -480,7 +497,7 @@ class ProfileScreen extends ConsumerWidget {
                                 ),
                                 SizedBox(height: 2),
                                 Text(
-                                  'Get special member discounts on testing.livaan.in',
+                                  'Get special member discounts on lighting.rishabhtyagi.in',
                                   style: TextStyle(
                                     color: Colors.white70,
                                     fontSize: 11.5,
@@ -529,7 +546,7 @@ class ProfileScreen extends ConsumerWidget {
                           icon: Icons.location_on_outlined,
                           title: 'My Saved Addresses',
                           subtitle: 'Default delivery location',
-                          onTap: () => _openSavedAddressesModal(context),
+                          onTap: () => _openSavedAddressesModal(context, ref, user),
                         ),
                         _buildDivider(),
                         _buildMenuTile(
@@ -586,7 +603,7 @@ class ProfileScreen extends ConsumerWidget {
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Terms & Conditions available on testing.livaan.in'),
+                                content: Text('Terms & Conditions available on lighting.rishabhtyagi.in'),
                                 behavior: SnackBarBehavior.floating,
                               ),
                             );
@@ -648,7 +665,7 @@ class ProfileScreen extends ConsumerWidget {
                     child: Column(
                       children: [
                         Text(
-                          'Testing Livaan Store App',
+                          'Lighting Store App',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -657,7 +674,7 @@ class ProfileScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Version 1.0.4 • testing.livaan.in',
+                          'Version 1.0.4 • lighting.rishabhtyagi.in',
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.grey.shade400,
@@ -670,10 +687,12 @@ class ProfileScreen extends ConsumerWidget {
                 ],
               ),
             ),
-          ],
+          ),
         ),
-      ),
-    );
+      ],
+    ),
+  ),
+);
   }
 
   // --- Helper Widgets ---
@@ -690,38 +709,46 @@ class ProfileScreen extends ConsumerWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(5.5),
               decoration: BoxDecoration(
                 color: bgColor,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 14, color: iconColor),
+              child: Icon(icon, size: 13, color: iconColor),
             ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1E1B4B),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E1B4B),
+                    ),
                   ),
-                ),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey.shade500,
-                    fontWeight: FontWeight.w500,
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -815,6 +842,7 @@ class ProfileScreen extends ConsumerWidget {
     final dobCtrl = TextEditingController(text: user.dob);
     final ageCtrl = TextEditingController(text: user.age);
     String selectedGender = user.gender.isNotEmpty ? user.gender : 'Female';
+    String currentAvatar = user.avatar;
 
     showModalBottomSheet(
       context: context,
@@ -857,7 +885,90 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+
+              // Top Profile Picture Section with Edit Camera Button
+              Center(
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFF704FEE).withOpacity(0.35),
+                          width: 2.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF704FEE).withOpacity(0.12),
+                            blurRadius: 14,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: _buildAvatarWidget(
+                        avatar: currentAvatar,
+                        name: nameCtrl.text.isNotEmpty ? nameCtrl.text : user.name,
+                        radius: 40,
+                        backgroundColor: const Color(0xFFEDE9FE),
+                        textColor: const Color(0xFF704FEE),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: -2,
+                      right: -2,
+                      child: GestureDetector(
+                        onTap: () => _showPhotoPickerOptions(context, (newAvatar) {
+                          setModalState(() {
+                            currentAvatar = newAvatar;
+                          });
+                        }),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF704FEE),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.18),
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => _showPhotoPickerOptions(context, (newAvatar) {
+                    setModalState(() {
+                      currentAvatar = newAvatar;
+                    });
+                  }),
+                  icon: const Icon(Icons.edit_rounded, size: 14, color: Color(0xFF704FEE)),
+                  label: const Text(
+                    'Change Profile Photo',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF704FEE),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
 
               // Full Name
               _buildModalTextField(
@@ -982,6 +1093,7 @@ class ProfileScreen extends ConsumerWidget {
                       dob: dobCtrl.text.trim(),
                       age: ageCtrl.text.trim(),
                       gender: selectedGender,
+                      avatar: currentAvatar,
                     );
                     Navigator.pop(ctx);
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -1003,6 +1115,249 @@ class ProfileScreen extends ConsumerWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showPhotoPickerOptions(BuildContext context, Function(String) onSelected) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (bCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Profile Photo',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E1B4B),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Upload your photo or choose an avatar',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 14),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDE9FE),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.photo_library_rounded, color: Color(0xFF704FEE)),
+                ),
+                title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Select a photo from your gallery', style: TextStyle(fontSize: 12)),
+                onTap: () async {
+                  Navigator.pop(bCtx);
+                  try {
+                    final picker = ImagePicker();
+                    final picked = await picker.pickImage(
+                      source: ImageSource.gallery,
+                      maxWidth: 800,
+                      maxHeight: 800,
+                      imageQuality: 85,
+                    );
+                    if (picked != null) {
+                      onSelected(picked.path);
+                    }
+                  } catch (e) {
+                    debugPrint('Image picker error: $e');
+                  }
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDE9FE),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.camera_alt_rounded, color: Color(0xFF704FEE)),
+                ),
+                title: const Text('Take Photo', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Capture a new photo with camera', style: TextStyle(fontSize: 12)),
+                onTap: () async {
+                  Navigator.pop(bCtx);
+                  try {
+                    final picker = ImagePicker();
+                    final picked = await picker.pickImage(
+                      source: ImageSource.camera,
+                      maxWidth: 800,
+                      maxHeight: 800,
+                      imageQuality: 85,
+                    );
+                    if (picked != null) {
+                      onSelected(picked.path);
+                    }
+                  } catch (e) {
+                    debugPrint('Camera error: $e');
+                  }
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDE9FE),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.face_rounded, color: Color(0xFF704FEE)),
+                ),
+                title: const Text('Choose Avatar Style', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Select an illustrated driver avatar', style: TextStyle(fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(bCtx);
+                  _showPresetAvatarDialog(context, onSelected);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEE2E2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444)),
+                ),
+                title: const Text('Remove Photo', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFEF4444))),
+                onTap: () {
+                  Navigator.pop(bCtx);
+                  onSelected('');
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showPresetAvatarDialog(BuildContext context, Function(String) onSelected) {
+    final presets = ['👨‍💼', '👩‍💼', '🏎️', '⚡', '🕶️', '👑', '🧑‍🔧', '🚀'];
+    showDialog(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Select Avatar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+        content: Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: presets.map((p) => InkWell(
+            onTap: () {
+              Navigator.pop(dCtx);
+              onSelected('preset:$p');
+            },
+            borderRadius: BorderRadius.circular(30),
+            child: Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3E8FF),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF704FEE).withOpacity(0.3)),
+              ),
+              alignment: Alignment.center,
+              child: Text(p, style: const TextStyle(fontSize: 26)),
+            ),
+          )).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarWidget({
+    required String avatar,
+    required String name,
+    double radius = 22,
+    Color? backgroundColor,
+    Color? textColor,
+  }) {
+    if (avatar.isNotEmpty) {
+      if (avatar.startsWith('preset:')) {
+        final emoji = avatar.replaceFirst('preset:', '');
+        return CircleAvatar(
+          radius: radius,
+          backgroundColor: backgroundColor ?? Colors.white,
+          child: Text(emoji, style: TextStyle(fontSize: radius * 1.05)),
+        );
+      }
+      if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+        return ClipOval(
+          child: CachedNetworkImage(
+            imageUrl: avatar,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.cover,
+            placeholder: (_, __) => CircleAvatar(
+              radius: radius,
+              backgroundColor: backgroundColor ?? Colors.white,
+              child: const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+            errorWidget: (_, __, ___) => CircleAvatar(
+              radius: radius,
+              backgroundColor: backgroundColor ?? Colors.white,
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                style: TextStyle(
+                  fontSize: radius * 0.8,
+                  fontWeight: FontWeight.w800,
+                  color: textColor ?? const Color(0xFF1E1B4B),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+      final file = File(avatar);
+      if (file.existsSync()) {
+        return ClipOval(
+          child: Image.file(
+            file,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => CircleAvatar(
+              radius: radius,
+              backgroundColor: backgroundColor ?? Colors.white,
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                style: TextStyle(
+                  fontSize: radius * 0.8,
+                  fontWeight: FontWeight.w800,
+                  color: textColor ?? const Color(0xFF1E1B4B),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: backgroundColor ?? Colors.white,
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'U',
+        style: TextStyle(
+          fontSize: radius * 0.8,
+          fontWeight: FontWeight.w800,
+          color: textColor ?? const Color(0xFF1E1B4B),
         ),
       ),
     );
@@ -1110,7 +1465,7 @@ class ProfileScreen extends ConsumerWidget {
               icon: Icons.email_rounded,
               color: Colors.purple,
               title: 'Email Support',
-              value: 'support@testing.livaan.in',
+              value: 'support@lighting.rishabhtyagi.in',
             ),
             const SizedBox(height: 14),
           ],
@@ -1150,66 +1505,267 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _openSavedAddressesModal(BuildContext context) {
+  void _openSavedAddressesModal(BuildContext context, WidgetRef ref, UserProfile user) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(22.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'My Saved Addresses 📍',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF1E1B4B)),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: const Row(
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final currentAddress = user.address.isNotEmpty
+            ? user.address
+            : 'Main Market, Kaladhungi Road';
+        final currentCity = user.city.isNotEmpty ? user.city : 'Kaladhungi';
+        final currentState = user.state.isNotEmpty ? user.state : 'Uttarakhand';
+        final currentPin = user.postcode.isNotEmpty ? user.postcode : '263139';
+
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: EdgeInsets.only(
+            top: 20,
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.home_rounded, color: Color(0xFF704FEE)),
-                  SizedBox(width: 12),
+                  const Row(
+                    children: [
+                      Icon(Icons.location_on_rounded, color: Color(0xFF704FEE), size: 22),
+                      SizedBox(width: 8),
+                      Text(
+                        'My Saved Addresses 📍',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1E1B4B),
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Default Delivery Address Card
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFEDE9FE), width: 1.5),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEDE9FE),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.home_rounded, color: Color(0xFF704FEE), size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text(
+                                'Home (Default Delivery)',
+                                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF16A34A),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'ACTIVE',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            currentAddress,
+                            style: const TextStyle(fontSize: 12.5, color: Color(0xFF475569)),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$currentCity, $currentState - $currentPin',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1E1B4B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Edit / Update Address Button
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _openEditAddressModal(context, ref, user);
+                  },
+                  icon: const Icon(Icons.edit_location_alt_rounded, size: 18),
+                  label: const Text(
+                    'Edit Default Address',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF704FEE),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _openEditAddressModal(BuildContext context, WidgetRef ref, UserProfile user) {
+    final addressCtrl = TextEditingController(text: user.address.isNotEmpty ? user.address : 'Main Market, Kaladhungi Road');
+    final cityCtrl = TextEditingController(text: user.city.isNotEmpty ? user.city : 'Kaladhungi');
+    final stateCtrl = TextEditingController(text: user.state.isNotEmpty ? user.state : 'Uttarakhand');
+    final pinCtrl = TextEditingController(text: user.postcode.isNotEmpty ? user.postcode : '263139');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.only(
+          top: 20,
+          left: 20,
+          right: 20,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Edit Default Address 📍',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E1B4B),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _buildModalTextField(
+                label: 'Street Address / Building',
+                controller: addressCtrl,
+                icon: Icons.home_rounded,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Home (Default Delivery)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                        SizedBox(height: 2),
-                        Text('Plot 24, VibeSoft Towers, Noida Sector 62, Uttar Pradesh - 201301', style: TextStyle(fontSize: 11.5, color: Colors.grey)),
-                      ],
+                    child: _buildModalTextField(
+                      label: 'City',
+                      controller: cityCtrl,
+                      icon: Icons.location_city_rounded,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildModalTextField(
+                      label: 'PIN Code',
+                      controller: pinCtrl,
+                      icon: Icons.pin_drop_rounded,
+                      keyboardType: TextInputType.number,
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Address management ready')),
-                  );
-                },
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Add New Address'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              const SizedBox(height: 12),
+              _buildModalTextField(
+                label: 'State',
+                controller: stateCtrl,
+                icon: Icons.map_rounded,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () {
+                    ref.read(userProfileProvider.notifier).updateProfile(
+                      address: addressCtrl.text.trim(),
+                      city: cityCtrl.text.trim(),
+                      state: stateCtrl.text.trim(),
+                      postcode: pinCtrl.text.trim(),
+                    );
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Default address updated! It is now set on Home header. 📍'),
+                        backgroundColor: Color(0xFF704FEE),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF704FEE),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text(
+                    'Save Address',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1263,7 +1819,7 @@ class ProfileScreen extends ConsumerWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: const Text('Privacy Policy 🛡️'),
           content: const Text(
-            'We value your privacy. All your credentials, payment tokens, and order history are securely handled in compliance with Google Play Developer policies and encrypted using industry standard protocols.\n\nWebsite: https://testing.livaan.in',
+            'We value your privacy. All your credentials, payment tokens, and order history are securely handled in compliance with Google Play Developer policies and encrypted using industry standard protocols.\n\nWebsite: https://livaan.in',
             style: TextStyle(fontSize: 13, height: 1.4),
           ),
           actions: [

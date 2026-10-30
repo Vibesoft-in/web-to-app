@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { apiClient } from "@/lib/api-client";
-import { AlertCircle, ArrowRight, CheckCircle2, Loader2, Lock, Mail } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 
 const THEME_NAMES: Record<string, { name: string; price: string }> = {
   minimal: { name: "Minimal", price: "Included in Plan" },
@@ -41,6 +41,7 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
   });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (clientQueryTheme && THEME_NAMES[clientQueryTheme]) {
@@ -60,6 +61,54 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
     }
   }, [clientQueryTheme, initialTheme]);
 
+  const navigateByAccountState = (currentUser: any, explicitRedirect?: string | null) => {
+    if (currentUser?.is_super_admin || currentUser?.email === "admin@webintoapp.com") {
+      window.location.href = "http://localhost:8000/admin";
+      return;
+    }
+
+    // 1. Returning user with at least 1 completed app -> Dashboard
+    if (currentUser?.has_built_apps) {
+      if (explicitRedirect && !explicitRedirect.includes("/dashboard/apps/new")) {
+        router.push(explicitRedirect);
+      } else {
+        router.push("/dashboard");
+      }
+      return;
+    }
+
+    // 2. User with an incomplete draft -> Resume from last saved step
+    if (currentUser?.latest_draft?.ulid) {
+      const step = currentUser.latest_draft.setup_step || "platform";
+      router.push(`/dashboard/apps/${currentUser.latest_draft.ulid}/setup/${step}`);
+      return;
+    }
+
+    // 3. User with no completed app and no draft -> App builder wizard
+    router.push(explicitRedirect || "/dashboard/apps/new");
+  };
+
+  // Check if user is already authenticated when visiting /login
+  useEffect(() => {
+    let isMounted = true;
+    const checkActiveSession = async () => {
+      // Don't auto-redirect if user explicitly wants to switch accounts
+      if (searchParams.get("switch") === "true") return;
+
+      try {
+        const meRes = await apiClient("/api/auth/me");
+        if (meRes?.user && isMounted) {
+          navigateByAccountState(meRes.user, searchParams.get("redirect"));
+        }
+      } catch {}
+    };
+
+    checkActiveSession();
+    return () => {
+      isMounted = false;
+    };
+  }, [router, searchParams]);
+
   const {
     register,
     handleSubmit,
@@ -73,12 +122,16 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
     setErrorMessage(null);
 
     try {
-      await apiClient("/api/auth/login", {
+      const res = await apiClient("/api/auth/login", {
         method: "POST",
         body: JSON.stringify(data),
       });
 
-      router.push("/dashboard");
+      if (res?.user) {
+        navigateByAccountState(res.user, searchParams.get("redirect"));
+      } else {
+        router.push("/dashboard/apps/new");
+      }
       router.refresh();
     } catch (err: any) {
       if (err.code === "EMAIL_NOT_VERIFIED") {
@@ -158,14 +211,23 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
               <Lock className="w-5 h-5 absolute left-3.5 top-3.5 text-slate-400" />
               <input
                 {...register("password")}
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="••••••••••••"
-                className={`w-full pl-11 pr-4 py-2.5 rounded-xl border text-sm transition focus:outline-none focus:ring-2 ${
+                className={`w-full pl-11 pr-11 py-2.5 rounded-xl border text-sm transition focus:outline-none focus:ring-2 ${
                   errors.password
                     ? "border-rose-300 focus:ring-rose-200 bg-rose-50/20"
                     : "border-slate-200 focus:border-amber-800 focus:ring-amber-100"
                 }`}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-700 transition"
+                tabIndex={-1}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
             {errors.password && (
               <p className="text-xs text-rose-600 mt-1">{errors.password.message}</p>

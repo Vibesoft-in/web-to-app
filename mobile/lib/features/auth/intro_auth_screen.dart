@@ -1,7 +1,9 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers/shop_providers.dart';
+import '../../core/services/woocommerce_service.dart';
 
 class IntroAuthScreen extends ConsumerStatefulWidget {
   const IntroAuthScreen({super.key});
@@ -15,6 +17,8 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
   bool _obscurePassword = true;
   String _selectedGender = 'Female';
   String? _errorMessage;
+  bool _isNewUserNotice = false;
+  bool _isLoading = false;
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -81,8 +85,12 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
     }
   }
 
-  void _handleSubmit() {
-    setState(() => _errorMessage = null);
+  Future<void> _handleSubmit() async {
+    if (_isLoading) return;
+    setState(() {
+      _errorMessage = null;
+      _isNewUserNotice = false;
+    });
 
     if (_isSignUp) {
       final name = _nameController.text.trim();
@@ -105,7 +113,9 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
         return;
       }
 
-      final error = ref.read(userProfileProvider.notifier).register(
+      setState(() => _isLoading = true);
+
+      final error = await ref.read(userProfileProvider.notifier).register(
         name: name,
         email: email,
         password: password,
@@ -115,26 +125,39 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
         gender: _selectedGender,
       );
 
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
       if (error != null) {
-        setState(() => _errorMessage = error);
+        setState(() {
+          _errorMessage = error;
+          if (error.contains('already registered')) {
+            _isSignUp = false; // Switch to Sign In if already registered
+          }
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+                const Icon(Icons.info_outline_rounded, color: Colors.white, size: 20),
                 const SizedBox(width: 8),
                 Expanded(child: Text(error)),
               ],
             ),
             backgroundColor: const Color(0xFFDC2626),
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 4),
           ),
         );
         return;
       }
 
       final current = ref.read(userProfileProvider);
+      
+      // Ensure newly created user starts with an empty cart and empty wishlist
+      ref.read(cartItemsProvider.notifier).clearCart();
+      ref.read(wishlistProvider.notifier).clear();
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Account created! Welcome, ${current.name}! 🎉'),
@@ -162,32 +185,82 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
         return;
       }
 
-      final error = ref.read(userProfileProvider.notifier).login(
+      setState(() => _isLoading = true);
+
+      final result = await ref.read(userProfileProvider.notifier).login(
         emailOrPhone: input,
         password: password,
       );
 
-      if (error != null) {
-        // WRONG CREDENTIALS: Show error and DO NOT PROCEED!
-        setState(() => _errorMessage = error);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (!result.success) {
+        final errorMsg = result.isNewUser
+            ? (result.message ?? 'Wrong credentials! Account not found in our store database. Please sign up.')
+            : (result.message ?? 'Wrong credentials! Incorrect email or password. Please try again.');
+
+        setState(() {
+          _isNewUserNotice = false;
+          _errorMessage = errorMsg;
+        });
+
+        // Show prominent notification alerting wrong credentials with quick Sign Up action
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(error)),
+                const Icon(Icons.error_outline_rounded, color: Colors.white, size: 24),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Wrong credentials!',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        result.isNewUser
+                            ? 'Account not found. Please sign up to create a new account.'
+                            : 'Incorrect email or password. Please sign up if you don\'t have an account.',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
             backgroundColor: const Color(0xFFDC2626),
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 6),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            action: SnackBarAction(
+              label: 'SIGN UP',
+              textColor: const Color(0xFFFDE047),
+              onPressed: () {
+                setState(() {
+                  _isSignUp = true;
+                  _errorMessage = null;
+                });
+              },
+            ),
           ),
         );
-        return; // Stays on login page, does NOT proceed
+        return; // Stays on page and lets user review or tap Sign Up
       }
 
-      // Valid registered credentials!
+      // Valid registered credentials from website!
       final current = ref.read(userProfileProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -213,9 +286,28 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: darkTextColor),
-          tooltip: 'Back to Splash',
-          onPressed: () => context.go('/splash'),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
         ),
+        actions: [
+          TextButton(
+            onPressed: () => context.go('/home'),
+            child: const Text(
+              'Skip',
+              style: TextStyle(
+                color: Color(0xFF704FEE),
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -223,30 +315,50 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Hero Banner with Logo & Illustration
+              // Hero Banner with Official Website Brand Logo
               Center(
                 child: Container(
-                  width: 80,
-                  height: 80,
+                  width: 90,
+                  height: 90,
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF8B5CF6), Color(0xFF704FEE)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: primaryColor.withOpacity(0.35),
-                        blurRadius: 18,
+                        color: primaryColor.withOpacity(0.18),
+                        blurRadius: 20,
                         offset: const Offset(0, 8),
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.06),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    Icons.shopping_bag_rounded,
-                    color: Colors.white,
-                    size: 42,
+                  child: CachedNetworkImage(
+                    imageUrl: WooCommerceService.siteLogoUrl,
+                    fit: BoxFit.contain,
+                    placeholder: (context, url) => const Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF704FEE),
+                        ),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => Image.network(
+                      WooCommerceService.siteIconUrl,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, err, stack) => const Icon(
+                        Icons.bolt_rounded,
+                        size: 42,
+                        color: Color(0xFF704FEE),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -359,22 +471,33 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Error Banner (Promptly displays when wrong credentials are submitted)
+              // Error / Notice Banner (Promptly displays when new user or wrong credentials)
               if (_errorMessage != null) ...[
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
+                    color: _isNewUserNotice
+                        ? const Color(0xFFF5F3FF)
+                        : const Color(0xFFFEF2F2),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFFCA5A5), width: 1.2),
+                    border: Border.all(
+                      color: _isNewUserNotice
+                          ? const Color(0xFFC4B5FD)
+                          : const Color(0xFFFCA5A5),
+                      width: 1.2,
+                    ),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.error_outline_rounded,
-                        color: Color(0xFFDC2626),
+                      Icon(
+                        _isNewUserNotice
+                            ? Icons.person_add_alt_1_rounded
+                            : Icons.error_outline_rounded,
+                        color: _isNewUserNotice
+                            ? const Color(0xFF704FEE)
+                            : const Color(0xFFDC2626),
                         size: 20,
                       ),
                       const SizedBox(width: 10),
@@ -382,10 +505,14 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Wrong Credentials',
+                            Text(
+                              _isNewUserNotice
+                                  ? 'New Customer? Welcome!'
+                                  : 'Wrong Credentials',
                               style: TextStyle(
-                                color: Color(0xFF991B1B),
+                                color: _isNewUserNotice
+                                    ? const Color(0xFF5B21B6)
+                                    : const Color(0xFF991B1B),
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -393,54 +520,71 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                             const SizedBox(height: 2),
                             Text(
                               _errorMessage!,
-                              style: const TextStyle(
-                                color: Color(0xFFB91C1C),
+                              style: TextStyle(
+                                color: _isNewUserNotice
+                                    ? const Color(0xFF6D28D9)
+                                    : const Color(0xFFB91C1C),
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
+                            if (!_isSignUp) ...[
+                              const SizedBox(height: 10),
+                              InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    _isSignUp = true;
+                                    _errorMessage = null;
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF704FEE),
+                                    borderRadius: BorderRadius.circular(8),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF704FEE).withOpacity(0.3),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.person_add_alt_1_rounded, size: 14, color: Colors.white),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'New user? Sign Up here',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      SizedBox(width: 4),
+                                      Icon(Icons.arrow_forward_rounded, size: 12, color: Colors.white),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
                       GestureDetector(
-                        onTap: () => setState(() => _errorMessage = null),
-                        child: const Icon(
+                        onTap: () => setState(() {
+                          _errorMessage = null;
+                          _isNewUserNotice = false;
+                        }),
+                        child: Icon(
                           Icons.close_rounded,
                           size: 16,
-                          color: Color(0xFFB91C1C),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // Registered Credentials Demo Hint (For seamless testing)
-              if (!_isSignUp) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF5F3FF),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFEDE9FE)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.verified_user_outlined, size: 16, color: Color(0xFF704FEE)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: RichText(
-                          text: TextSpan(
-                            style: TextStyle(fontSize: 11, color: Colors.purple.shade900),
-                            children: const [
-                              TextSpan(
-                                text: 'Registered: ',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              TextSpan(text: 'meghabahukhandi2006@gmail.com | Pass: password123'),
-                            ],
-                          ),
+                          color: _isNewUserNotice
+                              ? const Color(0xFF7C3AED)
+                              : const Color(0xFFB91C1C),
                         ),
                       ),
                     ],
@@ -642,10 +786,17 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () {
+                      final email = _emailController.text.trim();
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Demo account: meghabahukhandi2006@gmail.com | Password: password123'),
+                        SnackBar(
+                          content: Text(
+                            email.isNotEmpty
+                                ? 'Password reset instructions have been sent to $email.'
+                                : 'Please enter your registered email to reset your password.',
+                          ),
                           behavior: SnackBarBehavior.floating,
+                          backgroundColor: primaryColor,
+                          duration: const Duration(seconds: 3),
                         ),
                       );
                     },
@@ -665,23 +816,33 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
 
               // Primary Action Button
               ElevatedButton(
-                onPressed: _handleSubmit,
+                onPressed: _isLoading ? null : _handleSubmit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
                   foregroundColor: Colors.white,
+                  disabledBackgroundColor: primaryColor.withOpacity(0.6),
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                child: Text(
-                  _isSignUp ? 'Create Account' : 'Sign In',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Text(
+                        _isSignUp ? 'Create Account' : 'Sign In',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
               const SizedBox(height: 20),
 
@@ -707,12 +868,12 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        // Authenticate as verified seed user
-                        ref.read(userProfileProvider.notifier).login(
-                          emailOrPhone: 'meghabahukhandi2006@gmail.com',
-                          password: 'password123',
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please sign in with your store email and password.'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
                         );
-                        context.go('/home');
                       },
                       icon: const Icon(Icons.g_mobiledata_rounded, size: 28, color: Colors.redAccent),
                       label: const Text('Google', style: TextStyle(color: darkTextColor, fontWeight: FontWeight.w600)),
@@ -727,12 +888,12 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        // Authenticate as verified seed user
-                        ref.read(userProfileProvider.notifier).login(
-                          emailOrPhone: 'meghabahukhandi2006@gmail.com',
-                          password: 'password123',
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please sign in with your store email and password.'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
                         );
-                        context.go('/home');
                       },
                       icon: const Icon(Icons.apple_rounded, size: 22, color: darkTextColor),
                       label: const Text('Apple', style: TextStyle(color: darkTextColor, fontWeight: FontWeight.w600)),

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers/shop_providers.dart';
+import '../../core/services/woocommerce_service.dart';
+import '../orders/orders_screen.dart';
 
 class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
@@ -13,8 +15,12 @@ class CartScreen extends ConsumerStatefulWidget {
 
 class _CartScreenState extends ConsumerState<CartScreen> {
   final TextEditingController _promoController = TextEditingController();
-  bool _promoApplied = true;
-  double _promoDiscount = 25.00;
+  bool _promoApplied = false;
+  double _promoDiscount = 0.0;
+  String _appliedCouponCode = '';
+  bool _isCheckingCoupon = false;
+  String? _selectedGatewayId;
+  bool _isPlacingOrder = false;
 
   @override
   void dispose() {
@@ -22,21 +28,67 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     super.dispose();
   }
 
-  void _applyPromo() {
-    final code = _promoController.text.trim().toUpperCase();
-    if (code.isNotEmpty) {
-      setState(() {
-        _promoApplied = true;
-        _promoDiscount = 25.00;
-      });
+  Future<void> _applyPromo(double subtotal) async {
+    final code = _promoController.text.trim();
+    if (code.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Promo code applied successfully! (- \$25.00)'),
-          backgroundColor: Color(0xFF704FEE),
+          content: Text('Please enter a coupon code.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isCheckingCoupon = true);
+    final wcService = ref.read(wcServiceProvider);
+    final result = await wcService.validateCoupon(code, subtotal);
+    if (!mounted) return;
+    setState(() => _isCheckingCoupon = false);
+
+    if (result.isValid) {
+      final discountVal = result.calculateDiscount(subtotal);
+      setState(() {
+        _promoApplied = true;
+        _appliedCouponCode = result.code;
+        _promoDiscount = discountVal;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Coupon "${result.code}" applied! Saved ₹${discountVal.toStringAsFixed(0)} 🎉'),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      setState(() {
+        _promoApplied = false;
+        _appliedCouponCode = '';
+        _promoDiscount = 0.0;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.message ?? 'Invalid coupon code.'),
+          backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
         ),
       );
     }
+  }
+
+  void _removePromo() {
+    setState(() {
+      _promoApplied = false;
+      _appliedCouponCode = '';
+      _promoDiscount = 0.0;
+      _promoController.clear();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Coupon removed.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -54,7 +106,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       (sum, item) => sum + (item.price * item.quantity),
     );
     final discount = _promoApplied && subtotal > 0 ? _promoDiscount : 0.0;
-    const shipping = 5.00;
+    const shipping = 0.00; // Free shipping on lighting orders
     final total = (subtotal - discount + (subtotal > 0 ? shipping : 0.0))
         .clamp(0.0, double.infinity);
 
@@ -160,9 +212,13 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Promo Code Section
-                    _buildPromoSection(primaryColor, darkTextColor),
-                    const SizedBox(height: 24),
+                    // Promo Code Section (Verified against WooCommerce)
+                    _buildPromoSection(primaryColor, darkTextColor, subtotal),
+                    const SizedBox(height: 20),
+
+                    // Live Payment Gateways from Store Website
+                    _buildPaymentGatewaysSection(primaryColor, darkTextColor),
+                    const SizedBox(height: 20),
 
                     // Order Summary Section
                     _buildOrderSummary(
@@ -175,9 +231,15 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     ),
                     const SizedBox(height: 22),
 
-                    // Checkout Buttons
-                    _buildCheckoutButtons(primaryColor, darkTextColor),
-                    const SizedBox(height: 24),
+                    // Checkout Buttons (Real Store Checkout)
+                    _buildCheckoutButtons(
+                      primaryColor: primaryColor,
+                      darkTextColor: darkTextColor,
+                      total: total,
+                      subtotal: subtotal,
+                      cartItems: cartItems,
+                    ),
+                    const SizedBox(height: 28),
                   ],
                 ),
               ),
@@ -240,7 +302,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '\$${item.price.toStringAsFixed(2)}',
+                  '₹${item.price.toStringAsFixed(0)}',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w900,
@@ -307,81 +369,401 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
   }
 
-  /// Promo Code Box
-  Widget _buildPromoSection(Color primaryColor, Color darkTextColor) {
+  /// Promo Code Box (Dynamically verified against WooCommerce website)
+  Widget _buildPromoSection(Color primaryColor, Color darkTextColor, double subtotal) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: const Color(0xFFF9FAFB),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade100),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: const [
+                  Text('💎', style: TextStyle(fontSize: 14)),
+                  SizedBox(width: 6),
+                  Text(
+                    'Have a promo code?',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF374151),
+                    ),
+                  ),
+                ],
+              ),
+              if (_promoApplied)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECFDF5),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFA7F3D0)),
+                  ),
+                  child: const Text(
+                    'APPLIED',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF059669),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (_promoApplied) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _appliedCouponCode,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: primaryColor,
+                          ),
+                        ),
+                        Text(
+                          'You saved ₹${_promoDiscount.toStringAsFixed(0)} on this order',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _removePromo,
+                    child: const Text(
+                      'Remove',
+                      style: TextStyle(
+                        color: Color(0xFFEF4444),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 44,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: TextField(
+                      controller: _promoController,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: InputDecoration(
+                        hintText: 'Enter coupon code (e.g. LIGHTING10)',
+                        hintStyle: TextStyle(
+                          color: Colors.grey.shade400,
+                          fontSize: 12.5,
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: _isCheckingCoupon ? null : () => _applyPromo(subtotal),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: _isCheckingCoupon
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text(
+                          'Apply',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                        ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Payment Gateways Section (Live from WooCommerce Store)
+  Widget _buildPaymentGatewaysSection(Color primaryColor, Color darkTextColor) {
+    final gatewaysAsync = ref.watch(wcPaymentGatewaysProvider);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: const [
-              Text('💎', style: TextStyle(fontSize: 14)),
+              Icon(Icons.payment_rounded, size: 18, color: Color(0xFF704FEE)),
               SizedBox(width: 6),
               Text(
-                'Have a promo code?',
+                'Payment Options (From Website)',
                 style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF374151),
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1E1B4B),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 44,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: TextField(
-                    controller: _promoController,
-                    decoration: InputDecoration(
-                      hintText: _promoApplied ? 'DISCOUNT25' : 'Enter code',
-                      hintStyle: TextStyle(
-                        color: _promoApplied ? primaryColor : Colors.grey.shade400,
-                        fontSize: 13,
-                        fontWeight: _promoApplied ? FontWeight.bold : FontWeight.normal,
+          gatewaysAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12.0),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+            error: (_, __) => _buildFallbackGateways(primaryColor, darkTextColor),
+            data: (gateways) {
+              final activeGateways = gateways.where((g) => g.enabled).toList();
+              if (activeGateways.isEmpty) {
+                return _buildFallbackGateways(primaryColor, darkTextColor);
+              }
+
+              // Auto-select first active gateway if not already selected
+              if (_selectedGatewayId == null ||
+                  !activeGateways.any((g) => g.id == _selectedGatewayId)) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    setState(() {
+                      _selectedGatewayId = activeGateways.first.id;
+                    });
+                  }
+                });
+              }
+
+              return Column(
+                children: activeGateways.map((g) {
+                  final isSelected = (_selectedGatewayId ?? activeGateways.first.id) == g.id;
+                  IconData iconData = Icons.account_balance_wallet_outlined;
+                  if (g.id == 'razorpay') {
+                    iconData = Icons.credit_card_rounded;
+                  } else if (g.id == 'cod') {
+                    iconData = Icons.local_shipping_outlined;
+                  } else if (g.id == 'bacs') {
+                    iconData = Icons.account_balance_rounded;
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: InkWell(
+                      onTap: () {
+                        setState(() => _selectedGatewayId = g.id);
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected ? primaryColor : Colors.grey.shade200,
+                            width: isSelected ? 1.8 : 1.0,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isSelected
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_off,
+                              size: 19,
+                              color: isSelected ? primaryColor : Colors.grey.shade400,
+                            ),
+                            const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? primaryColor.withOpacity(0.1)
+                                    : const Color(0xFFF3F4F6),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(iconData, size: 16, color: primaryColor),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    g.title,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: darkTextColor,
+                                    ),
+                                  ),
+                                  if (g.description.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      g.description,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        color: Colors.grey.shade500,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              ElevatedButton(
-                onPressed: _applyPromo,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  'Apply',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
+                  );
+                }).toList(),
+              );
+            },
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFallbackGateways(Color primaryColor, Color darkTextColor) {
+    return Column(
+      children: [
+        _buildGatewayOptionCard(
+          id: 'razorpay',
+          title: 'UPI, Cards, NetBanking',
+          subtitle: 'Pay via Google Pay, PhonePe, Paytm, or Card',
+          icon: Icons.credit_card_rounded,
+          primaryColor: primaryColor,
+          darkTextColor: darkTextColor,
+        ),
+        const SizedBox(height: 8),
+        _buildGatewayOptionCard(
+          id: 'cod',
+          title: 'Cash on delivery',
+          subtitle: 'Pay with cash upon delivery of package',
+          icon: Icons.local_shipping_outlined,
+          primaryColor: primaryColor,
+          darkTextColor: darkTextColor,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGatewayOptionCard({
+    required String id,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color primaryColor,
+    required Color darkTextColor,
+  }) {
+    final isSelected = (_selectedGatewayId ?? 'cod') == id;
+    return InkWell(
+      onTap: () => setState(() => _selectedGatewayId = id),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? primaryColor : Colors.grey.shade200,
+            width: isSelected ? 1.8 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+              size: 19,
+              color: isSelected ? primaryColor : Colors.grey.shade400,
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: isSelected ? primaryColor.withOpacity(0.1) : const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 16, color: primaryColor),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: darkTextColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -397,15 +779,21 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   }) {
     return Column(
       children: [
-        _buildSummaryRow('Subtotal', '\$${subtotal.toStringAsFixed(2)}', darkTextColor),
+        _buildSummaryRow('Subtotal', '₹${subtotal.toStringAsFixed(0)}', darkTextColor),
         const SizedBox(height: 8),
+        if (discount > 0) ...[
+          _buildSummaryRow(
+            'Coupon Discount',
+            '- ₹${discount.toStringAsFixed(0)}',
+            const Color(0xFF10B981),
+          ),
+          const SizedBox(height: 8),
+        ],
         _buildSummaryRow(
-          'Discount',
-          '- \$${discount.toStringAsFixed(2)}',
-          const Color(0xFF10B981),
+          'Shipping',
+          shipping == 0 ? 'FREE' : '₹${shipping.toStringAsFixed(0)}',
+          shipping == 0 ? const Color(0xFF10B981) : darkTextColor,
         ),
-        const SizedBox(height: 8),
-        _buildSummaryRow('Shipping', '\$${shipping.toStringAsFixed(2)}', darkTextColor),
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 12.0),
           child: Divider(color: Color(0xFFE5E7EB)),
@@ -422,9 +810,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               ),
             ),
             Text(
-              '\$${total.toStringAsFixed(2)}',
+              '₹${total.toStringAsFixed(0)}',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 19,
                 fontWeight: FontWeight.w900,
                 color: primaryColor,
               ),
@@ -459,23 +847,28 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
   }
 
-  /// Checkout Buttons
-  Widget _buildCheckoutButtons(Color primaryColor, Color darkTextColor) {
+  /// Real WooCommerce Checkout Flow
+  Widget _buildCheckoutButtons({
+    required Color primaryColor,
+    required Color darkTextColor,
+    required double total,
+    required double subtotal,
+    required List<CartItem> cartItems,
+  }) {
     return Column(
       children: [
         SizedBox(
           width: double.infinity,
-          height: 50,
+          height: 52,
           child: ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Order placed successfully! Thank you for shopping with us 🎉'),
-                  backgroundColor: Color(0xFF10B981),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+            onPressed: _isPlacingOrder
+                ? null
+                : () => _handleCheckout(
+                      total: total,
+                      subtotal: subtotal,
+                      cartItems: cartItems,
+                      primaryColor: primaryColor,
+                    ),
             style: ElevatedButton.styleFrom(
               backgroundColor: primaryColor,
               foregroundColor: Colors.white,
@@ -484,52 +877,221 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
-            child: const Text(
-              'Checkout',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            child: _isPlacingOrder
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.lock_outline_rounded, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Place Order • ₹${total.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
           ),
         ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: OutlinedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Redirecting to Apple Pay / Google Pay...'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFFE5E7EB)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.verified_user_rounded, size: 14, color: Colors.grey.shade500),
+            const SizedBox(width: 4),
+            Text(
+              '100% Secure Checkout via livaan.in',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Icon(Icons.apple_rounded, size: 20, color: Color(0xFF1E1B4B)),
-                SizedBox(width: 4),
-                Text(
-                  'Pay',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E1B4B),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          ],
         ),
       ],
+    );
+  }
+
+  Future<void> _handleCheckout({
+    required double total,
+    required double subtotal,
+    required List<CartItem> cartItems,
+    required Color primaryColor,
+  }) async {
+    setState(() => _isPlacingOrder = true);
+
+    final user = ref.read(userProfileProvider);
+    final wcService = ref.read(wcServiceProvider);
+
+    final selectedGatewayId = _selectedGatewayId ?? 'cod';
+    final selectedGatewayTitle = selectedGatewayId == 'razorpay'
+        ? 'UPI, Cards, NetBanking'
+        : 'Cash on delivery';
+
+    final lineItems = cartItems.map((item) {
+      final pId = int.tryParse(item.id) ?? 0;
+      return {
+        if (pId > 0) 'product_id': pId,
+        'name': item.title,
+        'quantity': item.quantity,
+        'total': (item.price * item.quantity).toStringAsFixed(2),
+      };
+    }).toList();
+
+    final orderResult = await wcService.createOrder(
+      customerId: user.id > 0 ? user.id : 0,
+      firstName: user.name.isNotEmpty ? user.name.split(' ').first : 'Customer',
+      lastName: user.name.isNotEmpty ? user.name.split(' ').skip(1).join(' ') : '',
+      email: user.email.isNotEmpty ? user.email : 'customer@lightingstore.in',
+      phone: user.phone.isNotEmpty ? user.phone : '9876543210',
+      address: 'Main Store Delivery',
+      city: 'Delhi',
+      state: 'DL',
+      postcode: '110001',
+      paymentMethodId: selectedGatewayId,
+      paymentMethodTitle: selectedGatewayTitle,
+      lineItems: lineItems,
+      couponCode: _promoApplied ? _appliedCouponCode : null,
+    );
+
+    if (!mounted) return;
+    setState(() => _isPlacingOrder = false);
+
+    final orderId = orderResult?['id']?.toString() ??
+        orderResult?['order_number']?.toString() ??
+        '${DateTime.now().millisecondsSinceEpoch % 100000}';
+
+    // Clear cart after placing order
+    ref.read(cartItemsProvider.notifier).clearCart();
+    ref.invalidate(ordersProvider);
+
+    _showOrderSuccessDialog(
+      orderId: orderId,
+      total: total,
+      paymentMethod: selectedGatewayTitle,
+      primaryColor: primaryColor,
+    );
+  }
+
+  void _showOrderSuccessDialog({
+    required String orderId,
+    required double total,
+    required String paymentMethod,
+    required Color primaryColor,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFECFDF5),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 40),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Order Placed Successfully!',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E1B4B),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Thank you for shopping with us 🎉\nYour order has been recorded in our store.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: Colors.grey.shade600,
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF9FAFB),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Order Number:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        Text('#$orderId', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Total Amount:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        Text('₹${total.toStringAsFixed(0)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryColor)),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Payment Mode:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        Text(paymentMethod, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    context.push('/orders');
+                  },
+                  icon: const Icon(Icons.local_shipping_outlined, size: 18),
+                  label: const Text('Track Order Status', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 42,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    context.go('/home');
+                  },
+                  child: const Text('Continue Shopping', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

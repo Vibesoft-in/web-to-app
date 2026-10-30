@@ -34,18 +34,20 @@ class RazorpayService
         Plan $plan,
         App $app,
         string $interval = 'monthly',
-        array $addons = []
+        array $addons = [],
+        ?string $themeKey = null
     ): array {
-        $calculation = $this->calculator->calculate($plan, $interval, $addons);
+        $calculation = $this->calculator->calculate($plan, $interval, $addons, $app, $themeKey);
         $amount = $calculation['total'];
 
         $keyId = (string) config('services.razorpay.key_id', 'rzp_test_public_key');
         $keySecret = (string) config('services.razorpay.key_secret', 'rzp_test_secret_key');
 
-        $isLive = config('services.razorpay.live', false) && ! empty($keySecret) && $keySecret !== 'rzp_test_secret_key';
+        $hasRealKeys = ! empty($keySecret) && ! empty($keyId) && $keySecret !== 'rzp_test_secret_key';
+        $isLive = config('services.razorpay.live', true);
 
-        if ($isLive) {
-            // Call live Razorpay Orders / Subscriptions API
+        if ($hasRealKeys && $isLive) {
+            // Call Razorpay Orders API
             $response = Http::withBasicAuth($keyId, $keySecret)
                 ->timeout(10)
                 ->post('https://api.razorpay.com/v1/orders', [
@@ -90,6 +92,21 @@ class RazorpayService
             'currency'        => 'INR',
             'key_id'          => $keyId,
         ];
+    }
+
+    /**
+     * Cryptographically verifies the HMAC SHA-256 signature returned by Razorpay Checkout.
+     */
+    public function verifyPaymentSignature(string $orderId, string $paymentId, string $signature): bool
+    {
+        $secret = (string) (config('services.razorpay.key_secret') ?: 'rzp_test_secret_key');
+        if (empty($signature) || empty($secret)) {
+            return false;
+        }
+
+        $expected = hash_hmac('sha256', $orderId . '|' . $paymentId, $secret);
+
+        return hash_equals($expected, $signature);
     }
 
     /**

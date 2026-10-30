@@ -241,8 +241,8 @@ export function AppDetailsView({
               <span className="text-base font-black text-indigo-900 block">{currentPlan?.name || "Starter"}</span>
               <span className="text-[11px] font-bold text-indigo-600">
                 {currentPlan?.price_monthly === 0
-                  ? "₹0 / month"
-                  : `₹${(currentPlan?.price_monthly / 100).toLocaleString("en-IN")} / mo`}
+                  ? "Free Tier"
+                  : `₹${(currentPlan?.price_monthly / 100).toLocaleString("en-IN")} Lifetime`}
               </span>
             </div>
           </div>

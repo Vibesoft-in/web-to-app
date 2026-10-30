@@ -22,6 +22,7 @@ class NativeApkGenerator
         $sdkCandidates = array_filter([
             getenv('ANDROID_HOME') ?: null,
             getenv('ANDROID_SDK_ROOT') ?: null,
+            'C:\\Users\\kunaa\\AppData\\Local\\Android\\Sdk',
             'C:\\Users\\msans\\AppData\\Local\\Android\\Sdk',
             'C:\\Users\\megha\\AppData\\Local\\Android\\Sdk',
         ]);
@@ -83,6 +84,7 @@ class NativeApkGenerator
         // 4. Java JDK / JBR directory
         $jdkCandidates = array_filter([
             getenv('JAVA_HOME') ?: null,
+            'C:\\Users\\kunaa\\jdk-21\\jdk-21.0.13+9',
             'C:\\Program Files\\Android\\Android Studio\\jbr',
             'C:\\Program Files\\Java\\jdk-24',
             'C:\\Program Files\\Java\\jdk-21',

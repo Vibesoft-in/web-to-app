@@ -18,7 +18,7 @@ class AppEnv {
 
   static const String appName = String.fromEnvironment(
     'APP_NAME',
-    defaultValue: 'WebIntoApp Store',
+    defaultValue: 'Livaan',
   );
 
   static const String appVersion = String.fromEnvironment(

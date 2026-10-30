@@ -30,6 +30,7 @@ interface PhoneFrameProps {
   categories?: any[];
   logoUrl?: string;
   bannerUrl?: string;
+  niche?: any;
   onEditBanner?: () => void;
 }
 
@@ -39,6 +40,7 @@ export function PhoneFrame({
   categories = [],
   logoUrl,
   bannerUrl,
+  niche,
   onEditBanner,
 }: PhoneFrameProps) {
   const [activeTab, setActiveTab] = useState<"home" | "categories" | "cart" | "profile">("home");
@@ -345,10 +347,23 @@ export function PhoneFrame({
             {homeSections.map((sec: any, idx: number) => {
               if (sec.type === "banner") {
                 const item = sec.items?.[0] || {};
-                const activeImg = item.image || bannerUrl || fallbackBanner;
-                const bannerTitle = item.title || "Exclusive Online Collection";
-                const bannerBadge = item.badge || "Featured Store Deal";
-                const bannerButton = item.button_text || "Shop Now →";
+                let activeImg = item.image || bannerUrl || fallbackBanner;
+                let bannerTitle = item.title;
+                let bannerBadge = item.badge;
+                let bannerButton = item.button_text;
+
+                if (!bannerTitle || bannerTitle === "Exclusive Online Collection") {
+                  bannerTitle = niche?.hero_title || "High-Performance Lighting & Bulbs";
+                }
+                if (!bannerBadge || bannerBadge === "Featured Store Deal") {
+                  bannerBadge = niche?.hero_badge || "SUPER BRIGHT • 2026 EDITION";
+                }
+                if (!bannerButton || bannerButton === "Shop Now →") {
+                  bannerButton = niche?.hero_button || "Shop Halogen & LED →";
+                }
+                if (!activeImg || activeImg.includes("photo-1441986300917") || activeImg.includes("placeholders/banner1")) {
+                  activeImg = niche?.hero_image || activeImg;
+                }
 
                 return (
                   <div key={idx} className="px-3.5 relative group">
@@ -412,6 +427,24 @@ export function PhoneFrame({
                           <span>Edit</span>
                         </button>
                       )}
+                    </div>
+
+                    {/* Perks Strip */}
+                    <div className="mt-2.5 bg-slate-50 border border-slate-200/80 rounded-xl py-1.5 px-3 flex items-center justify-between text-[9px] text-slate-600 font-semibold shadow-xs">
+                      <div className="flex items-center gap-1">
+                        <Package className="w-3 h-3 text-blue-500" />
+                        <span>Free Shipping</span>
+                      </div>
+                      <div className="w-[1px] h-3 bg-slate-200" />
+                      <div className="flex items-center gap-1 text-emerald-600">
+                        <Check className="w-3 h-3" />
+                        <span>100% Genuine</span>
+                      </div>
+                      <div className="w-[1px] h-3 bg-slate-200" />
+                      <div className="flex items-center gap-1 text-amber-600">
+                        <Sparkles className="w-3 h-3" />
+                        <span>Fast Dispatch</span>
+                      </div>
                     </div>
                   </div>
                 );

@@ -66,7 +66,9 @@ export default function AddonsPage() {
 
   const activeApp = appsData?.[0];
   const activeSub = billingData?.active_sub;
-  const currentPlan = activeSub?.plan?.name || "Starter";
+  const currentPlan = activeSub?.plan?.name || "Starter App";
+  const isEnterprise = currentPlan.includes("Enterprise");
+  const isProOrEnterprise = currentPlan.includes("Pro") || isEnterprise;
 
   const addons: Addon[] = [
     {
@@ -75,8 +77,8 @@ export default function AddonsPage() {
       category: "publishing",
       badge: "Most Popular",
       badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      price: currentPlan === "Starter" ? "₹1,499" : "Included Free",
-      period: currentPlan === "Starter" ? "one-time setup" : "in your current plan",
+      price: !isProOrEnterprise ? "₹1,499" : "Included Free",
+      period: !isProOrEnterprise ? "one-time setup" : "in your current plan",
       description: "Get your Android App published on the official Google Play Store with zero hassle. We handle console setup, asset guidelines, and approval guarantees.",
       features: [
         "Google Play Console compliance audit",
@@ -85,7 +87,7 @@ export default function AddonsPage() {
         "Signed production .aab bundle deployment",
         "Google Play review acceptance guarantee",
       ],
-      includedInPlan: "Pro Growth & Enterprise",
+      includedInPlan: "Pro Combo & Enterprise Suite",
       icon: Rocket,
       actionText: "Request Play Store Publishing",
     },
@@ -95,8 +97,8 @@ export default function AddonsPage() {
       category: "publishing",
       badge: "High Demand",
       badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
-      price: currentPlan === "Enterprise" ? "Included Free" : "₹2,999",
-      period: currentPlan === "Enterprise" ? "in your current plan" : "one-time setup",
+      price: isEnterprise ? "Included Free" : "₹2,999",
+      period: isEnterprise ? "in your current plan" : "one-time setup",
       description: "Expand your reach to iPhone and iPad users. Includes signed .ipa package compilation, TestFlight beta setup, and App Store review assistance.",
       features: [
         "Native iOS 17 & 18 optimized compilation",
@@ -105,7 +107,7 @@ export default function AddonsPage() {
         "App Store Connect metadata & screenshots",
         "Assistance with Apple Human Interface Guidelines",
       ],
-      includedInPlan: "Enterprise Plan",
+      includedInPlan: "Enterprise Suite",
       icon: Smartphone,
       actionText: "Activate iOS Publishing",
     },
@@ -115,8 +117,8 @@ export default function AddonsPage() {
       category: "marketing",
       badge: "Boost Sales 3x",
       badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
-      price: currentPlan === "Starter" ? "₹699" : "Included Free",
-      period: currentPlan === "Starter" ? "/ month" : "in your current plan",
+      price: !isProOrEnterprise ? "₹699" : "Included Free",
+      period: !isProOrEnterprise ? "/ month" : "in your current plan",
       description: "Directly message your customers on their lock screen. Trigger automated abandoned cart alerts, flash sale announcements, and discount coupons.",
       features: [
         "Unlimited scheduled broadcast campaigns",
@@ -125,7 +127,7 @@ export default function AddonsPage() {
         "Automated cart abandonment reminders",
         "Detailed click-through analytics & delivery rates",
       ],
-      includedInPlan: "Pro Growth & Enterprise",
+      includedInPlan: "Pro Combo & Enterprise Suite",
       icon: Bell,
       actionText: "Configure Push Notifications",
     },
@@ -135,8 +137,8 @@ export default function AddonsPage() {
       category: "marketing",
       badge: "Conversion Booster",
       badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      price: currentPlan === "Enterprise" ? "Included Free" : "₹999",
-      period: currentPlan === "Enterprise" ? "in your current plan" : "/ month",
+      price: isEnterprise ? "Included Free" : "₹999",
+      period: isEnterprise ? "in your current plan" : "/ month",
       description: "Connect your official WhatsApp Business API to send real-time order confirmation alerts, live tracking updates, and in-app 1-click live chat.",
       features: [
         "Automated WhatsApp order confirmation message",
@@ -145,7 +147,7 @@ export default function AddonsPage() {
         "COD verification & address confirmation bot",
         "Indian & International phone number support",
       ],
-      includedInPlan: "Enterprise Plan",
+      includedInPlan: "Enterprise Suite",
       icon: MessageSquare,
       actionText: "Connect WhatsApp Integration",
     },
@@ -155,8 +157,8 @@ export default function AddonsPage() {
       category: "branding",
       badge: "Full Identity",
       badgeColor: "bg-indigo-50 text-indigo-700 border-indigo-200",
-      price: currentPlan === "Starter" ? "₹999" : "Included Free",
-      period: currentPlan === "Starter" ? "/ month" : "in your current plan",
+      price: !isProOrEnterprise ? "₹999" : "Included Free",
+      period: !isProOrEnterprise ? "/ month" : "in your current plan",
       description: "Remove all platform watermarks and branding. Deliver a 100% tailored brand experience with custom fonts, animated splash screen, and custom package name.",
       features: [
         "Complete removal of 'Powered by Appify' badges",
@@ -165,7 +167,7 @@ export default function AddonsPage() {
         "Custom package name (e.g. com.yourbrand.store)",
         "Custom App Store listing developer identity",
       ],
-      includedInPlan: "Pro Growth & Enterprise",
+      includedInPlan: "Pro Combo & Enterprise Suite",
       icon: Sparkles,
       actionText: "Enable White-Labeling",
     },
@@ -175,8 +177,8 @@ export default function AddonsPage() {
       category: "infra",
       badge: "Enterprise Grade",
       badgeColor: "bg-amber-50 text-amber-700 border-amber-200",
-      price: currentPlan === "Enterprise" ? "Included Free" : "₹1,999",
-      period: currentPlan === "Enterprise" ? "in your current plan" : "/ month",
+      price: isEnterprise ? "Included Free" : "₹1,999",
+      period: isEnterprise ? "in your current plan" : "/ month",
       description: "Blazing fast product synchronization for large stores (10,000+ products). Includes dedicated redis caching and prioritized build queues.",
       features: [
         "Sub-second catalog synchronization engine",

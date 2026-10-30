@@ -108,10 +108,10 @@ class ConnectionController extends Controller
                 ]
             );
 
-            // Advance setup step if at connect or platform step
+            // Advance setup step to analysis if at connect or platform step
             if ($app->setup_step === SetupStep::Platform || $app->setup_step === SetupStep::Connect) {
                 $app->update([
-                    'setup_step' => SetupStep::Theme,
+                    'setup_step' => SetupStep::Analysis,
                 ]);
             }
 

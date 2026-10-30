@@ -92,7 +92,7 @@ class ThemeEngine {
         ),
         iconTheme: IconThemeData(color: textColor),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: surface,
         elevation: 0,
         shape: RoundedRectangleBorder(

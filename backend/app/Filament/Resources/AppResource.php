@@ -36,10 +36,61 @@ class AppResource extends Resource
                     ->wrap()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('platform')->badge(),
+                Tables\Columns\TextColumn::make('assigned_theme_key')
+                    ->label('Assigned Theme')
+                    ->badge()
+                    ->color('info')
+                    ->formatStateUsing(fn ($state) => match ($state) {
+                        'theme_a' => 'Modern Retail (Free Admin Theme)',
+                        'theme_b' => 'Luxury Boutique',
+                        'theme_c' => 'Vibrant Lifestyle',
+                        'theme_d' => 'Elite Dark Luxe',
+                        default   => $state ?? 'Modern Retail (Free Admin Theme)',
+                    }),
                 Tables\Columns\TextColumn::make('setup_step')->label('Step')->badge(),
                 Tables\Columns\TextColumn::make('status')->badge(),
                 Tables\Columns\TextColumn::make('package_name')->searchable()->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('created_at')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->actions([
+                Tables\Actions\Action::make('assign_theme')
+                    ->label('Give Theme')
+                    ->icon('heroicon-o-paint-brush')
+                    ->color('warning')
+                    ->form([
+                        \Filament\Forms\Components\Select::make('assigned_theme_key')
+                            ->label('Select Theme to Give to App')
+                            ->helperText('This theme will be locked for the user. Free/standard users cannot change this theme.')
+                            ->options([
+                                'theme_a' => 'Modern Retail (Standard Free Theme)',
+                                'theme_b' => 'Luxury Boutique Theme',
+                                'theme_c' => 'Vibrant Lifestyle Theme',
+                                'theme_d' => 'Elite Dark Luxe Theme (Premium Exclusive)',
+                            ])
+                            ->required()
+                            ->default(fn ($record) => $record->assigned_theme_key ?? 'theme_a'),
+                    ])
+                    ->action(function (App $record, array $data) {
+                        $themeKey = $data['assigned_theme_key'];
+                        $record->update(['assigned_theme_key' => $themeKey]);
+
+                        $theme = \App\Models\Theme::where('key', $themeKey)->first();
+                        if ($theme) {
+                            $draft = $record->configs()->where('state', 'draft')->latest()->first();
+                            if ($draft) {
+                                $config = $draft->config ?? [];
+                                $config['theme'] = $theme->defaults;
+                                $config['theme']['layout'] = $theme->key;
+                                $draft->update(['config' => $config]);
+                            }
+                        }
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Theme Assigned Successfully')
+                            ->body("Admin has assigned {$themeKey} to {$record->name}. The user will be locked to this theme.")
+                            ->success()
+                            ->send();
+                    }),
             ]);
     }
 

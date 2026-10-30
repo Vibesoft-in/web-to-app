@@ -24,7 +24,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json(data, { status: 201 });
+    const res = NextResponse.json(data, { status: 201 });
+
+    if (data.token) {
+      res.cookies.set({
+        name: "auth_token",
+        value: data.token,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7, // 7 days (604,800s)
+      });
+    }
+
+    return res;
   } catch (err: any) {
     return NextResponse.json(
       { code: "SERVER_ERROR", message: err.message || "Failed to process registration" },

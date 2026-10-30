@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { apiClient } from "@/lib/api-client";
-import { AlertCircle, ArrowRight, CheckCircle2, HelpCircle, Key, Link as LinkIcon, Loader2, Lock, ShieldCheck } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, HelpCircle, Key, Link as LinkIcon, Loader2, Lock, ShieldCheck } from "lucide-react";
 
 const connectSchema = z.object({
   site_url: z
@@ -25,6 +25,7 @@ interface StepConnectProps {
 
 export function StepConnect({ ulid, onNext }: StepConnectProps) {
   const [isVerifying, setIsVerifying] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
   const [errorDetails, setErrorDetails] = useState<{ code: string; message: string } | null>(null);
   const [verificationResult, setVerificationResult] = useState<any | null>(null);
 
@@ -198,10 +199,19 @@ export function StepConnect({ ulid, onNext }: StepConnectProps) {
               <Lock className="w-5 h-5 absolute left-3.5 top-3.5 text-slate-400" />
               <input
                 {...register("consumer_secret")}
-                type="password"
+                type={showSecret ? "text" : "password"}
                 placeholder="cs_0987654321fedcba..."
-                className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition font-mono"
+                className="w-full pl-11 pr-11 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition font-mono"
               />
+              <button
+                type="button"
+                onClick={() => setShowSecret(!showSecret)}
+                className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-700 transition"
+                tabIndex={-1}
+                aria-label={showSecret ? "Hide secret" : "Show secret"}
+              >
+                {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
             {errors.consumer_secret && (
               <p className="text-xs text-rose-600 mt-1">{errors.consumer_secret.message}</p>

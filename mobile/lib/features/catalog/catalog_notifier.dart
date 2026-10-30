@@ -79,8 +79,21 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
   Future<void> loadInitial() async {
     state = state.copyWith(isLoading: true, clearError: true, page: 1);
     try {
-      // 1. Fetch live WooCommerce products from testing.livaan.in
+      int? catId;
+      if (state.selectedCategory != null &&
+          state.selectedCategory!.isNotEmpty &&
+          state.selectedCategory!.toLowerCase() != 'all') {
+        final allCats = await _wcService.fetchCategories();
+        final match = allCats.firstWhere(
+          (c) => c.name.toLowerCase() == state.selectedCategory!.toLowerCase(),
+          orElse: () => const WcCategory(id: 0, name: '', slug: ''),
+        );
+        if (match.id > 0) catId = match.id;
+      }
+
+      // 1. Fetch live WooCommerce products
       final wcItems = await _wcService.fetchProducts(
+        categoryId: catId,
         search: state.searchQuery,
       );
 
@@ -89,7 +102,7 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
         title: wc.title,
         price: wc.price,
         compareAtPrice: wc.regularPrice,
-        currency: 'USD',
+        currency: 'INR',
         images: wc.images.isNotEmpty ? wc.images : [wc.primaryImage],
         description: wc.description,
         inStock: wc.inStock,
@@ -99,7 +112,8 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
 
       if (state.selectedCategory != null &&
           state.selectedCategory!.isNotEmpty &&
-          state.selectedCategory!.toLowerCase() != 'all') {
+          state.selectedCategory!.toLowerCase() != 'all' &&
+          catId == null) {
         final cat = state.selectedCategory!.toLowerCase();
         products = products.where((p) =>
           p.categories.any((c) => c.toLowerCase() == cat)
@@ -113,8 +127,19 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
         hasMore: false,
       );
     } catch (_) {
-      // 2. Fallback strictly to real store products from testing.livaan.in
-      var filtered = List<Product>.from(_mockCatalogProducts);
+      // 2. Fallback to store initialProducts or empty list
+      var filtered = WooCommerceService.initialProducts.map((wc) => Product(
+        id: wc.id,
+        title: wc.title,
+        price: wc.price,
+        compareAtPrice: wc.regularPrice,
+        currency: 'INR',
+        images: wc.images.isNotEmpty ? wc.images : [wc.primaryImage],
+        description: wc.description,
+        inStock: wc.inStock,
+        variants: const [],
+        categories: wc.categories,
+      )).toList();
 
       if (state.searchQuery.trim().isNotEmpty) {
         final q = state.searchQuery.trim().toLowerCase();
@@ -143,70 +168,77 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
     }
   }
 
-  // Strictly only products that exist on testing.livaan.in
+  // Fallback fashion products matching https://livaan.in
   static const _mockCatalogProducts = [
     Product(
-      id: '20',
-      title: 'shirt 2',
-      price: 79.0,
-      compareAtPrice: 300.0,
-      currency: 'USD',
+      id: '9274',
+      title: 'Black Dotted Shirt for Women',
+      price: 1200.0,
+      compareAtPrice: 1500.0,
+      currency: 'INR',
       images: [
-        'https://testing.livaan.in/wp-content/uploads/2026/10/bd.png',
-        'https://testing.livaan.in/wp-content/uploads/2026/10/bg-1.png',
-        'https://testing.livaan.in/wp-content/uploads/2026/10/bg.png',
-        'https://testing.livaan.in/wp-content/uploads/2026/10/bg-image.png',
+        'https://livaan.in/wp-content/uploads/2025/02/black-solid-dots-dobby-shirt-theshimmerhouse-6_720x.webp',
       ],
-      description: 'संयुक्त सैन्य अभ्यास के दौरान दोनों देशों के सैनिक आधुनिक युद्ध तकनीकों का अभ्यास कर रहे हैं।',
+      description: 'Chic black dotted dobby shirt for women. Premium lightweight breathable fabric perfect for smart-casual and formal styling.',
       inStock: true,
       variants: [],
-      categories: ['Cat1', 'Cat2', 'Cat3'],
+      categories: ['Women', 'Women Shirt'],
     ),
     Product(
-      id: '21',
-      title: 'shirt 2 (Copy)',
-      price: 79.0,
-      compareAtPrice: 300.0,
-      currency: 'USD',
+      id: '9261',
+      title: 'Leopard Print Shirt for Women',
+      price: 1200.0,
+      compareAtPrice: 1500.0,
+      currency: 'INR',
       images: [
-        'https://testing.livaan.in/wp-content/uploads/2026/10/bd.png',
-        'https://testing.livaan.in/wp-content/uploads/2026/10/bg-1.png',
-        'https://testing.livaan.in/wp-content/uploads/2026/10/bg.png',
+        'https://livaan.in/wp-content/uploads/2025/02/303a0ebd-8072-4e36-b2c4-4c889da0c6191676286619510-Hancock-Leopard-Printed-Regular-Fit-Casual-Shirt-54216762866-1.webp',
       ],
-      description: 'उच्च गुणवत्ता वाली शर्ट, दैनिक उपयोग और फॉर्मल वियर के लिए उपयुक्त।',
+      description: 'Trendy leopard printed regular fit casual shirt. Elevate your wardrobe with this bold, stylish animal print statement piece.',
       inStock: true,
       variants: [],
-      categories: ['Cat1', 'Cat2', 'Cat3'],
+      categories: ['Women', 'Women Shirt'],
     ),
     Product(
-      id: '22',
-      title: 'shirt 2 (Copy 2)',
-      price: 79.0,
-      compareAtPrice: 300.0,
-      currency: 'USD',
+      id: '8803',
+      title: 'Solid Satin Formal Shirt for Women',
+      price: 1099.0,
+      compareAtPrice: 1399.0,
+      currency: 'INR',
       images: [
-        'https://testing.livaan.in/wp-content/uploads/2026/10/bd.png',
-        'https://testing.livaan.in/wp-content/uploads/2026/10/bg-image.png',
+        'https://livaan.in/wp-content/uploads/2025/01/LV1007-1-png.webp',
       ],
-      description: 'प्रीमियम कॉटन फैब्रिक के साथ तैयार की गई स्टाइलिश और कम्फर्टेबल शर्ट।',
+      description: 'Lustrous satin formal shirt designed to offer effortless sophistication and all-day luxurious comfort.',
       inStock: true,
       variants: [],
-      categories: ['Cat1', 'Cat2', 'Cat3'],
+      categories: ['Woman Satin Shirt', 'Women', 'Women Shirt'],
     ),
     Product(
-      id: '19',
-      title: 'shirt (Copy)',
-      price: 79.0,
-      compareAtPrice: 300.0,
-      currency: 'USD',
+      id: '7818',
+      title: 'Navy Blue Women Capri Night Suit Set',
+      price: 1199.0,
+      compareAtPrice: 1499.0,
+      currency: 'INR',
       images: [
-        'https://testing.livaan.in/wp-content/uploads/2026/10/bd.png',
-        'https://testing.livaan.in/wp-content/uploads/2026/10/bg.png',
+        'https://livaan.in/wp-content/uploads/2025/01/4-12.jpg',
       ],
-      description: 'क्लासिक डिजाइन और आरामदायक फिटिंग।',
+      description: 'Ultra-comfortable navy blue capri night suit set. Crafted from soft breathable cotton blend for peaceful night sleep.',
       inStock: true,
       variants: [],
-      categories: ['Cat1', 'Cat2', 'Cat3'],
+      categories: ['Woman Night Suit', 'Women'],
+    ),
+    Product(
+      id: '8409',
+      title: 'Square Neck High Waist Bikini for Women',
+      price: 1299.0,
+      compareAtPrice: 1699.0,
+      currency: 'INR',
+      images: [
+        'https://livaan.in/wp-content/uploads/2025/01/AC1166.jpg',
+      ],
+      description: 'Chic square neck bikini with flattering high-waisted bottoms. Quick-drying stretch fabric perfect for tropical beach holidays.',
+      inStock: true,
+      variants: [],
+      categories: ['Beach Wear', 'High Waisted Bikini Set', 'Women'],
     ),
   ];
 

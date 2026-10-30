@@ -14,7 +14,6 @@ enum SetupStep: string
     case Connect        = 'connect';
     case Analysis       = 'analysis';
     case DataCollection = 'data-collection';
-    case Features       = 'features';
     case Theme          = 'theme';
     case Branding       = 'branding';
     case Preview        = 'preview';
@@ -30,13 +29,12 @@ enum SetupStep: string
             self::Connect        => 1,
             self::Analysis       => 2,
             self::DataCollection => 3,
-            self::Features       => 4,
-            self::Theme          => 5,
-            self::Branding       => 6,
-            self::Preview        => 7,
-            self::Integrations   => 8,
-            self::Payment        => 9,
-            self::Build          => 10,
+            self::Theme          => 4,
+            self::Branding       => 5,
+            self::Preview        => 6,
+            self::Integrations   => 7,
+            self::Payment        => 8,
+            self::Build          => 9,
         };
     }
 

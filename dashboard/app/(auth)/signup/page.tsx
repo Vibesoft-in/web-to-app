@@ -7,11 +7,13 @@ import { SignupClient } from "./signup-client";
 interface SignupPageProps {
   searchParams?: {
     theme?: string;
+    plan?: string;
   };
 }
 
 export default function SignupPage({ searchParams }: SignupPageProps) {
   const initialTheme = searchParams?.theme;
+  const initialPlan = searchParams?.plan;
 
   return (
     <Suspense
@@ -24,7 +26,7 @@ export default function SignupPage({ searchParams }: SignupPageProps) {
         </div>
       }
     >
-      <SignupClient initialTheme={initialTheme} />
+      <SignupClient initialTheme={initialTheme} initialPlan={initialPlan} />
     </Suspense>
   );
 }

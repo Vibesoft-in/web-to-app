@@ -11,6 +11,7 @@ enum AppStatus: string
     case Configured = 'configured';
     case Paid       = 'paid';
     case Building   = 'building';
+    case Completed  = 'completed';
     case Live       = 'live';
     case Active     = 'active';
 }

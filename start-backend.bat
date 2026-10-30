@@ -2,7 +2,7 @@
 title Appify Backend Server
 cd /d "%~dp0backend"
 
-set PHP_EXE=C:\xampp\php\php.exe
+set PHP_EXE=C:\Users\kunaa\php-8.3\php.exe
 set COMPOSER_PHAR=C:\xampp\php\composer.phar
 
 echo ===================================================

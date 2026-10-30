@@ -18,10 +18,14 @@ class Theme extends Model
         'schema_version',
         'defaults',
         'is_active',
+        'is_free_theme',
+        'price',
     ];
 
     protected $casts = [
-        'defaults'  => 'array',
-        'is_active' => 'boolean',
+        'defaults'      => 'array',
+        'is_active'     => 'boolean',
+        'is_free_theme' => 'boolean',
+        'price'         => 'integer',
     ];
 }
