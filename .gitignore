@@ -1,12 +1,8 @@
 # Dependencies
 node_modules/
-backend/vendor/
-vendor/
-
-# Next.js
+dashboard/.next/
 .next/
 out/
-dashboard/.next/
 
 # Environment files
 .env
@@ -20,11 +16,16 @@ backend/.env.backup
 *.sqlite-journal
 backend/database/*.sqlite
 backend/database/*.sqlite-journal
-backend/storage/logs/
-backend/storage/framework/cache/
-backend/storage/framework/sessions/
-backend/storage/framework/views/
+backend/storage/logs/*.log
+backend/storage/framework/cache/data/
+backend/storage/framework/sessions/*.php
+backend/storage/framework/views/*.php
 backend/bootstrap/cache/*.php
+!backend/bootstrap/cache/.gitkeep
+!backend/storage/framework/cache/.gitkeep
+!backend/storage/framework/sessions/.gitkeep
+!backend/storage/framework/views/.gitkeep
+!backend/storage/logs/.gitkeep
 
 # Storage & artifacts
 backend/storage/app/
