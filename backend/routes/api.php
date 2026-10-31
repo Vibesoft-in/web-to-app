@@ -21,6 +21,13 @@ Route::get('/health', [\App\Http\Controllers\Api\HealthCheckController::class, '
 // ── Database Migration Trigger (Public helper for shared hosting) ─────────────
 Route::get('/migrate-db', function () {
     try {
+        $forceConn = request()->query('connection') ?: request()->query('db');
+        if ($forceConn === 'sqlite') {
+            config(['database.default' => 'sqlite']);
+            $path = database_path('database.sqlite');
+            config(['database.connections.sqlite.database' => $path]);
+        }
+
         $dbConnection = config('database.default');
 
         if ($dbConnection === 'sqlite') {

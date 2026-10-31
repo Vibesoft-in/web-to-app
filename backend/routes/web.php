@@ -18,6 +18,13 @@ Route::get('/login', function () {
 // Safe web-based migration & initialization route for shared hosting
 Route::get('/migrate-db', function () {
     try {
+        $forceConn = request()->query('connection') ?: request()->query('db');
+        if ($forceConn === 'sqlite') {
+            config(['database.default' => 'sqlite']);
+            $path = database_path('database.sqlite');
+            config(['database.connections.sqlite.database' => $path]);
+        }
+
         $dbConnection = config('database.default');
 
         // If SQLite, ensure database file and directory exist with write permissions
@@ -71,6 +78,7 @@ Route::get('/migrate-db', function () {
             'status'  => 'error',
             'message' => $e->getMessage(),
             'file'    => $e->getFile() . ':' . $e->getLine(),
+            'hint'    => 'If using MySQL, update DB_DATABASE, DB_USERNAME, DB_PASSWORD in backend/.env on Hostinger with your real MySQL details. Or visit /migrate-db?connection=sqlite to initialize SQLite instantly.',
         ], 500);
     }
 });
