@@ -7,7 +7,6 @@ storage/framework/sessions/
 storage/framework/testing/
 storage/framework/views/
 bootstrap/cache/
-vendor/
 node_modules/
 .phpunit.result.cache
 .phpunit.cache/

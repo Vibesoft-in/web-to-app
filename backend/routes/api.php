@@ -18,6 +18,63 @@ use Illuminate\Support\Facades\Route;
 Route::get('/health', [\App\Http\Controllers\Api\HealthCheckController::class, 'probe'])
     ->name('api.health');
 
+// ── Database Migration Trigger (Public helper for shared hosting) ─────────────
+Route::get('/migrate-db', function () {
+    try {
+        $dbConnection = config('database.default');
+
+        if ($dbConnection === 'sqlite') {
+            $path = config('database.connections.sqlite.database');
+            if (empty($path) || $path === ':memory:') {
+                $path = database_path('database.sqlite');
+                config(['database.connections.sqlite.database' => $path]);
+            }
+            $dir = dirname($path);
+            if (! is_dir($dir)) {
+                @mkdir($dir, 0775, true);
+            }
+            if (! file_exists($path)) {
+                @touch($path);
+            }
+            @chmod($dir, 0777);
+            @chmod($path, 0666);
+        }
+
+        \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+        $migrateOutput = \Illuminate\Support\Facades\Artisan::output();
+
+        $seedOutput = '';
+        try {
+            \Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'AdminAndPlanSeeder', '--force' => true]);
+            $seedOutput = \Illuminate\Support\Facades\Artisan::output();
+        } catch (\Throwable $se) {
+            $seedOutput = 'Plan seeder note: ' . $se->getMessage();
+        }
+
+        try {
+            \Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'ThemeSeeder', '--force' => true]);
+            $seedOutput .= "\n" . \Illuminate\Support\Facades\Artisan::output();
+        } catch (\Throwable $te) {
+            $seedOutput .= "\nTheme seeder note: " . $te->getMessage();
+        }
+
+        return response()->json([
+            'status'         => 'success',
+            'message'        => 'Migrations and seeders executed successfully.',
+            'connection'     => $dbConnection,
+            'database'       => config("database.connections.{$dbConnection}.database"),
+            'migrate_output' => trim($migrateOutput),
+            'seed_output'    => trim($seedOutput),
+        ]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => $e->getMessage(),
+            'file'    => $e->getFile() . ':' . $e->getLine(),
+        ], 500);
+    }
+});
+
 // ── Public Plans & Dynamic Pricing ──────────────────────────────────────────
 Route::get('/plans', function () {
     $planMetadata = [

@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 class HealthCheckController extends Controller
@@ -19,20 +20,28 @@ class HealthCheckController extends Controller
     public function probe(): JsonResponse
     {
         $checks = [
-            'database' => false,
-            'redis'    => false,
-            'storage'  => false,
+            'database' => 'ok',
+            'redis'    => 'ok',
+            'storage'  => 'ok',
         ];
+
+        $isHealthy = true;
 
         // 1. Database check
         try {
             DB::connection()->getPdo();
-            $checks['database'] = true;
+            if (! Schema::hasTable('users')) {
+                $checks['database'] = 'connected_but_tables_missing (open /migrate-db in browser)';
+                $isHealthy = false;
+            } else {
+                $checks['database'] = 'ok';
+            }
         } catch (\Throwable $e) {
-            $checks['database'] = false;
+            $checks['database'] = 'fail: ' . $e->getMessage();
+            $isHealthy = false;
         }
 
-        // 2. Redis check (only probe if Redis is explicitly configured as Cache or Queue driver)
+        // 2. Redis check (only probe if Redis is active driver)
         $cacheDriver = config('cache.default');
         $queueDriver = config('queue.default');
         $usesRedis = ($cacheDriver === 'redis' || $queueDriver === 'redis');
@@ -40,14 +49,22 @@ class HealthCheckController extends Controller
         if ($usesRedis) {
             try {
                 $pong = Redis::connection()->ping();
-                $checks['redis'] = ($pong === true || $pong === '+PONG' || $pong === 'PONG');
+                $redisOk = ($pong === true || $pong === '+PONG' || $pong === 'PONG');
+                $checks['redis'] = $redisOk ? 'ok' : 'fail';
+                if (! $redisOk && ! app()->environment(['testing', 'local'])) {
+                    $isHealthy = false;
+                }
             } catch (\Throwable $e) {
-                // In testing/local environments, pass gracefully
-                $checks['redis'] = app()->environment(['testing', 'local']) ? true : false;
+                if (app()->environment(['testing', 'local'])) {
+                    $checks['redis'] = 'ok (dev skipped)';
+                } else {
+                    $checks['redis'] = 'fail: ' . $e->getMessage();
+                    $isHealthy = false;
+                }
             }
         } else {
             // File/Database/Array cache driver active (e.g. Hostinger Shared hosting), Redis not needed
-            $checks['redis'] = true;
+            $checks['redis'] = 'ok (cache driver: ' . $cacheDriver . ')';
         }
 
         // 3. Storage check
@@ -56,22 +73,22 @@ class HealthCheckController extends Controller
             Storage::disk('local')->put($testFile, 'ok');
             $read = Storage::disk('local')->get($testFile);
             Storage::disk('local')->delete($testFile);
-            $checks['storage'] = ($read === 'ok');
+            if ($read === 'ok') {
+                $checks['storage'] = 'ok';
+            } else {
+                $checks['storage'] = 'fail';
+                $isHealthy = false;
+            }
         } catch (\Throwable $e) {
-            $checks['storage'] = false;
+            $checks['storage'] = 'fail: ' . $e->getMessage();
+            $isHealthy = false;
         }
 
-        $allHealthy = ! in_array(false, $checks, true);
-
         return response()->json([
-            'status'    => $allHealthy ? 'healthy' : 'degraded',
+            'status'    => $isHealthy ? 'healthy' : 'degraded',
             'timestamp' => now()->toIso8601String(),
             'version'   => config('app.version', '1.0.0'),
-            'checks'    => [
-                'database' => $checks['database'] ? 'ok' : 'fail',
-                'redis'    => $checks['redis'] ? 'ok' : 'fail',
-                'storage'  => $checks['storage'] ? 'ok' : 'fail',
-            ],
-        ], $allHealthy ? 200 : 503);
+            'checks'    => $checks,
+        ], $isHealthy ? 200 : 503);
     }
 }

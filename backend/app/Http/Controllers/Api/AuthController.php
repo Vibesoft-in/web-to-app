@@ -30,60 +30,82 @@ class AuthController extends Controller
      */
     public function register(RegisterRequest $request): JsonResponse
     {
-        $data = $request->validated();
+        try {
+            $data = $request->validated();
 
-        [$tenant, $user] = DB::transaction(function () use ($data) {
-            // 1. Create tenant first (user needs tenant_id)
-            $tenant = Tenant::create([
-                'ulid'   => Str::ulid(),
-                'name'   => $data['business_name'],
-                'status' => 'trial',
+            [$tenant, $user] = DB::transaction(function () use ($data) {
+                // 1. Create tenant first (user needs tenant_id)
+                $tenant = Tenant::create([
+                    'ulid'   => Str::ulid(),
+                    'name'   => $data['business_name'],
+                    'status' => 'trial',
+                ]);
+
+                // 2. Create owner user (auto-verified for instant onboarding)
+                $user = User::create([
+                    'tenant_id'         => $tenant->id,
+                    'name'              => $data['name'],
+                    'email'             => $data['email'],
+                    'password'          => $data['password'], // hashed via cast
+                    'role'              => 'owner',
+                    'email_verified_at' => now(),
+                ]);
+
+                // 3. Link owner back to tenant
+                $tenant->update(['owner_user_id' => $user->id]);
+
+                return [$tenant, $user];
+            });
+
+            // Send email verification event if needed for listeners
+            try {
+                event(new Registered($user));
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Registered event notice: ' . $e->getMessage());
+            }
+
+            $token = $user->createToken('dashboard', ['*'], now()->addDays(7));
+
+            try {
+                AuditLog::create([
+                    'tenant_id'  => $tenant->id,
+                    'actor_id'   => $user->id,
+                    'action'     => 'auth.registered',
+                    'ip'         => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('AuditLog notice: ' . $e->getMessage());
+            }
+
+            return response()->json([
+                'message' => 'Registration successful.',
+                'token'   => $token->plainTextToken,
+                'user'    => [
+                    'id'             => $user->id,
+                    'name'           => $user->name,
+                    'email'          => $user->email,
+                    'role'           => $user->role,
+                    'is_super_admin' => $user->isSuperAdmin(),
+                    'has_apps'       => false,
+                    'has_built_apps' => false,
+                    'latest_draft'   => null,
+                    'apps_count'     => 0,
+                ],
+            ], 201);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Registration exception: ' . $e->getMessage(), [
+                'exception' => $e,
             ]);
 
-            // 2. Create owner user (auto-verified for instant onboarding)
-            $user = User::create([
-                'tenant_id'         => $tenant->id,
-                'name'              => $data['name'],
-                'email'             => $data['email'],
-                'password'          => $data['password'], // hashed via cast
-                'role'              => 'owner',
-                'email_verified_at' => now(),
-            ]);
-
-            // 3. Link owner back to tenant
-            $tenant->update(['owner_user_id' => $user->id]);
-
-            return [$tenant, $user];
-        });
-
-        // Send email verification event if needed for listeners
-        event(new Registered($user));
-
-        $token = $user->createToken('dashboard', ['*'], now()->addDays(7));
-
-        AuditLog::create([
-            'tenant_id'  => $tenant->id,
-            'actor_id'   => $user->id,
-            'action'     => 'auth.registered',
-            'ip'         => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
-
-        return response()->json([
-            'message' => 'Registration successful.',
-            'token'   => $token->plainTextToken,
-            'user'    => [
-                'id'             => $user->id,
-                'name'           => $user->name,
-                'email'          => $user->email,
-                'role'           => $user->role,
-                'is_super_admin' => $user->isSuperAdmin(),
-                'has_apps'       => false,
-                'has_built_apps' => false,
-                'latest_draft'   => null,
-                'apps_count'     => 0,
-            ],
-        ], 201);
+            return response()->json([
+                'message' => $e->getMessage() ?: 'Registration failed. Please try again.',
+                'error'   => [
+                    'code'    => 'REGISTRATION_FAILED',
+                    'message' => $e->getMessage(),
+                ],
+            ], 500);
+        }
     }
 
     /**
@@ -149,13 +171,17 @@ class AuthController extends Controller
 
         $token = $user->createToken('dashboard', ['*'], now()->addDays(7));
 
-        AuditLog::create([
-            'tenant_id' => $user->tenant_id,
-            'actor_id'  => $user->id,
-            'action'    => 'auth.login',
-            'ip'        => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
+        try {
+            AuditLog::create([
+                'tenant_id' => $user->tenant_id,
+                'actor_id'  => $user->id,
+                'action'    => 'auth.login',
+                'ip'        => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Login AuditLog notice: ' . $e->getMessage());
+        }
 
         $hasCreatedApps = $user->has_apps;
         $hasBuiltApps = $user->has_built_apps;
