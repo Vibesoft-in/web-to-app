@@ -32,13 +32,22 @@ class HealthCheckController extends Controller
             $checks['database'] = false;
         }
 
-        // 2. Redis check
-        try {
-            $pong = Redis::connection()->ping();
-            $checks['redis'] = ($pong === true || $pong === '+PONG' || $pong === 'PONG');
-        } catch (\Throwable $e) {
-            // In testing/array cache environments, pass gracefully
-            $checks['redis'] = app()->environment(['testing', 'local']) ? true : false;
+        // 2. Redis check (only probe if Redis is explicitly configured as Cache or Queue driver)
+        $cacheDriver = config('cache.default');
+        $queueDriver = config('queue.default');
+        $usesRedis = ($cacheDriver === 'redis' || $queueDriver === 'redis');
+
+        if ($usesRedis) {
+            try {
+                $pong = Redis::connection()->ping();
+                $checks['redis'] = ($pong === true || $pong === '+PONG' || $pong === 'PONG');
+            } catch (\Throwable $e) {
+                // In testing/local environments, pass gracefully
+                $checks['redis'] = app()->environment(['testing', 'local']) ? true : false;
+            }
+        } else {
+            // File/Database/Array cache driver active (e.g. Hostinger Shared hosting), Redis not needed
+            $checks['redis'] = true;
         }
 
         // 3. Storage check
