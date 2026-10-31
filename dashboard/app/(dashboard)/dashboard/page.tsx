@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -128,7 +128,7 @@ const SETUP_STEP_DETAILS: Record<
   },
 };
 
-export default function UserDashboardPage() {
+function UserDashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<
@@ -3440,5 +3440,14 @@ export default function UserDashboardPage() {
         return mounted ? createPortal(invoiceMarkup, document.body) : invoiceMarkup;
       })()}
     </div>
+  );
+}
+
+
+export default function UserDashboardPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Loading dashboard...</div>}>
+      <UserDashboardContent />
+    </Suspense>
   );
 }

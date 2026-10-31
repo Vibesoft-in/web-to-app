@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import {
@@ -27,7 +28,6 @@ export default function DashboardLayout({
   const router = useRouter();
   const queryClient = useQueryClient();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   const { data: userData } = useQuery({
     queryKey: ["auth", "me"],
@@ -95,7 +95,7 @@ export default function DashboardLayout({
 
   const isAppAdminPortal = /^\/dashboard\/apps\/[^/]+\/admin/.test(pathname);
   if (isAppAdminPortal) {
-    return <>{children}</>;
+    return <><Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Loading...</div>}>{children}</Suspense></>;
   }
 
   return (
@@ -274,7 +274,7 @@ export default function DashboardLayout({
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 pb-24 md:pb-8">
-        {children}
+        <Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Loading...</div>}>{children}</Suspense>
       </main>
 
       {/* Modern Mobile Bottom Navigation Bar */}
