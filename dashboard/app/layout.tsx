@@ -13,6 +13,7 @@ export const viewport: Viewport = {
 };
 
 import { Providers } from "@/components/providers/query-provider";
+import Script from "next/script";
 
 export default function RootLayout({
   children,
@@ -26,6 +27,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased site-layout">
         <Providers>{children}</Providers>
+        <Script src="/assets/js/app.js" strategy="afterInteractive" />
       </body>
     </html>
   );

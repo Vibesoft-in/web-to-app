@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { clearUserData } from "@/lib/user-data-store";
 import {
   CreditCard,
   Layers,
@@ -29,7 +30,7 @@ export default function DashboardLayout({
   const queryClient = useQueryClient();
   const pathname = usePathname();
 
-  const { data: userData } = useQuery({
+  const { data: userData, isLoading: isUserLoading } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
     retry: false,
@@ -37,6 +38,7 @@ export default function DashboardLayout({
 
   const handleLogout = async () => {
     try {
+      clearUserData();
       await apiClient("/api/auth/logout", { method: "POST" });
     } finally {
       queryClient.setQueryData(["auth", "me"], { user: null });
@@ -47,6 +49,12 @@ export default function DashboardLayout({
 
   const user = userData?.user;
   const isAdmin = Boolean(user?.is_super_admin || user?.email === "admin@webintoapp.com");
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.replace("/login");
+    }
+  }, [isUserLoading, user, router]);
 
   const { data: appsData } = useQuery({
     queryKey: ["apps"],
@@ -85,7 +93,7 @@ export default function DashboardLayout({
     ? `/dashboard/apps/${latestDraft.ulid}/setup/${latestDraft.setup_step || "platform"}`
     : "/dashboard/apps/new";
 
-  const dashboardHref = hasPreviouslyBuiltApps ? "/dashboard" : draftHref;
+  const dashboardHref = "/dashboard";
 
   const isAdminSection = pathname.startsWith("/dashboard/admin");
   const isBilling = pathname.startsWith("/dashboard/billing");
@@ -178,14 +186,14 @@ export default function DashboardLayout({
               ) : (
                 <>
                   <Link
-                    href={dashboardHref}
+                    href="/dashboard"
                     className={`py-5 transition ${
                       isApps
                         ? "text-indigo-600 border-b-2 border-indigo-600 font-semibold"
                         : "text-slate-500 hover:text-slate-900"
                     }`}
                   >
-                    {hasPreviouslyBuiltApps ? "Dashboard" : "App Builder"}
+                    Dashboard
                   </Link>
                   <Link
                     href="/dashboard/addons"
@@ -322,7 +330,7 @@ export default function DashboardLayout({
               }`}
             >
               <Layers className="w-5 h-5" />
-              <span>{hasPreviouslyBuiltApps ? "Dashboard" : "Builder"}</span>
+              <span>Dashboard</span>
             </Link>
 
             <Link

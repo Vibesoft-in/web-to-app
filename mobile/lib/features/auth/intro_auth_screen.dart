@@ -610,7 +610,7 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: _buildInputDecoration(
-                    hint: 'e.g. megha@example.com',
+                    hint: 'e.g. name@domain.com',
                     icon: Icons.email_outlined,
                   ),
                 ),

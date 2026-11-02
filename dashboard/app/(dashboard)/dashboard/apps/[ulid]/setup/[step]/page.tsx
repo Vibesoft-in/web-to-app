@@ -45,6 +45,15 @@ export default function WizardStepPage() {
     retry: 1,
   });
 
+  useEffect(() => {
+    if (ulid) {
+      queryClient.prefetchQuery({
+        queryKey: ["website-data", ulid],
+        queryFn: () => apiClient(`/api/apps/${ulid}/website-data`),
+      });
+    }
+  }, [ulid, queryClient]);
+
   const { data: appsData } = useQuery({
     queryKey: ["apps"],
     queryFn: async () => {
@@ -363,19 +372,19 @@ export default function WizardStepPage() {
           <StepPlatform ulid={ulid} app={state?.app} onNext={navigateNext} />
         )}
         {currentStepParam === "connect" && (
-          <StepConnect ulid={ulid} onNext={navigateNext} />
+          <StepConnect ulid={ulid} app={state?.app} setupState={state} onNext={navigateNext} />
         )}
         {currentStepParam === "analysis" && (
-          <StepAnalysis ulid={ulid} app={state?.app} onNext={navigateNext} />
+          <StepAnalysis ulid={ulid} app={state?.app} setupState={state} onNext={navigateNext} />
         )}
         {currentStepParam === "data-collection" && (
-          <StepDataCollection ulid={ulid} onNext={navigateNext} />
+          <StepDataCollection ulid={ulid} app={state?.app} setupState={state} onNext={navigateNext} />
         )}
         {currentStepParam === "theme" && (
           <StepTheme ulid={ulid} onNext={navigateNext} />
         )}
         {currentStepParam === "branding" && (
-          <StepBranding ulid={ulid} onNext={navigateNext} />
+          <StepBranding ulid={ulid} app={state?.app} setupState={state} onNext={navigateNext} />
         )}
         {currentStepParam === "preview" && (
           <StepPreview ulid={ulid} onNext={navigateNext} />

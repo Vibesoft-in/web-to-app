@@ -82,3 +82,15 @@ Route::get('/migrate-db', function () {
         ], 500);
     }
 });
+
+// Resilient direct storage file server for uploaded app assets
+Route::get('/storage/{path}', function (string $path) {
+    $filePath = storage_path('app/public/' . $path);
+    if (! file_exists($filePath)) {
+        abort(404);
+    }
+    return response()->file($filePath, [
+        'Access-Control-Allow-Origin' => '*',
+        'Access-Control-Allow-Methods' => 'GET, OPTIONS',
+    ]);
+})->where('path', '.*');

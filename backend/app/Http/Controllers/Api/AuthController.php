@@ -9,7 +9,9 @@ use App\Http\Requests\Api\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Api\Auth\LoginRequest;
 use App\Http\Requests\Api\Auth\RegisterRequest;
 use App\Http\Requests\Api\Auth\ResetPasswordRequest;
+use App\Models\App;
 use App\Models\AuditLog;
+use App\Models\Connection;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
@@ -33,11 +35,15 @@ class AuthController extends Controller
         try {
             $data = $request->validated();
 
-            [$tenant, $user] = DB::transaction(function () use ($data) {
+            [$tenant, $user, $createdApp] = DB::transaction(function () use ($data) {
+                $businessName = !empty($data['business_name'])
+                    ? $data['business_name']
+                    : (!empty($data['website_name']) ? $data['website_name'] : $data['name'] . "'s Store");
+
                 // 1. Create tenant first (user needs tenant_id)
                 $tenant = Tenant::create([
                     'ulid'   => Str::ulid(),
-                    'name'   => $data['business_name'],
+                    'name'   => $businessName,
                     'status' => 'trial',
                 ]);
 
@@ -46,6 +52,7 @@ class AuthController extends Controller
                     'tenant_id'         => $tenant->id,
                     'name'              => $data['name'],
                     'email'             => $data['email'],
+                    'phone'             => $data['phone'] ?? null,
                     'password'          => $data['password'], // hashed via cast
                     'role'              => 'owner',
                     'email_verified_at' => now(),
@@ -54,7 +61,50 @@ class AuthController extends Controller
                 // 3. Link owner back to tenant
                 $tenant->update(['owner_user_id' => $user->id]);
 
-                return [$tenant, $user];
+                // 4. Automatically initialize the user's mobile app if website/store details were supplied
+                $app = null;
+                if (!empty($data['website_url']) || !empty($data['platform'])) {
+                    $platformStr = strtolower((string) ($data['platform'] ?? 'woo'));
+                    $platformVal = ($platformStr === 'shopify') ? 'shopify' : 'woo';
+
+                    $appName = !empty($data['website_name'])
+                        ? $data['website_name']
+                        : $businessName;
+
+                    $sanitizedSlug = preg_replace('/[^a-z0-9]/', '', Str::lower(Str::slug($appName)));
+                    if (empty($sanitizedSlug)) {
+                        $sanitizedSlug = 'store';
+                    }
+                    $random = Str::lower(Str::random(6));
+                    $packageName = "com.{$sanitizedSlug}.app{$random}";
+
+                    $app = App::create([
+                        'tenant_id'    => $tenant->id,
+                        'name'         => $appName,
+                        'platform'     => $platformVal,
+                        'package_name' => $packageName,
+                        'app_key'      => 'app_key_' . Str::random(32),
+                        'setup_step'   => 'connect', // Pre-configured platform; proceed directly to connect
+                        'status'       => 'draft',
+                    ]);
+
+                    $siteUrl = trim((string) ($data['website_url'] ?? ''));
+                    if (!empty($siteUrl)) {
+                        if (!str_starts_with($siteUrl, 'http://') && !str_starts_with($siteUrl, 'https://')) {
+                            $siteUrl = 'https://' . $siteUrl;
+                        }
+                        Connection::create([
+                            'tenant_id'   => $tenant->id,
+                            'app_id'      => $app->id,
+                            'platform'    => $app->platform,
+                            'site_url'    => $siteUrl,
+                            'credentials' => [],
+                            'status'      => \App\Enums\ConnectionStatus::NotStarted,
+                        ]);
+                    }
+                }
+
+                return [$tenant, $user, $app];
             });
 
             // Send email verification event if needed for listeners
@@ -85,13 +135,25 @@ class AuthController extends Controller
                     'id'             => $user->id,
                     'name'           => $user->name,
                     'email'          => $user->email,
+                    'phone'          => $user->phone,
                     'role'           => $user->role,
                     'is_super_admin' => $user->isSuperAdmin(),
-                    'has_apps'       => false,
+                    'has_apps'       => $createdApp !== null,
                     'has_built_apps' => false,
-                    'latest_draft'   => null,
-                    'apps_count'     => 0,
+                    'latest_draft'   => $createdApp ? [
+                        'ulid'       => $createdApp->ulid,
+                        'name'       => $createdApp->name,
+                        'setup_step' => $createdApp->setup_step->value ?? (string) $createdApp->setup_step,
+                    ] : null,
+                    'apps_count'     => $createdApp !== null ? 1 : 0,
                 ],
+                'app'     => $createdApp ? [
+                    'ulid'        => $createdApp->ulid,
+                    'name'        => $createdApp->name,
+                    'platform'    => $createdApp->platform->value ?? (string) $createdApp->platform,
+                    'setup_step'  => $createdApp->setup_step->value ?? (string) $createdApp->setup_step,
+                    'site_url'    => $data['website_url'] ?? null,
+                ] : null,
             ], 201);
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('Registration exception: ' . $e->getMessage(), [

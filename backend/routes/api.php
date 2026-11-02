@@ -496,6 +496,12 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::post('/apps/{ulid}/admin-portal/products/{productId}/toggle-status', [\App\Http\Controllers\Api\AppController::class, 'toggleProductStatus'])
         ->name('api.apps.admin-portal.products.toggle-status');
 
+    Route::post('/apps/{ulid}/admin-portal/coupons', [\App\Http\Controllers\Api\AppController::class, 'saveCoupon'])
+        ->name('api.apps.admin-portal.coupons.save');
+
+    Route::delete('/apps/{ulid}/admin-portal/coupons/{couponId}', [\App\Http\Controllers\Api\AppController::class, 'deleteCoupon'])
+        ->name('api.apps.admin-portal.coupons.delete');
+
     Route::delete('/apps/{ulid}/admin-portal/products/{productId}', [\App\Http\Controllers\Api\AppController::class, 'deleteProduct'])
         ->name('api.apps.admin-portal.products.delete');
 
@@ -710,12 +716,64 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
 Route::get('/apps/{ulid}/builds/{id}/download-file', [\App\Http\Controllers\Api\BuildController::class, 'downloadFile'])
     ->name('api.apps.builds.download.file');
 
+// Direct build pipeline management (guarded by active subscription requirement in controller)
+Route::get('/apps/{ulid}/builds', [\App\Http\Controllers\Api\BuildController::class, 'index'])
+    ->name('api.apps.builds.index.direct');
+
+Route::post('/apps/{ulid}/builds', [\App\Http\Controllers\Api\BuildController::class, 'store'])
+    ->name('api.apps.builds.store.direct');
+
+Route::get('/apps/{ulid}/builds/{id}', [\App\Http\Controllers\Api\BuildController::class, 'show'])
+    ->name('api.apps.builds.show.direct');
+
+Route::get('/apps/{ulid}/builds/{id}/download', [\App\Http\Controllers\Api\BuildController::class, 'download'])
+    ->name('api.apps.builds.download.direct');
+
 // Direct setup-state query
 Route::get('/apps/{ulid}/setup-state', [\App\Http\Controllers\Api\SetupStateController::class, 'show'])
     ->name('api.apps.setup-state');
 
 Route::post('/apps/{ulid}/advance-step', [\App\Http\Controllers\Api\SetupStateController::class, 'advanceStep'])
     ->name('api.apps.advance-step.direct');
+
+Route::get('/apps/{ulid}/admin-portal', [\App\Http\Controllers\Api\AppController::class, 'adminPortal'])
+    ->name('api.apps.admin-portal.direct');
+
+Route::post('/apps/{ulid}/admin-portal/sync-catalog', [\App\Http\Controllers\Api\AppController::class, 'syncCatalog'])
+    ->name('api.apps.admin-portal.sync.direct');
+
+Route::post('/apps/{ulid}/admin-portal/banners', [\App\Http\Controllers\Api\AppController::class, 'saveBanner'])
+    ->name('api.apps.admin-portal.banners.save.direct');
+
+Route::delete('/apps/{ulid}/admin-portal/banners/{bannerId}', [\App\Http\Controllers\Api\AppController::class, 'deleteBanner'])
+    ->name('api.apps.admin-portal.banners.delete.direct');
+
+Route::post('/apps/{ulid}/admin-portal/sales', [\App\Http\Controllers\Api\AppController::class, 'saveSale'])
+    ->name('api.apps.admin-portal.sales.save.direct');
+
+Route::delete('/apps/{ulid}/admin-portal/sales/{saleId}', [\App\Http\Controllers\Api\AppController::class, 'deleteSale'])
+    ->name('api.apps.admin-portal.sales.delete.direct');
+
+Route::post('/apps/{ulid}/admin-portal/categories', [\App\Http\Controllers\Api\AppController::class, 'saveCategory'])
+    ->name('api.apps.admin-portal.categories.save.direct');
+
+Route::post('/apps/{ulid}/admin-portal/products', [\App\Http\Controllers\Api\AppController::class, 'saveProduct'])
+    ->name('api.apps.admin-portal.products.save.direct');
+
+Route::post('/apps/{ulid}/admin-portal/products/{productId}/toggle-status', [\App\Http\Controllers\Api\AppController::class, 'toggleProductStatus'])
+    ->name('api.apps.admin-portal.products.toggle-status.direct');
+
+Route::delete('/apps/{ulid}/admin-portal/products/{productId}', [\App\Http\Controllers\Api\AppController::class, 'deleteProduct'])
+    ->name('api.apps.admin-portal.products.delete.direct');
+
+Route::post('/apps/{ulid}/admin-portal/coupons', [\App\Http\Controllers\Api\AppController::class, 'saveCoupon'])
+    ->name('api.apps.admin-portal.coupons.save.direct');
+
+Route::delete('/apps/{ulid}/admin-portal/coupons/{couponId}', [\App\Http\Controllers\Api\AppController::class, 'deleteCoupon'])
+    ->name('api.apps.admin-portal.coupons.delete.direct');
+
+Route::post('/apps/{ulid}/complete', [\App\Http\Controllers\Api\AppController::class, 'complete'])
+    ->name('api.apps.complete.direct');
 
 // ── Razorpay Payment Gateway Endpoints ──────────────────────────────────────────
 Route::post('/apps/{ulid}/payment/create-order', function (Request $request, string $ulid) {
@@ -741,8 +799,8 @@ Route::post('/apps/{ulid}/payment/create-order', function (Request $request, str
             'order'   => $orderData,
             'plan'    => $plan,
             'prefill' => [
-                'name'    => $user?->name ?? $tenant?->name ?? 'Customer',
-                'email'   => $user?->email ?? 'customer@example.com',
+                'name'    => $user?->name ?? $tenant?->name ?? '',
+                'email'   => $user?->email ?? '',
                 'contact' => $user?->phone ?? '',
             ],
         ]);
@@ -1243,8 +1301,8 @@ Route::post('/apps/{ulid}/addons/purchase', function (Request $request, string $
                 'description' => $addon->description,
             ],
             'prefill'           => [
-                'name'    => $user?->name ?? 'Customer',
-                'email'   => $user?->email ?? 'customer@example.com',
+                'name'    => $user?->name ?? '',
+                'email'   => $user?->email ?? '',
                 'contact' => $user?->phone ?? '',
             ],
         ]);
@@ -1267,8 +1325,8 @@ Route::post('/apps/{ulid}/addons/purchase', function (Request $request, string $
         'discount_amount' => 0,
         'tax_amount'      => 0,
         'total_amount'    => $addon->price,
-        'billing_name'    => $user?->name ?? 'Customer',
-        'billing_email'   => $user?->email ?? 'customer@example.com',
+        'billing_name'    => $user?->name ?? '',
+        'billing_email'   => $user?->email ?? '',
         'billing_phone'   => $user?->phone ?? '',
         'paid_at'         => now(),
         'notes'           => "Standalone Add-on: {$addon->name} for {$app->name} (Payment {$paymentId})",

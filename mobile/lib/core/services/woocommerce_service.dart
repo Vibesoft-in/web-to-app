@@ -1051,8 +1051,7 @@ class WooCommerceService {
           'city': city.isNotEmpty ? city : 'Delhi',
           'state': state.isNotEmpty ? state : 'DL',
           'postcode': postcode.isNotEmpty ? postcode : '110001',
-          'country': 'IN',
-          'email': email.isNotEmpty ? email : 'customer@lightingstore.in',
+          'email': email,
           'phone': phone.isNotEmpty ? phone : '9876543210',
         },
         'shipping': {
@@ -1304,8 +1303,7 @@ class WooCommerceService {
         data: {
           'product_id': productId,
           'review': review.trim(),
-          'reviewer': reviewer.trim().isNotEmpty ? reviewer.trim() : 'Customer',
-          'reviewer_email': reviewerEmail.trim().isNotEmpty ? reviewerEmail.trim() : 'customer@store.com',
+          'reviewer_email': reviewerEmail.trim(),
           'rating': rating.clamp(1, 5),
         },
       );

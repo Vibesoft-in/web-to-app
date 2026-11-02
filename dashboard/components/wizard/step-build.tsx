@@ -174,21 +174,18 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
     let isMounted = true;
     async function fetchExistingBuilds() {
       try {
-        const res = await fetch(`/api/apps/${ulid}/builds`);
-        if (res.ok) {
-          const json = await res.json();
-          const builds = json.data || [];
-          const readyBuild = builds.find((b: any) => b.is_ready || b.status === "ready");
-          if (readyBuild && isMounted) {
-            setBuildStep(4);
-            setDownloadBuildId(readyBuild.id);
-            setLatestBuildInfo({
-              id: readyBuild.id,
-              version_code: readyBuild.version_code,
-              version_name: readyBuild.version_name,
-              finished_at: readyBuild.finished_at,
-            });
-          }
+        const json = await apiClient<any>(`/api/apps/${ulid}/builds`);
+        const builds = json.data || [];
+        const readyBuild = builds.find((b: any) => b.is_ready || b.status === "ready");
+        if (readyBuild && isMounted) {
+          setBuildStep(4);
+          setDownloadBuildId(readyBuild.id);
+          setLatestBuildInfo({
+            id: readyBuild.id,
+            version_code: readyBuild.version_code,
+            version_name: readyBuild.version_name,
+            finished_at: readyBuild.finished_at,
+          });
         }
       } catch (e) {
         // Silent fail on check
@@ -212,21 +209,13 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
 
     try {
       // Step 1: Queued
-      const res = await fetch(`/api/apps/${ulid}/builds`, {
-        method: "POST",
-      });
-
       // Visual progress transitions
       setTimeout(() => setBuildStep(2), 800);
       setTimeout(() => setBuildStep(3), 1800);
 
-      const json = await res.json();
-
-      if (!res.ok) {
-        throw new Error(
-          json.error?.message || json.message || "Failed to trigger build pipeline."
-        );
-      }
+      const json = await apiClient<any>(`/api/apps/${ulid}/builds`, {
+        method: "POST",
+      });
 
       const buildData = json.build || json;
       const buildId = buildData.id;

@@ -262,21 +262,12 @@ function UserDashboardContent() {
       apps.some((a: any) => !isAppDraft(a)))
   );
 
-  // Central access guard: Dashboard is ONLY for users who have built at least one app
+  // Redirect unauthenticated visitors to login
   useEffect(() => {
-    if (isUserLoading || isAppsLoading || !user || isAdmin) return;
-
-    if (!hasPreviouslyBuiltApps) {
-      // Find latest draft if any
-      const draftApp = user?.latest_draft || (apps && apps.find((a: any) => isAppDraft(a)));
-      if (draftApp?.ulid) {
-        const step = draftApp.setup_step || "platform";
-        router.replace(`/dashboard/apps/${draftApp.ulid}/setup/${step}`);
-      } else {
-        router.replace("/dashboard/apps/new");
-      }
+    if (!isUserLoading && !user) {
+      router.replace("/login");
     }
-  }, [isUserLoading, isAppsLoading, user, isAdmin, hasPreviouslyBuiltApps, apps, router]);
+  }, [isUserLoading, user, router]);
 
   // 3. Fetch Billing & Subscriptions
   const {
@@ -886,8 +877,8 @@ function UserDashboardContent() {
             type: "upgrade",
             app_id: targetApp.id,
             package_id: targetPkg.id,
-            customer_name: user?.name || "Customer",
-            customer_email: user?.email || "customer@store.com",
+            customer_name: user?.name || "",
+            customer_email: user?.email || "",
             currency: "INR",
           }),
         });
@@ -985,8 +976,8 @@ function UserDashboardContent() {
             app_id: targetApp.id,
             app_ulid: targetApp.ulid,
             addon_ids: [addon.id],
-            customer_name: user?.name || "Customer",
-            customer_email: user?.email || "customer@store.com",
+            customer_name: user?.name || "",
+            customer_email: user?.email || "",
             currency: "INR",
           }),
         });
@@ -1191,13 +1182,13 @@ function UserDashboardContent() {
     );
   }
 
-  if (isUserLoading || isAppsLoading || (!isAdmin && (!hasPreviouslyBuiltApps || !apps || apps.length === 0))) {
+  if (isUserLoading || (isAppsLoading && !apps)) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center">
         <Loader2 className="w-9 h-9 text-[#78593D] animate-spin mb-4" />
-        <h2 className="text-base font-bold text-slate-800">Checking application authorization...</h2>
+        <h2 className="text-base font-bold text-slate-800">Loading your applications...</h2>
         <p className="text-xs text-slate-500 mt-1 max-w-sm">
-          Redirecting to the app-building wizard to complete your application setup.
+          Retrieving your configured applications and package deliverables.
         </p>
       </div>
     );

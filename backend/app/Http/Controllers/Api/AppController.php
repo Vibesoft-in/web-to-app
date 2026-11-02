@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\App;
 use App\Models\AuditLog;
+use App\Models\Connection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -42,7 +43,6 @@ class AppController extends Controller
                 $data['purchased_addon_slugs'] = $app->getPurchasedAddonSlugs();
                 return $data;
             });
-
         return response()->json($apps);
     }
 
@@ -63,8 +63,11 @@ class AppController extends Controller
         }
 
         $data = $request->validate([
-            'name'     => ['required', 'string', 'min:2', 'max:50'],
-            'platform' => ['required', 'in:woo,shopify'],
+            'name'        => ['required', 'string', 'min:2', 'max:50'],
+            'platform'    => ['required', 'in:woo,shopify'],
+            'website_url' => ['nullable', 'string', 'max:255'],
+            'site_url'    => ['nullable', 'string', 'max:255'],
+            'url'         => ['nullable', 'string', 'max:255'],
         ]);
 
         $user = $request->user();
@@ -100,9 +103,25 @@ class AppController extends Controller
             'platform'     => $data['platform'],
             'package_name' => $packageName,
             'app_key'      => 'app_key_'.Str::random(32),
-            'setup_step'   => 'platform',
+            'setup_step'   => 'connect', // Pre-configured platform; proceed directly to connect
             'status'       => 'draft',
         ]);
+
+        $rawUrl = $data['website_url'] ?? $data['site_url'] ?? $data['url'] ?? null;
+        if (!empty($rawUrl)) {
+            $cleanUrl = trim((string) $rawUrl);
+            if (!str_starts_with($cleanUrl, 'http://') && !str_starts_with($cleanUrl, 'https://')) {
+                $cleanUrl = 'https://' . $cleanUrl;
+            }
+            Connection::create([
+                'tenant_id'   => $tenant->id,
+                'app_id'      => $app->id,
+                'platform'    => $app->platform,
+                'site_url'    => $cleanUrl,
+                'credentials' => [],
+                'status'      => \App\Enums\ConnectionStatus::NotStarted,
+            ]);
+        }
 
         AuditLog::create([
             'tenant_id'  => $tenant->id,
@@ -203,6 +222,14 @@ class AppController extends Controller
         return response()->json($app);
     }
 
+    private function resolveAdminPortalApp(string $ulid, ?Request $request = null): App
+    {
+        $user = $request ? ($request->user() ?? auth('sanctum')->user()) : auth('sanctum')->user();
+        $query = $user ? App::where('tenant_id', $user->tenant_id) : App::withoutTenantScope();
+
+        return $query->where('ulid', $ulid)->firstOrFail();
+    }
+
     /**
      * Dedicated App Admin Portal endpoint for an application.
      * Enforces that the customer has purchased a Premium plan or Admin Panel add-on for this app.
@@ -211,7 +238,10 @@ class AppController extends Controller
      */
     public function adminPortal(string $ulid, Request $request): JsonResponse
     {
-        $app = App::where('ulid', $ulid)
+        $user = $request->user() ?? auth('sanctum')->user();
+        $query = $user ? App::where('tenant_id', $user->tenant_id) : App::withoutTenantScope();
+
+        $app = $query->where('ulid', $ulid)
             ->with([
                 'connection',
                 'builds' => fn ($q) => $q->latest('id'),
@@ -281,7 +311,7 @@ class AppController extends Controller
      */
     public function saveBanner(string $ulid, Request $request): JsonResponse
     {
-        $app = App::where('ulid', $ulid)->firstOrFail();
+        $app = $this->resolveAdminPortalApp($ulid, $request);
 
         if (! $app->hasAdminPanelAccess()) {
             return response()->json([
@@ -343,9 +373,9 @@ class AppController extends Controller
      * Delete Banner from the app's admin portal.
      * DELETE /api/apps/{ulid}/admin-portal/banners/{bannerId}
      */
-    public function deleteBanner(string $ulid, string $bannerId): JsonResponse
+    public function deleteBanner(string $ulid, string $bannerId, Request $request): JsonResponse
     {
-        $app = App::where('ulid', $ulid)->firstOrFail();
+        $app = $this->resolveAdminPortalApp($ulid, $request);
 
         if (! $app->hasAdminPanelAccess()) {
             return response()->json(['error' => 'FORBIDDEN_REQUIRES_PREMIUM'], 403);
@@ -371,7 +401,7 @@ class AppController extends Controller
      */
     public function saveSale(string $ulid, Request $request): JsonResponse
     {
-        $app = App::where('ulid', $ulid)->firstOrFail();
+        $app = $this->resolveAdminPortalApp($ulid, $request);
 
         if (! $app->hasAdminPanelAccess()) {
             return response()->json([
@@ -435,9 +465,9 @@ class AppController extends Controller
      * Delete Sale from the app's admin portal.
      * DELETE /api/apps/{ulid}/admin-portal/sales/{saleId}
      */
-    public function deleteSale(string $ulid, string $saleId): JsonResponse
+    public function deleteSale(string $ulid, string $saleId, Request $request): JsonResponse
     {
-        $app = App::where('ulid', $ulid)->firstOrFail();
+        $app = $this->resolveAdminPortalApp($ulid, $request);
 
         if (! $app->hasAdminPanelAccess()) {
             return response()->json(['error' => 'FORBIDDEN_REQUIRES_PREMIUM'], 403);
@@ -463,7 +493,7 @@ class AppController extends Controller
      */
     public function saveCategory(string $ulid, Request $request): JsonResponse
     {
-        $app = App::where('ulid', $ulid)->firstOrFail();
+        $app = $this->resolveAdminPortalApp($ulid, $request);
 
         if (! $app->hasAdminPanelAccess()) {
             return response()->json([
@@ -526,13 +556,186 @@ class AppController extends Controller
     }
 
     /**
+     * Save/Create a coupon in the app's admin portal and sync to WooCommerce if connected.
+     * POST /api/apps/{ulid}/admin-portal/coupons
+     */
+    public function saveCoupon(Request $request, string $ulid): JsonResponse
+    {
+        $app = $this->resolveAdminPortalApp($ulid, $request);
+
+        if (! $app->hasAdminPanelAccess()) {
+            return response()->json([
+                'error' => [
+                    'code'    => 'FORBIDDEN_REQUIRES_PREMIUM',
+                    'message' => 'Managing coupons requires Premium package or Admin Panel access.',
+                ],
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'id'             => ['nullable', 'string'],
+            'code'           => ['required', 'string', 'max:50'],
+            'discount_type'  => ['required', 'string', 'in:percent,fixed_cart,fixed_product'],
+            'amount'         => ['required', 'numeric', 'min:0'],
+            'description'    => ['nullable', 'string', 'max:255'],
+            'expiry_date'    => ['nullable', 'string'],
+            'minimum_amount' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $code = Str::upper(preg_replace('/[^A-Za-z0-9_-]/', '', trim($validated['code'])));
+        $discountType = $validated['discount_type'];
+        $amount = (string) $validated['amount'];
+        $description = (string) ($validated['description'] ?? 'Store Coupon');
+        $expiryDate = !empty($validated['expiry_date']) ? $validated['expiry_date'] : null;
+        $minAmount = !empty($validated['minimum_amount']) ? (string) $validated['minimum_amount'] : null;
+
+        $storeUpdated = false;
+        $cleanSite = '';
+        $wooCouponId = null;
+
+        // Push to WooCommerce REST API if live store is connected
+        if ($app->connection && $app->connection->site_url) {
+            $cleanSite = rtrim((string) $app->connection->site_url, '/');
+            $creds = $app->connection->credentials;
+            $ck = (string) ($creds['consumer_key'] ?? $creds['ck'] ?? '');
+            $cs = (string) ($creds['consumer_secret'] ?? $creds['cs'] ?? '');
+
+            if ($ck && $cs) {
+                try {
+                    $wooPayload = [
+                        'code'           => $code,
+                        'discount_type'  => $discountType,
+                        'amount'         => $amount,
+                        'description'    => $description,
+                    ];
+                    if ($expiryDate) {
+                        $wooPayload['date_expires'] = $expiryDate;
+                    }
+                    if ($minAmount) {
+                        $wooPayload['minimum_amount'] = $minAmount;
+                    }
+
+                    $res = \Illuminate\Support\Facades\Http::withBasicAuth($ck, $cs)
+                        ->withoutVerifying()
+                        ->timeout(8)
+                        ->post("{$cleanSite}/wp-json/wc/v3/coupons", $wooPayload);
+
+                    if ($res->successful() && !empty($res->json('id'))) {
+                        $storeUpdated = true;
+                        $wooCouponId = (string) $res->json('id');
+                    }
+                } catch (\Throwable) {}
+            }
+        }
+
+        $cId = !empty($validated['id']) ? (string) $validated['id'] : ($wooCouponId ?: ('coup_' . Str::random(8)));
+
+        $newCoupon = [
+            'id'             => $cId,
+            'code'           => $code,
+            'discount_type'  => $discountType,
+            'amount'         => $amount,
+            'description'    => $description,
+            'expiry_date'    => $expiryDate,
+            'minimum_amount' => $minAmount,
+            'usage_count'    => 0,
+            'created_at'     => now()->toIso8601String(),
+            'store_synced'   => $storeUpdated,
+        ];
+
+        $config = $this->getAppConfig($app);
+        $coupons = $config['admin_coupons'] ?? [];
+
+        $updated = false;
+        foreach ($coupons as $idx => $c) {
+            if (($c['id'] ?? '') === $cId || Str::upper($c['code'] ?? '') === $code) {
+                $coupons[$idx] = array_merge($coupons[$idx], $newCoupon);
+                $updated = true;
+                break;
+            }
+        }
+        if (! $updated) {
+            array_unshift($coupons, $newCoupon);
+        }
+
+        if (!empty($config['admin_deleted_coupon_ids'])) {
+            $config['admin_deleted_coupon_ids'] = array_values(
+                array_filter($config['admin_deleted_coupon_ids'], fn ($id) => $id !== $cId && $id !== $code)
+            );
+        }
+
+        $config['admin_coupons'] = $coupons;
+        $this->updateAppConfig($app, $config);
+        \Illuminate\Support\Facades\Cache::forget("store_portal_data_{$app->id}");
+
+        return response()->json([
+            'success'      => true,
+            'message'      => $storeUpdated
+                ? "Coupon {$code} created on live store and mobile app!"
+                : "Coupon {$code} created and synced with mobile app!",
+            'coupon'       => $newCoupon,
+            'coupons'      => $coupons,
+            'store_synced' => $storeUpdated,
+        ]);
+    }
+
+    /**
+     * Delete a coupon from the admin portal and WooCommerce.
+     * DELETE /api/apps/{ulid}/admin-portal/coupons/{couponId}
+     */
+    public function deleteCoupon(Request $request, string $ulid, string $couponId): JsonResponse
+    {
+        $app = $this->resolveAdminPortalApp($ulid, $request);
+
+        if (! $app->hasAdminPanelAccess()) {
+            return response()->json(['error' => ['message' => 'Admin Panel access required.']], 403);
+        }
+
+        $storeUpdated = false;
+        if ($app->connection && $app->connection->site_url && is_numeric($couponId)) {
+            $cleanSite = rtrim((string) $app->connection->site_url, '/');
+            $creds = $app->connection->credentials;
+            $ck = (string) ($creds['consumer_key'] ?? $creds['ck'] ?? '');
+            $cs = (string) ($creds['consumer_secret'] ?? $creds['cs'] ?? '');
+
+            if ($ck && $cs) {
+                try {
+                    $res = \Illuminate\Support\Facades\Http::withBasicAuth($ck, $cs)
+                        ->withoutVerifying()
+                        ->timeout(8)
+                        ->delete("{$cleanSite}/wp-json/wc/v3/coupons/{$couponId}?force=true");
+                    $storeUpdated = $res->successful();
+                } catch (\Throwable) {}
+            }
+        }
+
+        $config = $this->getAppConfig($app);
+        $coupons = $config['admin_coupons'] ?? [];
+        $delList = $config['admin_deleted_coupon_ids'] ?? [];
+
+        $coupons = array_values(array_filter($coupons, fn ($c) => ($c['id'] ?? '') !== $couponId && ($c['code'] ?? '') !== $couponId));
+        $delList[] = $couponId;
+
+        $config['admin_coupons'] = $coupons;
+        $config['admin_deleted_coupon_ids'] = array_values(array_unique($delList));
+        $this->updateAppConfig($app, $config);
+        \Illuminate\Support\Facades\Cache::forget("store_portal_data_{$app->id}");
+
+        return response()->json([
+            'success'      => true,
+            'message'      => 'Coupon deleted successfully.',
+            'store_synced' => $storeUpdated,
+        ]);
+    }
+
+    /**
      * Save/Create/Update a product in the admin portal.
      *
      * POST /api/apps/{ulid}/admin-portal/products
      */
     public function saveProduct(Request $request, string $ulid): JsonResponse
     {
-        $app = App::where('ulid', $ulid)->firstOrFail();
+        $app = $this->resolveAdminPortalApp($ulid, $request);
         if (! $app->hasAdminPanelAccess()) {
             return response()->json(['error' => ['message' => 'Admin Panel access required.']], 403);
         }
@@ -656,7 +859,9 @@ class AppController extends Controller
      */
     public function toggleProductStatus(Request $request, string $ulid, string $productId): JsonResponse
     {
-        $app = App::where('ulid', $ulid)->with('connection')->firstOrFail();
+        $app = $this->resolveAdminPortalApp($ulid, $request);
+        $app->loadMissing('connection');
+
         if (! $app->hasAdminPanelAccess()) {
             return response()->json(['error' => ['message' => 'Admin Panel access required.']], 403);
         }
@@ -758,7 +963,7 @@ class AppController extends Controller
      */
     public function deleteProduct(Request $request, string $ulid, string $productId): JsonResponse
     {
-        $app = App::where('ulid', $ulid)->firstOrFail();
+        $app = $this->resolveAdminPortalApp($ulid, $request);
         if (! $app->hasAdminPanelAccess()) {
             return response()->json(['error' => ['message' => 'Admin Panel access required.']], 403);
         }
@@ -788,9 +993,8 @@ class AppController extends Controller
      */
     public function syncCatalog(string $ulid, Request $request): JsonResponse
     {
-        $app = App::where('ulid', $ulid)
-            ->with(['connection', 'configs' => fn ($q) => $q->latest('version')])
-            ->firstOrFail();
+        $app = $this->resolveAdminPortalApp($ulid, $request);
+        $app->loadMissing(['connection', 'configs']);
 
         if (! $app->hasAdminPanelAccess()) {
             return response()->json([
@@ -839,6 +1043,28 @@ class AppController extends Controller
         $cacheKey = "store_portal_data_{$app->id}";
         $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
         if ($cached && (!empty($cached['products']) || !empty($cached['store_orders']))) {
+            $liveCoupons = $cached['store_coupons'] ?? [];
+            if (!empty($config['admin_coupons'])) {
+                foreach ($config['admin_coupons'] as $ac) {
+                    $found = false;
+                    foreach ($liveCoupons as &$lc) {
+                        if (($lc['id'] ?? '') === ($ac['id'] ?? '') || Str::upper($lc['code'] ?? '') === Str::upper($ac['code'] ?? '')) {
+                            $lc = array_merge($lc, $ac);
+                            $found = true;
+                            break;
+                        }
+                    }
+                    unset($lc);
+                    if (! $found) {
+                        array_unshift($liveCoupons, $ac);
+                    }
+                }
+            }
+            if (!empty($config['admin_deleted_coupon_ids'])) {
+                $delIds = $config['admin_deleted_coupon_ids'];
+                $liveCoupons = array_values(array_filter($liveCoupons, fn ($c) => !in_array($c['id'] ?? '', $delIds) && !in_array($c['code'] ?? '', $delIds)));
+            }
+            $cached['store_coupons'] = $liveCoupons;
             return $cached;
         }
 
@@ -1379,6 +1605,28 @@ class AppController extends Controller
             ];
         }
 
+        // Merge custom added/edited coupons from config
+        if (!empty($config['admin_coupons'])) {
+            foreach ($config['admin_coupons'] as $ac) {
+                $found = false;
+                foreach ($liveCoupons as &$lc) {
+                    if (($lc['id'] ?? '') === ($ac['id'] ?? '') || Str::upper($lc['code'] ?? '') === Str::upper($ac['code'] ?? '')) {
+                        $lc = array_merge($lc, $ac);
+                        $found = true;
+                        break;
+                    }
+                }
+                unset($lc);
+                if (! $found) {
+                    array_unshift($liveCoupons, $ac);
+                }
+            }
+        }
+        if (!empty($config['admin_deleted_coupon_ids'])) {
+            $delIds = $config['admin_deleted_coupon_ids'];
+            $liveCoupons = array_values(array_filter($liveCoupons, fn ($c) => !in_array($c['id'] ?? '', $delIds) && !in_array($c['code'] ?? '', $delIds)));
+        }
+
         // 5. Merge custom added/edited products and filter deleted products
         if (!empty($config['admin_products'])) {
             foreach ($config['admin_products'] as $ap) {
@@ -1462,7 +1710,7 @@ class AppController extends Controller
             }
         }
 
-        return [
+        $result = [
             'banners'        => $banners,
             'sales'          => $sales,
             'categories'     => $categories,

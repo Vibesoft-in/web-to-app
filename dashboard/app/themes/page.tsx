@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { clearUserData } from "@/lib/user-data-store";
 
 interface ThemeItem {
   id: number;
@@ -149,7 +150,18 @@ export default function ThemesPage() {
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
     retry: false,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
+
+  useEffect(() => {
+    const handlePageShow = (e: PageTransitionEvent) => {
+      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, [queryClient]);
 
   const user = authData?.user;
   const isAdmin = Boolean(user?.is_super_admin || user?.email === "admin@webintoapp.com");
@@ -187,6 +199,7 @@ export default function ThemesPage() {
 
   const handleLogout = async () => {
     try {
+      clearUserData();
       await apiClient("/api/auth/logout", { method: "POST" });
     } finally {
       queryClient.setQueryData(["auth", "me"], { user: null });
@@ -301,8 +314,8 @@ export default function ThemesPage() {
             <Link href="/themes" className="nav-link active">
               Themes
             </Link>
-            <Link href="/plans" className="nav-link">
-              Plans
+            <Link href="/pricing" className="nav-link">
+              Pricing
             </Link>
             <Link href="/support" className="nav-link">
               Support
@@ -310,9 +323,6 @@ export default function ThemesPage() {
           </nav>
 
           <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-            <Link href="/login" className="btn-text">
-              Login
-            </Link>
             {user ? (
               <>
                 <Link
@@ -331,7 +341,11 @@ export default function ThemesPage() {
                 </button>
               </>
             ) : (
-              <Link href="/signup" className="btn-outline">
+              <>
+                <Link href="/login" className="btn-text">
+                  Login
+                </Link>
+                <Link href="/signup" className="btn-outline">
                   <span>Get Started</span>
                   <svg
                     width="14"
@@ -347,6 +361,7 @@ export default function ThemesPage() {
                     <polyline points="9 4 13 8 9 12" />
                   </svg>
                 </Link>
+              </>
             )}
           </div>
         </div>

@@ -8,7 +8,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { apiClient } from "@/lib/api-client";
-import { ArrowRight, Loader2, Palette, Rocket, Shield, Sparkles, Store } from "lucide-react";
+import { getUserData, saveUserData } from "@/lib/user-data-store";
+import { ArrowRight, Check, Loader2, Palette, Rocket, Shield, Sparkles, Store } from "lucide-react";
 
 const newAppSchema = z.object({
   name: z.string().min(2, "App name must be at least 2 characters").max(50),
@@ -37,6 +38,20 @@ export default function NewAppPage() {
   });
 
   const isAdmin = Boolean(authData?.user?.is_super_admin || authData?.user?.email === "admin@webintoapp.com");
+
+  // Auto-fetch data from searchParams or user data store
+  const storedData = typeof window !== "undefined" ? getUserData() : {};
+  const queryUrl = searchParams.get("url") || storedData.website_url || "";
+  const queryPlatform = (searchParams.get("platform") || storedData.platform || "").toLowerCase();
+  const initialPlatform: "woo" | "shopify" = queryPlatform === "shopify" ? "shopify" : "woo";
+  const queryName =
+    searchParams.get("name") ||
+    storedData.store_name ||
+    authData?.user?.business_name ||
+    "";
+
+  const [prefilledUrl, setPrefilledUrl] = useState(queryUrl);
+  const [prefilledName, setPrefilledName] = useState(queryName);
 
   useEffect(() => {
     try {
@@ -134,10 +149,24 @@ export default function NewAppPage() {
   } = useForm<NewAppForm>({
     resolver: zodResolver(newAppSchema),
     defaultValues: {
-      platform: "woo",
-      name: "",
+      platform: initialPlatform,
+      name: queryName,
     },
   });
+
+  // Keep form in sync when authData or storedData resolves
+  useEffect(() => {
+    if (queryName) {
+      setValue("name", queryName);
+      setPrefilledName(queryName);
+    }
+    if (initialPlatform) {
+      setValue("platform", initialPlatform);
+    }
+    if (queryUrl) {
+      setPrefilledUrl(queryUrl);
+    }
+  }, [queryName, initialPlatform, queryUrl, setValue]);
 
   const selectedPlatform = watch("platform");
 
@@ -176,7 +205,18 @@ export default function NewAppPage() {
     try {
       const res = await apiClient("/api/apps", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          website_url: prefilledUrl || undefined,
+          site_url: prefilledUrl || undefined,
+        }),
+      });
+
+      // Save user store data with chosen configuration
+      saveUserData({
+        store_name: data.name,
+        platform: data.platform,
+        website_url: prefilledUrl || undefined,
       });
 
       // Clear the one-time selected theme and plan after application initialization
@@ -189,7 +229,8 @@ export default function NewAppPage() {
 
       const ulid = res.ulid || res.app?.ulid;
       if (ulid) {
-        router.push(`/dashboard/apps/${ulid}/setup/platform`);
+        // Direct directly to connect step because platform is already selected!
+        router.push(`/dashboard/apps/${ulid}/setup/connect`);
       } else {
         router.push("/dashboard");
       }
@@ -215,6 +256,28 @@ export default function NewAppPage() {
             Let's start by naming your app and choosing your e-commerce platform.
           </p>
         </div>
+
+        {(prefilledName || prefilledUrl) && (
+          <div className="prefilled-details-banner">
+            <div className="prefilled-banner-left">
+              <div className="prefilled-icon-check">✓</div>
+              <div className="prefilled-banner-text">
+                <span className="prefilled-label">Auto-Fetched Configuration</span>
+                <span className="prefilled-val">
+                  Store: <strong>{prefilledName || "Your Store"}</strong> &bull; Platform:{" "}
+                  <strong>{selectedPlatform === "shopify" ? "Shopify" : "WooCommerce"}</strong>
+                  {prefilledUrl && (
+                    <>
+                      {" "}
+                      &bull; URL: <strong>{prefilledUrl}</strong>
+                    </>
+                  )}
+                </span>
+              </div>
+            </div>
+            <span className="prefilled-editable-badge">Auto-populated</span>
+          </div>
+        )}
 
         {authData?.user?.latest_draft && (
           <div className="mb-6 p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">

@@ -945,7 +945,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       customerId: user.id > 0 ? user.id : 0,
       firstName: user.name.isNotEmpty ? user.name.split(' ').first : 'Customer',
       lastName: user.name.isNotEmpty ? user.name.split(' ').skip(1).join(' ') : '',
-      email: user.email.isNotEmpty ? user.email : 'customer@lightingstore.in',
+      email: user.email,
       phone: user.phone.isNotEmpty ? user.phone : '9876543210',
       address: 'Main Store Delivery',
       city: 'Delhi',

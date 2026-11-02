@@ -2,8 +2,13 @@
 title Appify Backend Server
 cd /d "%~dp0backend"
 
-set PHP_EXE=C:\Users\kunaa\php-8.3\php.exe
-set COMPOSER_PHAR=C:\xampp\php\composer.phar
+set PHP_EXE=php
+where php >nul 2>nul
+if %errorlevel% neq 0 (
+    if exist "C:\xampp\php\php.exe" (
+        set PHP_EXE=C:\xampp\php\php.exe
+    )
+)
 
 echo ===================================================
 echo   Starting Appify Backend (Laravel) without Docker
@@ -20,7 +25,7 @@ if not exist "database\database.sqlite" (
 
 if not exist "vendor" (
     echo [Composer] Installing PHP dependencies...
-    "%PHP_EXE%" "%COMPOSER_PHAR%" install --no-interaction
+    composer install --no-interaction
 )
 
 echo [Laravel] Checking application encryption key...
@@ -45,4 +50,3 @@ echo Press Ctrl+C to stop the server.
 echo.
 
 "%PHP_EXE%" -d max_execution_time=0 artisan serve --port=8000
-

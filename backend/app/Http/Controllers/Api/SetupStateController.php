@@ -63,6 +63,19 @@ class SetupStateController extends Controller
         $canDownloadIpa = $app->canDownloadIpa();
         $hasAdminPanel = $app->hasAdminPanelAccess();
 
+        $siteUrl = $app->connection?->site_url;
+        $cachedWebsiteData = \Illuminate\Support\Facades\Cache::get("website_data_{$app->id}");
+
+        if ((! $cachedWebsiteData || ! isset($cachedWebsiteData['brand'])) && $siteUrl) {
+            try {
+                $configController = app(\App\Http\Controllers\Api\ConfigController::class);
+                $res = $configController->getWebsiteData($app->ulid);
+                $cachedWebsiteData = $res->getData(true);
+            } catch (\Throwable) {
+                $cachedWebsiteData = null;
+            }
+        }
+
         return response()->json([
             'app' => [
                 'ulid'         => $app->ulid,
@@ -70,7 +83,10 @@ class SetupStateController extends Controller
                 'platform'     => $app->platform,
                 'package_name' => $app->package_name,
                 'status'       => $app->status,
+                'site_url'     => $siteUrl,
+                'website_url'  => $siteUrl,
             ],
+            'website_data'    => $cachedWebsiteData,
             'current_step'    => $currentStep->value,
             'completed_steps' => $completedSteps,
             'allowed_steps'   => $allowedSteps,

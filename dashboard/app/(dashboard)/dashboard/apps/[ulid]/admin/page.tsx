@@ -62,6 +62,7 @@ import {
   Star,
   Sun,
   Tag,
+  Ticket,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -77,6 +78,7 @@ import { ProductsView } from "./components/products-view";
 import { CustomersView } from "./components/customers-view";
 import { InsightsView } from "./components/insights-view";
 import { MessagesView } from "./components/messages-view";
+import { CouponsView } from "./components/coupons-view";
 import { SettingsView } from "./components/settings-view";
 import { HelpView } from "./components/help-view";
 import { BestSellerModal } from "./components/best-seller-modal";
@@ -143,6 +145,7 @@ export default function AppAdminPortalPage() {
     | "insights"
     | "messages"
     | "banners"
+    | "coupons"
     | "notifications"
     | "categories"
     | "settings"
@@ -544,6 +547,37 @@ export default function AppAdminPortalPage() {
     },
   });
 
+  // ── 12. Save Coupon Mutation ───────────────────────────────────────────────
+  const saveCouponMutation = useMutation({
+    mutationFn: (payload: any) =>
+      apiClient(`/api/apps/${ulid}/admin-portal/coupons`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (data: any) => {
+      showToast(data.message || "Coupon created and synced successfully!", "success");
+      queryClient.invalidateQueries({ queryKey: ["app-admin-portal", ulid] });
+    },
+    onError: (err: any) => {
+      showToast(err.message || "Failed to save coupon.", "error");
+    },
+  });
+
+  // ── 13. Delete Coupon Mutation ─────────────────────────────────────────────
+  const deleteCouponMutation = useMutation({
+    mutationFn: (couponId: string) =>
+      apiClient(`/api/apps/${ulid}/admin-portal/coupons/${couponId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: (data: any) => {
+      showToast(data.message || "Coupon deleted successfully.", "info");
+      queryClient.invalidateQueries({ queryKey: ["app-admin-portal", ulid] });
+    },
+    onError: (err: any) => {
+      showToast(err.message || "Failed to delete coupon.", "error");
+    },
+  });
+
   // ── Derived Data from Connected Store (NO MOCK COFFEE DATA!) ──────────────
   const app = portalData?.app;
   const storeUrl = app?.connection?.site_url || portalData?.catalog_stats?.store_url || "";
@@ -559,6 +593,7 @@ export default function AppAdminPortalPage() {
   const rawCategories: any[] = portalData?.categories || [];
   const rawBanners: any[] = portalData?.banners || [];
   const rawCampaigns: any[] = portalData?.campaigns || [];
+  const rawCoupons: any[] = portalData?.store_coupons || [];
   const credentials = portalData?.api_credentials;
 
   // Filtered Products
@@ -1196,6 +1231,7 @@ export default function AppAdminPortalPage() {
         products: rawProducts.slice(0, 4),
         orders: rawOrders.slice(0, 3),
         customers: rawCustomers.slice(0, 3),
+        coupons: rawCoupons.slice(0, 3),
       };
     }
     const q = finderQuery.toLowerCase();
@@ -1218,8 +1254,15 @@ export default function AppAdminPortalPage() {
             c.city?.toLowerCase().includes(q)
         )
         .slice(0, 5),
+      coupons: rawCoupons
+        .filter(
+          (cp) =>
+            cp.code?.toLowerCase().includes(q) ||
+            cp.description?.toLowerCase().includes(q)
+        )
+        .slice(0, 4),
     };
-  }, [finderQuery, rawProducts, rawOrders, rawCustomers]);
+  }, [finderQuery, rawProducts, rawOrders, rawCustomers, rawCoupons]);
 
   // Copy helper
   const handleCopy = (text: string, label: string) => {
@@ -1489,6 +1532,24 @@ export default function AppAdminPortalPage() {
                 {rawBanners.length > 0 && (
                   <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-[var(--mav-well)] text-[var(--mav-muted)]">
                     {rawBanners.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setActiveTab("coupons")}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition font-bold text-[13px] ${activeTab === "coupons"
+                  ? "bg-[var(--mav-side-pill)] text-[var(--mav-on-side-pill)]"
+                  : "text-[var(--mav-on-side)] hover:bg-[var(--mav-side-hover)]"
+                  }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Ticket className="w-4 h-4 opacity-80" />
+                  <span>Coupons</span>
+                </div>
+                {rawCoupons.length > 0 && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-[var(--mav-well)] text-[var(--mav-muted)]">
+                    {rawCoupons.length}
                   </span>
                 )}
               </button>
@@ -1764,6 +1825,16 @@ export default function AppAdminPortalPage() {
                   <button
                     onClick={() => {
                       setIsNewDropdownOpen(false);
+                      setActiveTab("coupons");
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-[var(--mav-well)] transition"
+                  >
+                    <Ticket className="w-4 h-4 text-emerald-600" />
+                    <span>New Coupon</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsNewDropdownOpen(false);
                       setActiveTab("notifications");
                     }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-[var(--mav-well)] transition"
@@ -1798,6 +1869,7 @@ export default function AppAdminPortalPage() {
             { id: "messages", label: "Messages (3)", icon: MessageSquare },
             { id: "settings", label: "Settings", icon: Settings },
             { id: "banners", label: "Banners", icon: Flame },
+            { id: "coupons", label: `Coupons (${rawCoupons.length})`, icon: Ticket },
             { id: "notifications", label: "Push", icon: Bell },
             { id: "sync", label: "Sync", icon: RefreshCw },
             { id: "help", label: "Help", icon: HelpCircle },
@@ -3195,6 +3267,26 @@ export default function AppAdminPortalPage() {
         )}
 
         {/* ──────────────────────────────────────────────────────────────────── */}
+        {/* VIEW: COUPONS & DISCOUNTS                                            */}
+        {/* ──────────────────────────────────────────────────────────────────── */}
+        {activeTab === "coupons" && (
+          <CouponsView
+            rawCoupons={rawCoupons}
+            currencySymbol={currency}
+            storeDomain={storeDomain}
+            onSaveCoupon={async (payload) => {
+              await saveCouponMutation.mutateAsync(payload);
+            }}
+            onDeleteCoupon={async (couponId) => {
+              await deleteCouponMutation.mutateAsync(String(couponId));
+            }}
+            showToast={showToast}
+            isSaving={saveCouponMutation.isPending}
+            isDeleting={deleteCouponMutation.isPending}
+          />
+        )}
+
+        {/* ──────────────────────────────────────────────────────────────────── */}
         {/* VIEW 6: PUSH NOTIFICATIONS                                           */}
         {/* ──────────────────────────────────────────────────────────────────── */}
         {activeTab === "notifications" && (
@@ -3595,6 +3687,40 @@ export default function AppAdminPortalPage() {
                   </div>
                 </div>
               )}
+
+              {/* Coupons Section */}
+              {finderResults.coupons && finderResults.coupons.length > 0 && (
+                <div>
+                  <span className="px-3 py-1 font-extrabold uppercase tracking-wider text-[10px] text-[var(--mav-muted)] block">
+                    Coupons &amp; Deals
+                  </span>
+                  <div className="space-y-0.5 mt-1">
+                    {finderResults.coupons.map((cp: any) => (
+                      <button
+                        key={cp.id}
+                        onClick={() => {
+                          setIsFinderOpen(false);
+                          setActiveTab("coupons");
+                        }}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-[var(--mav-well)] text-left transition"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Ticket className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                          <span className="font-bold font-mono tracking-wider">{cp.code}</span>
+                          {cp.description && (
+                            <span className="text-[11px] text-[var(--mav-muted)] truncate max-w-[150px]">
+                              • {cp.description}
+                            </span>
+                          )}
+                        </div>
+                        <span className="px-2 py-0.5 rounded-md bg-[var(--mav-good)]/15 text-[var(--mav-good)] font-bold text-[10px]">
+                          {cp.discount_type === "percent" ? `${cp.amount}% OFF` : `${currency}${cp.amount} OFF`}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -3843,8 +3969,8 @@ export default function AppAdminPortalPage() {
           "paid"
         ).toLowerCase();
 
-        const customerName = selectedOrder.customer_name || `${selectedOrder.billing?.first_name || ""} ${selectedOrder.billing?.last_name || ""}`.trim() || "Customer";
-        const customerEmail = selectedOrder.customer_email || selectedOrder.billing?.email || "customer@example.com";
+        const customerName = selectedOrder.customer_name || `${selectedOrder.billing?.first_name || ""} ${selectedOrder.billing?.last_name || ""}`.trim() || "";
+        const customerEmail = selectedOrder.customer_email || selectedOrder.billing?.email || "";
         const customerCity = selectedOrder.shipping_address || (selectedOrder.billing?.city ? `${selectedOrder.billing.city}${selectedOrder.billing.state ? ", " + selectedOrder.billing.state : ""}` : (storeDomain || "Online Order"));
 
         const nameParts = customerName.trim().split(" ");

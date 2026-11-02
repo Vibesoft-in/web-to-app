@@ -175,10 +175,12 @@ class OrderController extends Controller
     public function myOrders(Request $request): JsonResponse
     {
         $user = $request->user();
-        $tenantId = $user?->tenant_id;
+        $tenantId = $user?->tenant_id ?? ($user ? \App\Models\Tenant::where('user_id', $user->id)->value('id') : null);
         if (! $tenantId) {
-            $userByEmail = \App\Models\User::where('email', 'msanskriti1432@gmail.com')->first();
-            $tenantId = $userByEmail?->tenant_id ?? 1;
+            return response()->json([
+                'success' => true,
+                'data'    => [],
+            ]);
         }
 
         $orders = Order::where('tenant_id', $tenantId)

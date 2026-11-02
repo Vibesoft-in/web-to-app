@@ -1,24 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { clearUserData } from "@/lib/user-data-store";
 
 export default function HomePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [isYearly, setIsYearly] = useState(false);
-  const [activeTheme, setActiveTheme] = useState("modern");
-  const [quickUrl, setQuickUrl] = useState("");
 
   const { data: authData } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
     retry: false,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
+
+  useEffect(() => {
+    const handlePageShow = () => {
+      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, [queryClient]);
 
   const user = authData?.user;
   const isAdmin = Boolean(user?.is_super_admin || user?.email === "admin@webintoapp.com");
@@ -63,6 +72,7 @@ export default function HomePage() {
 
   const handleLogout = async () => {
     try {
+      clearUserData();
       await apiClient("/api/auth/logout", { method: "POST" });
     } finally {
       queryClient.setQueryData(["auth", "me"], { user: null });
@@ -71,20 +81,11 @@ export default function HomePage() {
     }
   };
 
-  const handleQuickConvert = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanUrl = quickUrl.trim();
-    if (user) {
-      if (isAdmin) {
-        window.location.href = "http://localhost:8000/admin";
-        return;
-      } else {
-        router.push(primaryTargetHref);
-      }
-    } else {
-      router.push(cleanUrl ? `/signup?url=${encodeURIComponent(cleanUrl)}` : "/signup");
-    }
-  };
+  const convertTargetHref = user
+    ? isAdmin
+      ? "http://localhost:8000/admin"
+      : primaryTargetHref
+    : "/signup";
 
   return (
     <div className="home-page-root">
@@ -118,37 +119,51 @@ export default function HomePage() {
             <Link href="/themes" className="nav-link">
               Themes
             </Link>
-            <Link href="/plans" className="nav-link">
-              Plans
+            <Link href="/pricing" className="nav-link">
+              Pricing
             </Link>
             <Link href="/support" className="nav-link">
               Support
             </Link>
           </nav>
 
-          <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-            <Link href="/login" className="btn-text">
-              Login
-            </Link>
+          <div className="header-actions">
             {user ? (
               <>
                 <Link
                   href={isAdmin ? "http://localhost:8000/admin" : primaryTargetHref}
                   className="btn-outline"
                 >
-                  <span>{isAdmin ? "Admin Oversight" : hasPreviouslyBuiltApps ? "Dashboard" : latestDraft ? "Resume App" : "Create App"}</span>
+                  <span>
+                    {isAdmin
+                      ? "Admin Oversight"
+                      : hasPreviouslyBuiltApps
+                      ? "Dashboard"
+                      : latestDraft
+                      ? "Resume App"
+                      : "Create App"}
+                  </span>
                 </Link>
                 <button
                   type="button"
                   onClick={handleLogout}
                   className="btn-text"
-                  style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
                 >
                   Logout
                 </button>
               </>
             ) : (
-              <Link href="/signup" className="btn-outline">
+              <>
+                <Link href="/login" className="btn-text">
+                  Login
+                </Link>
+                <Link href="/signup" className="btn-outline">
                   <span>Get Started</span>
                   <svg
                     width="14"
@@ -164,6 +179,7 @@ export default function HomePage() {
                     <polyline points="9 4 13 8 9 12" />
                   </svg>
                 </Link>
+              </>
             )}
           </div>
         </div>
@@ -185,61 +201,26 @@ export default function HomePage() {
                   Now in an <em>App</em>.
                 </h1>
                 <p className="hero-description">
-                  Turn your WordPress, WooCommerce or Shopify website into a
-                  beautiful mobile app &mdash; quickly, easily and without
-                  coding.
+                  Turn your WordPress, WooCommerce or Shopify website into a beautiful
+                  mobile app &mdash; quickly, easily and without coding.
                 </p>
-                <div className="hero-action" style={{ display: "flex", flexDirection: "column", gap: "1rem", alignItems: "center" }}>
-                  <form
-                    onSubmit={handleQuickConvert}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      background: "#FFFFFF",
-                      padding: "0.4rem 0.5rem 0.4rem 1rem",
-                      borderRadius: "9999px",
-                      border: "1.5px solid #E8DFD8",
-                      boxShadow: "0 4px 20px -2px rgba(120, 89, 61, 0.12)",
-                      maxWidth: "480px",
-                      width: "100%",
-                    }}
-                  >
-                    <input
-                      type="url"
-                      value={quickUrl}
-                      onChange={(e) => setQuickUrl(e.target.value)}
-                      placeholder="https://yourstore.com"
-                      style={{
-                        border: "none",
-                        outline: "none",
-                        flex: 1,
-                        fontSize: "0.9rem",
-                        color: "#3B3026",
-                        background: "transparent",
-                      }}
-                    />
-                    <button
-                      type="submit"
-                      className="btn-action-pill"
-                      style={{ padding: "0.6rem 1.2rem", margin: 0 }}
+                <div className="hero-action">
+                  <Link href={convertTargetHref} className="btn-action-pill">
+                    <span>Convert My Website</span>
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     >
-                      <span>{user ? (isAdmin ? "Admin Dashboard" : "Build App Now") : "Convert My Website"}</span>
-                      <svg
-                        width="15"
-                        height="15"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <line x1="3" y1="8" x2="13" y2="8" />
-                        <polyline points="9 4 13 8 9 12" />
-                      </svg>
-                    </button>
-                  </form>
+                      <line x1="3" y1="8" x2="13" y2="8" />
+                      <polyline points="9 4 13 8 9 12" />
+                    </svg>
+                  </Link>
                 </div>
               </div>
             </div>
@@ -248,6 +229,7 @@ export default function HomePage() {
           {/* ─── 2. PLATFORMS & TRUST ECOSYSTEM SECTION ─── */}
           <section className="trust-platforms-section">
             <div className="trust-platforms-container">
+              {/* Section Eyebrow */}
               <div className="trust-intro-bar">
                 <span className="trust-eyebrow">
                   <svg
@@ -266,10 +248,17 @@ export default function HomePage() {
                 </span>
               </div>
 
+              {/* Platforms Row: 3 Elevated Interactive Cards */}
               <div className="platforms-cards-strip">
                 {/* WordPress Card */}
                 <Link
-                  href={user ? (isAdmin ? "http://localhost:8000/admin" : "/dashboard/apps/new?platform=woo") : "/signup?platform=wordpress"}
+                  href={
+                    user
+                      ? isAdmin
+                        ? "http://localhost:8000/admin"
+                        : "/dashboard/apps/new?platform=woo"
+                      : "/signup?platform=wordpress"
+                  }
                   className="platform-pill-card platform-pill-card-wp"
                   style={{ textDecoration: "none", color: "inherit", display: "flex" }}
                 >
@@ -293,7 +282,13 @@ export default function HomePage() {
 
                 {/* WooCommerce Card */}
                 <Link
-                  href={user ? (isAdmin ? "http://localhost:8000/admin" : "/dashboard/apps/new?platform=woo") : "/signup?platform=woocommerce"}
+                  href={
+                    user
+                      ? isAdmin
+                        ? "http://localhost:8000/admin"
+                        : "/dashboard/apps/new?platform=woo"
+                      : "/signup?platform=woocommerce"
+                  }
                   className="platform-pill-card platform-pill-card-woo"
                   style={{ textDecoration: "none", color: "inherit", display: "flex" }}
                 >
@@ -317,7 +312,13 @@ export default function HomePage() {
 
                 {/* Shopify Card */}
                 <Link
-                  href={user ? (isAdmin ? "http://localhost:8000/admin" : "/dashboard/apps/new?platform=shopify") : "/signup?platform=shopify"}
+                  href={
+                    user
+                      ? isAdmin
+                        ? "http://localhost:8000/admin"
+                        : "/dashboard/apps/new?platform=shopify"
+                      : "/signup?platform=shopify"
+                  }
                   className="platform-pill-card platform-pill-card-shopify"
                   style={{ textDecoration: "none", color: "inherit", display: "flex" }}
                 >
@@ -345,6 +346,7 @@ export default function HomePage() {
           {/* ─── 3. WHY CHOOSE APPIFYHUB SECTION ─── */}
           <section className="why-choose-section" id="why-choose">
             <div className="why-choose-container">
+              {/* Section Header */}
               <div className="why-choose-header">
                 <div className="why-choose-eyebrow-row">
                   <span className="why-choose-eyebrow-line" />
@@ -361,7 +363,9 @@ export default function HomePage() {
                 </h2>
               </div>
 
+              {/* Content Layout: 3D Visual on Left, 6 Compact Cards Grid on Right */}
               <div className="why-choose-content-layout">
+                {/* Left Visual Showcase Column */}
                 <div className="why-choose-visual-col">
                   <div className="why-visual-frame">
                     <div className="why-visual-inner">
@@ -375,10 +379,21 @@ export default function HomePage() {
                   </div>
                 </div>
 
+                {/* Right Cards Grid: 2 columns x 3 rows */}
                 <div className="why-choose-cards-grid">
+                  {/* Card 01 */}
                   <div className="why-card">
                     <div className="why-card-icon-wrap">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
                         <ellipse cx="12" cy="5" rx="9" ry="3" />
                         <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
                         <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
@@ -393,9 +408,19 @@ export default function HomePage() {
                     </div>
                   </div>
 
+                  {/* Card 02 */}
                   <div className="why-card">
                     <div className="why-card-icon-wrap">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
                         <rect x="2" y="4" width="20" height="12" rx="2" />
                         <line x1="2" y1="20" x2="22" y2="20" />
                       </svg>
@@ -409,9 +434,19 @@ export default function HomePage() {
                     </div>
                   </div>
 
+                  {/* Card 03 */}
                   <div className="why-card">
                     <div className="why-card-icon-wrap">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
                         <path d="M4 8h4v-2a2 2 0 1 1 4 0v2h4a2 2 0 0 1 2 2v4h-2a2 2 0 1 0 0 4h2v4a2 2 0 0 1-2 2h-4v-2a2 2 0 1 0-4 0v2H4a2 2 0 0 1-2-2v-4h2a2 2 0 1 0 0-4H2v-4a2 2 0 0 1 2-2z" />
                       </svg>
                     </div>
@@ -424,9 +459,19 @@ export default function HomePage() {
                     </div>
                   </div>
 
+                  {/* Card 04 */}
                   <div className="why-card">
                     <div className="why-card-icon-wrap">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
                         <circle cx="11" cy="11" r="8" />
                         <line x1="21" y1="21" x2="16.65" y2="16.65" />
                       </svg>
@@ -440,9 +485,19 @@ export default function HomePage() {
                     </div>
                   </div>
 
+                  {/* Card 05 */}
                   <div className="why-card">
                     <div className="why-card-icon-wrap">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
                         <circle cx="12" cy="12" r="3" />
                         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
                       </svg>
@@ -456,9 +511,19 @@ export default function HomePage() {
                     </div>
                   </div>
 
+                  {/* Card 06 */}
                   <div className="why-card">
                     <div className="why-card-icon-wrap">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
                         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                       </svg>
                     </div>
@@ -478,10 +543,20 @@ export default function HomePage() {
           {/* ─── 4. VERIFIED TRACK RECORD SECTION ─── */}
           <section className="verified-metrics-section">
             <div className="verified-metrics-container">
+              {/* Subtle Section Divider */}
               <div className="trust-subtle-divider">
                 <span className="trust-divider-line" />
                 <span className="trust-divider-chip">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                   </svg>
                   Verified Track Record
@@ -489,10 +564,21 @@ export default function HomePage() {
                 <span className="trust-divider-line" />
               </div>
 
+              {/* Impact Metrics Row: 4 Balanced Cards */}
               <div className="metrics-grid">
+                {/* Stat 1 */}
                 <div className="metric-box">
                   <div className="metric-icon-wrap">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
                       <line x1="12" y1="18" x2="12.01" y2="18" />
                     </svg>
@@ -504,9 +590,19 @@ export default function HomePage() {
                   <span className="metric-sub">Android &amp; iOS Apps</span>
                 </div>
 
+                {/* Stat 2 */}
                 <div className="metric-box">
                   <div className="metric-icon-wrap">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                       <polyline points="9 12 11 14 15 10" />
                     </svg>
@@ -518,9 +614,19 @@ export default function HomePage() {
                   <span className="metric-sub">Google &amp; Apple Compliant</span>
                 </div>
 
+                {/* Stat 3 */}
                 <div className="metric-box">
                   <div className="metric-icon-wrap">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
                       <polyline points="17 6 23 6 23 12" />
                     </svg>
@@ -532,14 +638,25 @@ export default function HomePage() {
                   <span className="metric-sub">Vs. Mobile Browser</span>
                 </div>
 
+                {/* Stat 4 */}
                 <div className="metric-box">
                   <div className="metric-icon-wrap">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                     </svg>
                   </div>
                   <span className="metric-number">
-                    <span className="metric-accent">&lt;</span> 15<span className="metric-accent">m</span>
+                    <span className="metric-accent">&lt;</span> 15
+                    <span className="metric-accent">m</span>
                   </span>
                   <span className="metric-label">Average Setup Time</span>
                   <span className="metric-sub">Zero Code Required</span>
@@ -551,17 +668,19 @@ export default function HomePage() {
           {/* ─── 5. HOW IT WORKS SECTION ─── */}
           <section className="how-it-works-section" id="how-it-works">
             <div className="how-container">
+              {/* Left Lifestyle Visual */}
               <div className="how-visual">
                 <div className="how-image-frame">
                   <img
                     src="/assets/images/how_it_works_converter.png"
-                    alt="From Website to App illustration"
+                    alt="From Website to App illustration showing laptop converting to mobile app"
                     className="img-responsive"
                     loading="lazy"
                   />
                 </div>
               </div>
 
+              {/* Right Step Process */}
               <div className="how-content">
                 <span className="eyebrow-tag">HOW IT WORKS</span>
                 <h2 className="section-heading">
@@ -571,10 +690,20 @@ export default function HomePage() {
                 </h2>
 
                 <div className="steps-timeline">
+                  {/* Step 01 */}
                   <div className="step-card is-visible">
                     <div className="step-marker">
                       <div className="step-icon-bubble">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#78593D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#78593D"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
                           <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                           <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
                         </svg>
@@ -587,10 +716,20 @@ export default function HomePage() {
                     </div>
                   </div>
 
+                  {/* Step 02 */}
                   <div className="step-card is-visible">
                     <div className="step-marker">
                       <div className="step-icon-bubble">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#78593D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#78593D"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
                           <circle cx="11" cy="11" r="8" />
                           <line x1="21" y1="21" x2="16.65" y2="16.65" />
                         </svg>
@@ -603,10 +742,20 @@ export default function HomePage() {
                     </div>
                   </div>
 
+                  {/* Step 03 */}
                   <div className="step-card is-visible">
                     <div className="step-marker">
                       <div className="step-icon-bubble">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#78593D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#78593D"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
                           <circle cx="13.5" cy="6.5" r=".5" fill="#78593D" />
                           <circle cx="17.5" cy="10.5" r=".5" fill="#78593D" />
                           <circle cx="8.5" cy="7.5" r=".5" fill="#78593D" />
@@ -622,10 +771,20 @@ export default function HomePage() {
                     </div>
                   </div>
 
+                  {/* Step 04 */}
                   <div className="step-card is-visible">
                     <div className="step-marker">
                       <div className="step-icon-bubble">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#78593D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#78593D"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
                           <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
                           <line x1="1" y1="10" x2="23" y2="10" />
                         </svg>
@@ -638,10 +797,20 @@ export default function HomePage() {
                     </div>
                   </div>
 
+                  {/* Step 05 */}
                   <div className="step-card is-visible">
                     <div className="step-marker">
                       <div className="step-icon-bubble">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#78593D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#78593D"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
                           <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
                           <line x1="12" y1="18" x2="12.01" y2="18" />
                         </svg>
@@ -658,6 +827,169 @@ export default function HomePage() {
             </div>
           </section>
 
+          {/* ─── 6. NATIVE CAPABILITIES & FEATURES GRID ─── */}
+          <section className="features-grid-section" id="features">
+            <div className="features-container">
+              <div className="features-header text-center">
+                <span className="eyebrow-tag">BUILT FOR MOBILE PERFORMANCE</span>
+                <h2 className="section-heading">Everything You Need in a Native App</h2>
+                <p className="section-subheading">
+                  Don't settle for sluggish web wrappers. AppifyHub builds high-speed,
+                  native mobile experiences that elevate your brand and drive repeat purchases.
+                </p>
+              </div>
+
+              <div className="features-grid">
+                {/* Feature 1 */}
+                <div className="feature-card">
+                  <div className="feature-icon-box">
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#78593D"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                  </div>
+                  <span className="feature-badge">70% Open Rate</span>
+                  <h3 className="feature-title">Instant Push Notifications</h3>
+                  <p className="feature-desc">
+                    Re-engage cart abandoners and send personalized alerts for flash sales,
+                    back-in-stock items, and order updates straight to user lockscreens.
+                  </p>
+                </div>
+
+                {/* Feature 2 */}
+                <div className="feature-card">
+                  <div className="feature-icon-box">
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#78593D"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 004 11m0 0a8 8 0 008 8c.706 0 1.396-.062 2.064-.18" />
+                    </svg>
+                  </div>
+                  <span className="feature-badge">1-Tap Login</span>
+                  <h3 className="feature-title">Biometric Authentication</h3>
+                  <p className="feature-desc">
+                    Frictionless FaceID and Fingerprint access allows return shoppers to browse
+                    and check out instantly without typing passwords.
+                  </p>
+                </div>
+
+                {/* Feature 3 */}
+                <div className="feature-card">
+                  <div className="feature-icon-box">
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#78593D"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="23 4 23 10 17 10" />
+                      <polyline points="1 20 1 14 7 14" />
+                      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
+                  </div>
+                  <span className="feature-badge">Bidirectional</span>
+                  <h3 className="feature-title">Real-Time Catalog Sync</h3>
+                  <p className="feature-desc">
+                    All products, inventories, pricing, discounts, and customer orders stay in
+                    synchronized lockstep with your website database.
+                  </p>
+                </div>
+
+                {/* Feature 4 */}
+                <div className="feature-card">
+                  <div className="feature-icon-box">
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#78593D"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+                    </svg>
+                  </div>
+                  <span className="feature-badge">60fps Smooth</span>
+                  <h3 className="feature-title">Offline Browsing &amp; Cache</h3>
+                  <p className="feature-desc">
+                    Smart client caching ensures fast navigation, smooth animations, and product
+                    catalog browsing even with intermittent mobile signals.
+                  </p>
+                </div>
+
+                {/* Feature 5 */}
+                <div className="feature-card">
+                  <div className="feature-icon-box">
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#78593D"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="2" y="5" width="20" height="14" rx="2" />
+                      <line x1="2" y1="10" x2="22" y2="10" />
+                    </svg>
+                  </div>
+                  <span className="feature-badge">3x Conversion</span>
+                  <h3 className="feature-title">Native 1-Click Checkout</h3>
+                  <p className="feature-desc">
+                    Streamlined checkout with support for Apple Pay, Google Pay, Razorpay, Stripe,
+                    and saved addresses dramatically slashes checkout abandonment.
+                  </p>
+                </div>
+
+                {/* Feature 6 */}
+                <div className="feature-card">
+                  <div className="feature-icon-box">
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#78593D"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                  </div>
+                  <span className="feature-badge">99.8% Passed</span>
+                  <h3 className="feature-title">App Store &amp; Play Store Ready</h3>
+                  <p className="feature-desc">
+                    Receive fully compliant Google Play (.aab) and iOS (.ipa) builds with
+                    end-to-end guidance to guarantee immediate marketplace approval.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
 
           {/* ─── 7. CHOOSE A THEME SECTION ─── */}
           <section className="theme-showcase-section" id="themes">
@@ -670,14 +1002,12 @@ export default function HomePage() {
                   That Fits Your Brand.
                 </h2>
                 <p className="theme-description">
-                  Your website content, products and data remain the same. Select a design style that matches your business.
+                  Your website content, products and data remain the same. Select a design style
+                  that matches your business.
                 </p>
                 <div className="theme-action">
-                  <Link
-                    href={user ? (isAdmin ? "http://localhost:8000/admin" : "/themes") : "/themes"}
-                    className="btn-action-pill"
-                  >
-                    <span>{user && !isAdmin ? "Choose Theme & Build" : "Explore Themes"}</span>
+                  <Link href="/themes" className="btn-action-pill">
+                    <span>Explore Themes</span>
                     <svg
                       width="15"
                       height="15"
@@ -703,29 +1033,54 @@ export default function HomePage() {
                     className="img-responsive theme-img"
                     loading="lazy"
                   />
+                  {/* Clickable phone hotspots directly on the visual */}
+                  <div className="theme-phones-hotspots" aria-label="Interactive Phone Themes">
+                    <Link
+                      href="/themes?theme=minimal"
+                      className="theme-phone-hotspot"
+                      aria-label="View Minimal Theme"
+                      title="View Minimal Theme"
+                    />
+                    <Link
+                      href="/themes?theme=modern"
+                      className="theme-phone-hotspot"
+                      aria-label="View Modern Theme"
+                      title="View Modern Theme"
+                    />
+                    <Link
+                      href="/themes?theme=trendy"
+                      className="theme-phone-hotspot"
+                      aria-label="View Trendy Theme"
+                      title="View Trendy Theme"
+                    />
+                  </div>
                 </div>
+                {/* Interactive Pills corresponding to the 3 themes */}
                 <div className="theme-pill-tags">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTheme("minimal")}
-                    className={`theme-pill theme-pill-interactive ${activeTheme === "minimal" ? "active" : ""}`}
+                  <Link
+                    href="/themes?theme=minimal"
+                    className="theme-pill theme-pill-interactive"
+                    aria-label="Explore Minimal Theme"
+                    title="Explore Minimal Theme"
                   >
                     <span>Minimal</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTheme("modern")}
-                    className={`theme-pill theme-pill-interactive ${activeTheme === "modern" ? "active" : ""}`}
+                  </Link>
+                  <Link
+                    href="/themes?theme=modern"
+                    className="theme-pill theme-pill-interactive"
+                    aria-label="Explore Modern Theme"
+                    title="Explore Modern Theme"
                   >
                     <span>Modern</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTheme("trendy")}
-                    className={`theme-pill theme-pill-interactive ${activeTheme === "trendy" ? "active" : ""}`}
+                  </Link>
+                  <Link
+                    href="/themes?theme=trendy"
+                    className="theme-pill theme-pill-interactive"
+                    aria-label="Explore Trendy Theme"
+                    title="Explore Trendy Theme"
                   >
                     <span>Trendy</span>
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>
@@ -738,7 +1093,8 @@ export default function HomePage() {
                 <span className="eyebrow-tag">THE NATIVE ADVANTAGE</span>
                 <h2 className="section-heading">Why Your Store Needs a Mobile App</h2>
                 <p className="section-subheading">
-                  Compare standard responsive mobile browsing with an authentic native iOS and Android app built with AppifyHub.
+                  Compare standard responsive mobile browsing with an authentic native iOS and
+                  Android app built with AppifyHub.
                 </p>
               </div>
 
@@ -797,7 +1153,9 @@ export default function HomePage() {
                         <span className="badge-dim">Laggy 3-5s DOM reloads</span>
                       </td>
                       <td className="val-native">
-                        <span className="badge-gold">✓ Instant 60fps Native Acceleration</span>
+                        <span className="badge-gold">
+                          ✓ Instant 60fps Native Hardware Acceleration
+                        </span>
                       </td>
                     </tr>
                     <tr>
@@ -830,24 +1188,28 @@ export default function HomePage() {
             </div>
           </section>
 
-          {/* ─── 9. PRICING & PLANS SECTION ─── */}
-          <section className="pricing-section" id="plans">
-            <span id="pricing" className="sr-only" />
+          {/* ─── 9. PRICING & PLANS SECTION (PRESERVED ORIGINAL INR PRICING) ─── */}
+          <section className="pricing-section" id="pricing">
+            <span id="plans" className="sr-only" />
             <div className="pricing-container">
               <div className="pricing-header text-center">
                 <span className="eyebrow-tag">SIMPLE &amp; TRANSPARENT PLANS</span>
                 <h2 className="section-heading">Invest in Your Mobile Growth</h2>
                 <p className="section-subheading">
-                  No hidden transaction percentages. Lifetime app ownership with zero revenue commissions.
+                  No hidden transaction percentages. Lifetime app ownership with zero revenue
+                  commissions.
                 </p>
 
+                {/* Billing Toggle */}
                 <div className="pricing-toggle-wrap">
-                  <span className={`toggle-label ${!isYearly ? "font-bold" : ""}`}>Standard One-Time</span>
+                  <span className={`toggle-label ${!isYearly ? "font-bold" : ""}`}>
+                    Standard One-Time
+                  </span>
                   <button
                     type="button"
                     onClick={() => setIsYearly(!isYearly)}
                     className={`pricing-switch ${isYearly ? "active" : ""}`}
-                    aria-label="Toggle annual plan"
+                    aria-label="Toggle annual billing"
                     role="switch"
                     aria-checked={isYearly}
                   >
@@ -877,15 +1239,33 @@ export default function HomePage() {
                     </div>
                   </div>
                   <ul className="plan-features">
-                    <li><span className="check-icon">✓</span> Android App (.aab / .apk files)</li>
-                    <li><span className="check-icon">✓</span> Standard Clean Theme Layout</li>
-                    <li><span className="check-icon">✓</span> Push Notifications (Basic)</li>
-                    <li><span className="check-icon">✓</span> Standard App Icon &amp; Splash Screen</li>
-                    <li><span className="check-icon">✓</span> Real-Time Product &amp; Order Sync</li>
-                    <li><span className="check-icon">✓</span> 3 Months Technical Support</li>
+                    <li>
+                      <span className="check-icon">✓</span> Android App (.aab / .apk files)
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span> Standard Clean Theme Layout
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span> Push Notifications (Basic)
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span> Standard App Icon &amp; Splash Screen
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span> Real-Time Product &amp; Order Sync
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span> 3 Months Technical Support
+                    </li>
                   </ul>
                   <Link
-                    href={user ? (isAdmin ? "http://localhost:8000/admin" : "/dashboard/apps/new?plan=starter-app") : "/signup?plan=starter-app"}
+                    href={
+                      user
+                        ? isAdmin
+                          ? "http://localhost:8000/admin"
+                          : "/dashboard/apps/new?plan=starter-app"
+                        : "/signup?plan=starter-app"
+                    }
                     className="btn-plan btn-plan-outline"
                   >
                     Get Started
@@ -910,16 +1290,39 @@ export default function HomePage() {
                     </div>
                   </div>
                   <ul className="plan-features">
-                    <li><span className="check-icon">✓</span> <strong>Both Android &amp; iOS Apps</strong></li>
-                    <li><span className="check-icon">✓</span> All Premium Themes Included</li>
-                    <li><span className="check-icon">✓</span> <strong>Native Push Notifications</strong></li>
-                    <li><span className="check-icon">✓</span> Payment Gateway Sync &amp; 1-Tap Checkout</li>
-                    <li><span className="check-icon">✓</span> Custom Branding &amp; Full Color Palette</li>
-                    <li><span className="check-icon">✓</span> WhatsApp &amp; In-App Chat Integration</li>
-                    <li><span className="check-icon">✓</span> <strong>6 Months Priority Support</strong></li>
+                    <li>
+                      <span className="check-icon">✓</span>{" "}
+                      <strong>Both Android &amp; iOS Apps</strong>
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span> All Premium Themes Included
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span>{" "}
+                      <strong>Native Push Notifications</strong>
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span> Payment Gateway Sync &amp; 1-Tap Checkout
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span> Custom Branding &amp; Full Color Palette
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span> WhatsApp &amp; In-App Chat Integration
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span>{" "}
+                      <strong>6 Months Priority Support</strong>
+                    </li>
                   </ul>
                   <Link
-                    href={user ? (isAdmin ? "http://localhost:8000/admin" : "/dashboard/apps/new?plan=pro-combo") : "/signup?plan=pro-combo"}
+                    href={
+                      user
+                        ? isAdmin
+                          ? "http://localhost:8000/admin"
+                          : "/dashboard/apps/new?plan=pro-combo"
+                        : "/signup?plan=pro-combo"
+                    }
                     className="btn-plan btn-plan-primary"
                   >
                     Get Pro Combo
@@ -943,15 +1346,35 @@ export default function HomePage() {
                     </div>
                   </div>
                   <ul className="plan-features">
-                    <li><span className="check-icon">✓</span> <strong>Both Android &amp; iOS Apps Included</strong></li>
-                    <li><span className="check-icon">✓</span> All Premium Add-ons &amp; Themes Included</li>
-                    <li><span className="check-icon">✓</span> Priority App Store &amp; Play Store Publishing</li>
-                    <li><span className="check-icon">✓</span> Dedicated Technical App Manager</li>
-                    <li><span className="check-icon">✓</span> Custom ERP &amp; API Integrations</li>
-                    <li><span className="check-icon">✓</span> 1 Year Dedicated Support &amp; Updates</li>
+                    <li>
+                      <span className="check-icon">✓</span>{" "}
+                      <strong>Both Android &amp; iOS Apps Included</strong>
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span> All Premium Add-ons &amp; Themes Included
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span> Priority App Store &amp; Play Store
+                      Publishing
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span> Dedicated Technical App Manager
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span> Custom ERP &amp; API Integrations
+                    </li>
+                    <li>
+                      <span className="check-icon">✓</span> 1 Year Dedicated Support &amp; Updates
+                    </li>
                   </ul>
                   <Link
-                    href={user ? (isAdmin ? "http://localhost:8000/admin" : "/dashboard/apps/new?plan=enterprise-suite") : "/signup?plan=enterprise-suite"}
+                    href={
+                      user
+                        ? isAdmin
+                          ? "http://localhost:8000/admin"
+                          : "/dashboard/apps/new?plan=enterprise-suite"
+                        : "/signup?plan=enterprise-suite"
+                    }
                     className="btn-plan btn-plan-outline"
                   >
                     Get Enterprise
@@ -961,10 +1384,13 @@ export default function HomePage() {
 
               <div className="text-center mt-10">
                 <Link
-                  href="/plans"
+                  href="/pricing"
                   className="inline-flex items-center gap-2 text-sm font-bold text-amber-900 hover:text-amber-950 underline underline-offset-4 transition"
                 >
-                  <span>Looking for modular add-ons, APK/AAB builds, or interactive configuration? Explore Full Plans &amp; Add-ons &rarr;</span>
+                  <span>
+                    Looking for full plan comparison, add-ons, or interactive calculator? Explore
+                    Full Pricing &rarr;
+                  </span>
                 </Link>
               </div>
             </div>
@@ -977,15 +1403,19 @@ export default function HomePage() {
                 <span className="eyebrow-tag">VERIFIED RESULTS</span>
                 <h2 className="section-heading">Loved by Fast-Growing E-Commerce Brands</h2>
                 <p className="section-subheading">
-                  See how digital merchants unlocked explosive customer retention and revenue with AppifyHub.
+                  See how digital merchants unlocked explosive customer retention and revenue
+                  with AppifyHub.
                 </p>
               </div>
 
               <div className="testimonials-grid">
+                {/* Testimonial 1 */}
                 <div className="testimonial-card">
                   <div className="testimonial-stars">★★★★★</div>
                   <p className="testimonial-quote">
-                    &ldquo;Our mobile conversion rate increased by 280% within the first 3 weeks of launching our iOS and Android apps. Push notifications alone brought us $42,000 in recovered carts.&rdquo;
+                    &ldquo;Our mobile conversion rate increased by 280% within the first 3 weeks of
+                    launching our iOS and Android apps. Push notifications alone brought us $42,000
+                    in recovered carts.&rdquo;
                   </p>
                   <div className="testimonial-footer">
                     <div className="author-details">
@@ -996,10 +1426,13 @@ export default function HomePage() {
                   </div>
                 </div>
 
+                {/* Testimonial 2 */}
                 <div className="testimonial-card">
                   <div className="testimonial-stars">★★★★★</div>
                   <p className="testimonial-quote">
-                    &ldquo;Zero coding required. In less than 15 minutes our entire Shopify catalog of 1,200 products was converted into a boutique mobile experience. Customers constantly compliment how clean it feels.&rdquo;
+                    &ldquo;Zero coding required. In less than 15 minutes our entire Shopify catalog
+                    of 1,200 products was converted into a boutique mobile experience. Customers
+                    constantly compliment how clean it feels.&rdquo;
                   </p>
                   <div className="testimonial-footer">
                     <div className="author-details">
@@ -1010,15 +1443,20 @@ export default function HomePage() {
                   </div>
                 </div>
 
+                {/* Testimonial 3 */}
                 <div className="testimonial-card">
                   <div className="testimonial-stars">★★★★★</div>
                   <p className="testimonial-quote">
-                    &ldquo;AppifyHub handled our Apple App Store and Google Play publication with zero rejections on the first attempt. The real-time sync with our WordPress blog is completely seamless.&rdquo;
+                    &ldquo;AppifyHub handled our Apple App Store and Google Play publication with
+                    zero rejections on the first attempt. The real-time sync with our WordPress blog
+                    is completely seamless.&rdquo;
                   </p>
                   <div className="testimonial-footer">
                     <div className="author-details">
                       <h4 className="author-name">Sofia Chen</h4>
-                      <p className="author-title">Digital Director, The Minimalist Edit &bull; WordPress</p>
+                      <p className="author-title">
+                        Digital Director, The Minimalist Edit &bull; WordPress
+                      </p>
                     </div>
                     <span className="author-metric">4.9 ★ App Store</span>
                   </div>
@@ -1027,7 +1465,7 @@ export default function HomePage() {
             </div>
           </section>
 
-          {/* ─── 11. READY TO GET STARTED (BOTTOM CTA) ─── */}
+          {/* ─── 12. READY TO GET STARTED (BOTTOM CTA) ─── */}
           <section className="bottom-cta-section">
             <div className="bottom-cta-container">
               <div className="bottom-cta-content">
@@ -1041,11 +1479,8 @@ export default function HomePage() {
                   No coding required. Works seamlessly with WordPress, WooCommerce and Shopify.
                 </p>
                 <div className="bottom-cta-action">
-                  <Link
-                    href={user ? (isAdmin ? "http://localhost:8000/admin" : primaryTargetHref) : "/signup"}
-                    className="btn-action-pill"
-                  >
-                    <span>{user ? (isAdmin ? "Open Admin Dashboard" : hasPreviouslyBuiltApps ? "Go to My Dashboard" : latestDraft ? "Resume Building App" : "Build My App Now") : "Convert My Website"}</span>
+                  <Link href={convertTargetHref} className="btn-action-pill">
+                    <span>Convert My Website</span>
                     <svg
                       width="15"
                       height="15"
@@ -1079,11 +1514,12 @@ export default function HomePage() {
       </main>
 
       {/* ===================================================
-          3. GLOBAL FOOTER
+          3. GLOBAL APPIFYHUB FOOTER
           =================================================== */}
       <footer className="app-footer">
         <div className="footer-inner">
           <div className="footer-top-grid">
+            {/* Brand Info */}
             <div className="footer-col footer-col-brand">
               <Link href="/" className="brand-logo" aria-label="AppifyHub Home">
                 <svg
@@ -1104,46 +1540,106 @@ export default function HomePage() {
               </p>
             </div>
 
+            {/* Product Links */}
             <div className="footer-col">
               <h4 className="footer-title">Product</h4>
               <ul className="footer-links">
-                <li><Link href="/how-it-works">How It Works</Link></li>
-                <li><Link href="/themes">Themes</Link></li>
-                <li><Link href="/plans">Plans &amp; Add-ons</Link></li>
-                <li><Link href="/support">Support</Link></li>
+                <li>
+                  <Link href="/how-it-works">How It Works</Link>
+                </li>
+                <li>
+                  <Link href="/#features">Features</Link>
+                </li>
+                <li>
+                  <Link href="/themes">Themes</Link>
+                </li>
+                <li>
+                  <Link href="/pricing">Pricing</Link>
+                </li>
               </ul>
             </div>
 
+            {/* Platform Links */}
             <div className="footer-col">
               <h4 className="footer-title">Platform</h4>
               <ul className="footer-links">
-                <li><Link href="/signup?platform=wordpress">WordPress</Link></li>
-                <li><Link href="/signup?platform=woocommerce">WooCommerce</Link></li>
-                <li><Link href="/signup?platform=shopify">Shopify</Link></li>
+                <li>
+                  <Link href={user ? "/dashboard/apps/new?platform=woo" : "/signup?platform=wordpress"}>
+                    WordPress
+                  </Link>
+                </li>
+                <li>
+                  <Link href={user ? "/dashboard/apps/new?platform=woo" : "/signup?platform=woocommerce"}>
+                    WooCommerce
+                  </Link>
+                </li>
+                <li>
+                  <Link href={user ? "/dashboard/apps/new?platform=shopify" : "/signup?platform=shopify"}>
+                    Shopify
+                  </Link>
+                </li>
               </ul>
             </div>
 
+            {/* Social Links */}
             <div className="footer-col footer-col-social">
               <div className="social-icons">
-                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="social-btn" aria-label="Facebook">
+                {/* Facebook */}
+                <a
+                  href="https://facebook.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="social-btn"
+                  aria-label="Facebook"
+                >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
                   </svg>
                 </a>
-                <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="social-btn" aria-label="Instagram">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {/* Instagram */}
+                <a
+                  href="https://instagram.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="social-btn"
+                  aria-label="Instagram"
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
                     <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
                     <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
                   </svg>
                 </a>
-                <a href="https://youtube.com" target="_blank" rel="noopener noreferrer" className="social-btn" aria-label="YouTube">
+                {/* YouTube */}
+                <a
+                  href="https://youtube.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="social-btn"
+                  aria-label="YouTube"
+                >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.1c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z" />
                     <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" fill="#F5F1EB" />
                   </svg>
                 </a>
-                <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="social-btn" aria-label="LinkedIn">
+                {/* LinkedIn */}
+                <a
+                  href="https://linkedin.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="social-btn"
+                  aria-label="LinkedIn"
+                >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2zM4 2a2 2 0 1 1-2 2 2 2 0 0 1 2-2z" />
                   </svg>
@@ -1152,6 +1648,7 @@ export default function HomePage() {
             </div>
           </div>
 
+          {/* Footer Bottom Bar */}
           <div className="footer-bottom-bar">
             <p className="copyright">&copy; 2026 AppifyHub. All rights reserved.</p>
             <div className="footer-legal">

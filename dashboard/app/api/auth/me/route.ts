@@ -12,7 +12,9 @@ export async function GET() {
 
   if (result.error || !result.data) {
     const res = NextResponse.json({ user: null });
-    res.cookies.delete("auth_token");
+    if (result.status === 401) {
+      res.cookies.delete("auth_token");
+    }
     return res;
   }
 

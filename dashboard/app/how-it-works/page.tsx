@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api-client";
+import { clearUserData } from "@/lib/user-data-store";
 
 const STEPS = [
   { id: "step-01", num: "01", name: "Enter Website", tag: "DISCOVERY & INITIATION" },
@@ -21,6 +24,39 @@ const STEPS = [
 ];
 
 export default function HowItWorksPage() {
+  const queryClient = useQueryClient();
+
+  const { data: authData } = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: () => apiClient("/api/auth/me"),
+    retry: false,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
+
+  useEffect(() => {
+    const handlePageShow = (e: PageTransitionEvent) => {
+      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, [queryClient]);
+
+  const user = authData?.user;
+
+  const handleLogout = async () => {
+    try {
+      clearUserData();
+      await apiClient("/api/auth/logout", { method: "POST" });
+    } finally {
+      queryClient.setQueryData(["auth", "me"], { user: null });
+      queryClient.removeQueries({ queryKey: ["auth", "me"] });
+      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      window.location.reload();
+    }
+  };
+
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection] = useState<"down" | "up">("down");
   const [exitingIndex, setExitingIndex] = useState<number | null>(null);
@@ -217,34 +253,65 @@ export default function HowItWorksPage() {
             <Link href="/themes" className="nav-link">
               Themes
             </Link>
-            <Link href="/plans" className="nav-link">
-              Plans
+            <Link href="/pricing" className="nav-link">
+              Pricing
             </Link>
             <Link href="/support" className="nav-link">
               Support
             </Link>
           </nav>
 
-          <div className="header-actions">
-            <Link href="/login" className="btn-text">
-              Login
-            </Link>
-            <Link href="/signup" className="btn-outline">
-              <span>Get Started</span>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="3" y1="8" x2="13" y2="8" />
-                <polyline points="9 4 13 8 9 12" />
-              </svg>
-            </Link>
+          <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+            {user ? (
+              <>
+                <Link href="/dashboard" className="btn-outline">
+                  <span>Dashboard</span>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="3" y1="8" x2="13" y2="8" />
+                    <polyline points="9 4 13 8 9 12" />
+                  </svg>
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="btn-text"
+                  style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/login" className="btn-text">
+                  Login
+                </Link>
+                <Link href="/signup" className="btn-outline">
+                  <span>Get Started</span>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="3" y1="8" x2="13" y2="8" />
+                    <polyline points="9 4 13 8 9 12" />
+                  </svg>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>

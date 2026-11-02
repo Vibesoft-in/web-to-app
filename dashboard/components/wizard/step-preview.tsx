@@ -473,6 +473,7 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [bannerUploadError, setBannerUploadError] = useState<string | null>(null);
   const [bannerHighlight, setBannerHighlight] = useState(false);
+  const [localBannerPreview, setLocalBannerPreview] = useState<string | null>(null);
   const [bannerUrlInput, setBannerUrlInput] = useState("");
   const [showAdvancedBannerText, setShowAdvancedBannerText] = useState(false);
   const [originalWebsiteColors, setOriginalWebsiteColors] = useState<Record<string, string> | null>(null);
@@ -812,8 +813,17 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
     : null;
   const bannerItem = homeBannerSection?.items?.[0] || {};
 
-  const activeBannerImage =
-    bannerItem.image &&
+  const sanitizeImageUrl = (url?: string | null) => {
+    if (!url) return "";
+    if (url.includes("/storage/app_assets/")) {
+      return url.substring(url.indexOf("/storage/app_assets/"));
+    }
+    return url;
+  };
+
+  const rawBannerImage =
+    localBannerPreview ||
+    (bannerItem.image &&
     !bannerItem.image.includes("photo-1441986300917") &&
     !bannerItem.image.includes("placeholders/banner1")
       ? bannerItem.image
@@ -821,7 +831,9 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
         previewData?.banner_image ||
         config.app?.banner_url ||
         config.theme?.banner_url ||
-        "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp";
+        "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp");
+
+  const activeBannerImage = sanitizeImageUrl(rawBannerImage);
 
   const activeBannerTitle =
     bannerItem.title && bannerItem.title !== "Exclusive Online Collection"
@@ -950,7 +962,7 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
 
     // Immediate 0ms local preview
     const tempUrl = URL.createObjectURL(file);
-    updateBanner({ image: tempUrl });
+    setLocalBannerPreview(tempUrl);
 
     // Read base64 in parallel for offline/fallback resilience
     const reader = new FileReader();
@@ -967,23 +979,33 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
 
       let finalUrl = "";
       // 1. Send to relative Next.js proxy route with session cookies
-      const res = await fetch(`/api/apps/${ulid}/upload-asset`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.url) finalUrl = data.url;
-      } else {
-        // 2. Direct backend fallback
-        const directRes = await fetch(`http://127.0.0.1:8000/api/apps/${ulid}/upload-asset`, {
+      try {
+        const res = await fetch(`/api/apps/${ulid}/upload-asset`, {
           method: "POST",
           body: formData,
         });
-        if (directRes.ok) {
-          const directData = await directRes.json();
-          if (directData.url) finalUrl = directData.url;
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.url) finalUrl = data.url;
+        }
+      } catch (err) {
+        console.warn("Proxy upload failed, attempting direct:", err);
+      }
+
+      // 2. Direct backend fallback
+      if (!finalUrl) {
+        try {
+          const directRes = await fetch(`http://127.0.0.1:8000/api/apps/${ulid}/upload-asset`, {
+            method: "POST",
+            body: formData,
+          });
+          if (directRes.ok) {
+            const directData = await directRes.json();
+            if (directData.url) finalUrl = directData.url;
+          }
+        } catch (err) {
+          console.warn("Direct upload failed:", err);
         }
       }
 
@@ -997,6 +1019,7 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
           localStorage.setItem(`app_banner_${ulid}`, finalUrl);
         } catch {}
         updateBanner({ image: finalUrl });
+        setLocalBannerPreview(null);
         setBannerUploadError(null);
       }
     } catch (err: any) {
@@ -1004,8 +1027,10 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
       const base64 = await readBase64Promise;
       if (base64) {
         updateBanner({ image: base64 });
+        setLocalBannerPreview(null);
         setBannerUploadError(null);
       } else {
+        setLocalBannerPreview(null);
         setBannerUploadError(err.message || "Failed to upload banner.");
       }
     } finally {
@@ -1030,16 +1055,46 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
   };
 
   const handlePublish = async () => {
+    if (isUploadingBanner) {
+      alert("Please wait a moment for the banner image to finish uploading.");
+      return;
+    }
+
     setIsPublishing(true);
     try {
       if (debounceTimer.current) {
         clearTimeout(debounceTimer.current);
       }
 
+      // Sanitize any transient blob URLs if present
+      let configToSave = { ...config };
+      if (configToSave.home && Array.isArray(configToSave.home)) {
+        configToSave.home = configToSave.home.map((sec: any) => {
+          if (sec.type === "banner" && Array.isArray(sec.items)) {
+            return {
+              ...sec,
+              items: sec.items.map((it: any) => {
+                if (it.image && it.image.startsWith("blob:")) {
+                  const safeImg =
+                    activeBannerImage && !activeBannerImage.startsWith("blob:")
+                      ? activeBannerImage
+                      : previewData?.niche?.hero_image ||
+                        previewData?.banner_image ||
+                        "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp";
+                  return { ...it, image: safeImg };
+                }
+                return it;
+              }),
+            };
+          }
+          return sec;
+        });
+      }
+
       // 1. Immediately persist current state to draft
       await apiClient(`/api/apps/${ulid}/config/draft`, {
         method: "PUT",
-        body: JSON.stringify(config),
+        body: JSON.stringify(configToSave),
       });
 
       // 2. Publish snapshot
@@ -1051,7 +1106,13 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
         onNext();
       }, 700);
     } catch (err: any) {
-      alert(err.message || "Failed to publish config.");
+      console.error("Publish configuration failed:", err);
+      const detailMsg = err.errors
+        ? Object.entries(err.errors)
+            .map(([field, msgs]) => `${field}: ${(msgs as string[]).join(", ")}`)
+            .join("\n")
+        : (err.message || "Failed to publish config.");
+      alert(`Configuration publishing failed:\n${detailMsg}`);
     } finally {
       setIsPublishing(false);
     }
@@ -1174,7 +1235,8 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
 
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  setLocalBannerPreview(null);
                   updateBanner({
                     image:
                       previewData?.niche?.hero_image ||
@@ -1183,8 +1245,8 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
                     title: previewData?.niche?.hero_title || "High-Performance Lighting & Bulbs",
                     badge: previewData?.niche?.hero_badge || "SUPER BRIGHT • 2026 EDITION",
                     button_text: previewData?.niche?.hero_button || "Shop Halogen & LED →",
-                  })
-                }
+                  });
+                }}
                 className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1 hover:bg-white px-2 py-1 rounded-lg border border-transparent hover:border-slate-200 transition cursor-pointer"
                 title="Reset banner to store niche default"
               >
@@ -1198,6 +1260,16 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
               <img
                 src={activeBannerImage}
                 alt="Banner Preview"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  const fallback =
+                    previewData?.niche?.hero_image ||
+                    previewData?.banner_image ||
+                    "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp";
+                  if (target.src !== fallback) {
+                    target.src = fallback;
+                  }
+                }}
                 className="w-full h-full object-cover transition duration-300 group-hover:scale-102"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent flex flex-col justify-end p-3.5 text-white">
@@ -1261,12 +1333,22 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
                 <LinkIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                 <input
                   type="url"
-                  placeholder="Paste Image URL..."
+                  placeholder="Paste Image URL (https://...)..."
                   value={bannerUrlInput}
                   onChange={(e) => {
                     setBannerUrlInput(e.target.value);
-                    if (e.target.value.startsWith("http")) {
-                      updateBanner({ image: e.target.value });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && bannerUrlInput.trim()) {
+                      e.preventDefault();
+                      const val = bannerUrlInput.trim();
+                      if (val.startsWith("http://") || val.startsWith("https://") || val.startsWith("data:")) {
+                        setLocalBannerPreview(null);
+                        updateBanner({ image: val });
+                        setBannerUploadError(null);
+                      } else {
+                        setBannerUploadError("Please enter a valid secure image URL (https://...)");
+                      }
                     }
                   }}
                   className="w-full text-xs text-slate-800 bg-transparent outline-none placeholder:text-slate-400"
@@ -1275,8 +1357,13 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
                   <button
                     type="button"
                     onClick={() => {
-                      if (bannerUrlInput.startsWith("http")) {
-                        updateBanner({ image: bannerUrlInput });
+                      const val = bannerUrlInput.trim();
+                      if (val.startsWith("http://") || val.startsWith("https://") || val.startsWith("data:")) {
+                        setLocalBannerPreview(null);
+                        updateBanner({ image: val });
+                        setBannerUploadError(null);
+                      } else {
+                        setBannerUploadError("Please enter a valid secure image URL (https://...)");
                       }
                     }}
                     className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-[10px] font-bold hover:bg-indigo-100 cursor-pointer"

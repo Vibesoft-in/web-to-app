@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { clearUserData } from "@/lib/user-data-store";
 import {
   Check,
   ChevronDown,
@@ -351,6 +352,7 @@ export default function PlansPage() {
 
   const handleLogout = async () => {
     try {
+      clearUserData();
       await apiClient("/api/auth/logout", { method: "POST" });
     } catch { }
     window.location.href = "/";
@@ -1240,7 +1242,7 @@ export default function PlansPage() {
                     type="url"
                     value={customFeatureUrl}
                     onChange={(e) => setCustomFeatureUrl(e.target.value)}
-                    placeholder="https://example.com/feature-reference"
+                    placeholder="https://yourstore.com/feature-reference"
                     className="w-full px-3.5 py-2 rounded-xl text-xs border border-[#EBE6DF] focus:outline-none focus:border-[#78593D]"
                   />
                 </div>

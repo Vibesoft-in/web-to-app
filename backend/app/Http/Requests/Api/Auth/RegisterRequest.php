@@ -17,10 +17,13 @@ class RegisterRequest extends FormRequest
     {
         return [
             'name'          => ['required', 'string', 'max:100'],
-            'business_name' => ['required', 'string', 'max:150'],
+            'business_name' => ['nullable', 'string', 'max:150'],
             'email'         => ['required', 'email:rfc', 'max:255', 'unique:users,email'],
-            // min 10 chars as per doc §4
-            'password'      => ['required', 'string', 'min:10', 'confirmed'],
+            'password'      => ['required', 'string', 'min:6'],
+            'phone'         => ['nullable', 'string', 'max:50'],
+            'website_url'   => ['nullable', 'string', 'max:255'],
+            'platform'      => ['nullable', 'string', 'max:50'],
+            'website_name'  => ['nullable', 'string', 'max:150'],
         ];
     }
 }

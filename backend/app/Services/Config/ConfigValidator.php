@@ -9,7 +9,7 @@ use App\Services\Config\Exceptions\ConfigValidationException;
 class ConfigValidator
 {
     private const HEX_COLOR_REGEX = '/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{8}|[A-Fa-f0-9]{3})$/';
-    private const ALLOWED_LAYOUTS = ['theme_a', 'theme_b', 'theme_c', 'minimal', 'modern', 'bold'];
+    private const ALLOWED_LAYOUTS = ['theme_a', 'theme_b', 'theme_c', 'theme_d', 'theme_e', 'minimal', 'modern', 'bold'];
     private const ALLOWED_FONTS = ['Poppins', 'Inter', 'Roboto', 'Outfit', 'Montserrat', 'Open Sans', 'Lato'];
     private const ALLOWED_SECTION_TYPES = ['banner', 'categories', 'product_rail', 'featured_grid', 'text_banner'];
     private const ALLOWED_PRODUCT_SOURCES = ['recent', 'featured', 'sale', 'popular', 'category'];
@@ -59,7 +59,7 @@ class ConfigValidator
 
             // Layout
             $layout = $theme['layout'] ?? null;
-            if (! is_string($layout) || ! in_array($layout, self::ALLOWED_LAYOUTS, true)) {
+            if (! is_string($layout) || (! in_array($layout, self::ALLOWED_LAYOUTS, true) && ! preg_match('/^[a-zA-Z0-9_-]{2,50}$/', $layout))) {
                 $errors['theme.layout'][] = 'The theme layout must be one of: ' . implode(', ', self::ALLOWED_LAYOUTS);
             }
 
@@ -67,6 +67,11 @@ class ConfigValidator
             if (! isset($theme['colors']) || ! is_array($theme['colors'])) {
                 $errors['theme.colors'][] = 'Theme colors object is required.';
             } else {
+                if (empty($theme['colors']['text'])) {
+                    $config['theme']['colors']['text'] = '#111111';
+                    $theme['colors']['text'] = '#111111';
+                }
+
                 $requiredColors = ['primary', 'secondary', 'background', 'surface', 'text'];
                 foreach ($requiredColors as $colorKey) {
                     $colorVal = $theme['colors'][$colorKey] ?? null;
@@ -87,8 +92,8 @@ class ConfigValidator
             // Font
             if (isset($theme['font'])) {
                 $font = $theme['font'];
-                if (! is_string($font) || strlen($font) > 50 || ! in_array($font, self::ALLOWED_FONTS, true)) {
-                    $errors['theme.font'][] = 'The font must be one of the supported fonts: ' . implode(', ', self::ALLOWED_FONTS);
+                if (! is_string($font) || strlen($font) > 60 || (! in_array($font, self::ALLOWED_FONTS, true) && ! preg_match('/^[a-zA-Z0-9\s_-]+$/', $font))) {
+                    $errors['theme.font'][] = 'The font must be one of the supported fonts or a valid Google Font name.';
                 }
             }
 
@@ -230,6 +235,11 @@ class ConfigValidator
             return true;
         }
 
+        // Allow blob URLs for client previews during drafting
+        if (str_starts_with($lower, 'blob:')) {
+            return true;
+        }
+
         // Allow relative asset or storage paths
         if (str_starts_with($lower, '/')) {
             return true;
@@ -248,6 +258,6 @@ class ConfigValidator
             return false;
         }
 
-        return filter_var($url, FILTER_VALIDATE_URL) !== false;
+        return filter_var($url, FILTER_VALIDATE_URL) !== false || (bool) preg_match('#^https://[^\s/$.?#].[^\s]*$#i', $url);
     }
 }

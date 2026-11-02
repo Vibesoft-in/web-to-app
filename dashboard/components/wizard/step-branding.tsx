@@ -14,9 +14,12 @@ import {
   Upload,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { getUserData, saveUserData } from "@/lib/user-data-store";
 
 interface StepBrandingProps {
   ulid: string;
+  app?: any;
+  setupState?: any;
   onNext: () => void;
 }
 
@@ -72,16 +75,31 @@ const DUMMY_LOGOS = [
   },
 ];
 
-export function StepBranding({ ulid, onNext }: StepBrandingProps) {
-  const [appName, setAppName] = useState("");
+export function StepBranding({ ulid, app, setupState, onNext }: StepBrandingProps) {
+  const storedUserData = typeof window !== "undefined" ? getUserData() : {};
+  const initialName =
+    app?.name ||
+    setupState?.app?.name ||
+    storedUserData.store_name ||
+    "";
+
+  const initialStoreUrl =
+    app?.website_url ||
+    app?.site_url ||
+    setupState?.app?.website_url ||
+    setupState?.app?.site_url ||
+    storedUserData.website_url ||
+    "";
+
+  const [appName, setAppName] = useState<string>(initialName || "");
   const [logoUrl, setLogoUrl] = useState<string>("");
   const [logoMode, setLogoMode] = useState<"dummy" | "website" | "custom">("dummy");
   const [websiteLogo, setWebsiteLogo] = useState<string>("");
-  const [storeUrl, setStoreUrl] = useState<string>("");
-  const [primaryColor, setPrimaryColor] = useState("#E91E63");
-  const [secondaryColor, setSecondaryColor] = useState("#222222");
-  const [font, setFont] = useState("Poppins");
-  const [radius, setRadius] = useState(12);
+  const [storeUrl, setStoreUrl] = useState<string>(initialStoreUrl || "");
+  const [primaryColor, setPrimaryColor] = useState<string>("#E91E63");
+  const [secondaryColor, setSecondaryColor] = useState<string>("#222222");
+  const [font, setFont] = useState<string>("Poppins");
+  const [radius, setRadius] = useState<number>(12);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -93,6 +111,8 @@ export function StepBranding({ ulid, onNext }: StepBrandingProps) {
         if (res.config) {
           if (res.config.app?.name && res.config.app.name !== "Glow Beauty") {
             setAppName(res.config.app.name);
+          } else if (initialName) {
+            setAppName(initialName);
           }
           if (res.config.app?.logo_url) {
             setLogoUrl(res.config.app.logo_url);
@@ -113,14 +133,14 @@ export function StepBranding({ ulid, onNext }: StepBrandingProps) {
       .then((res) => {
         if (!isMounted || !res) return;
         if (res.store_name) {
-          setAppName((prev) => (prev && prev !== "Glow Beauty" ? prev : res.store_name));
+          setAppName((prev: string) => (prev && prev !== "Glow Beauty" ? prev : res.store_name));
         }
         if (res.website_url) {
           setStoreUrl(res.website_url);
         }
         if (res.brand?.logo_url) {
           setWebsiteLogo(res.brand.logo_url);
-          setLogoUrl((prev) => (prev && !prev.startsWith("data:image/svg+xml") ? prev : res.brand.logo_url));
+          setLogoUrl((prev: string) => (prev && !prev.startsWith("data:image/svg+xml") ? prev : res.brand.logo_url));
           setLogoMode("website");
         }
         if (res.brand?.colors?.primary) {

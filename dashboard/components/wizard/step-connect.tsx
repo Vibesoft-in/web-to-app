@@ -1,11 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, HelpCircle, Key, Link as LinkIcon, Loader2, Lock, ShieldCheck } from "lucide-react";
+import { getUserData, saveUserData } from "@/lib/user-data-store";
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  HelpCircle,
+  Key,
+  Link as LinkIcon,
+  Loader2,
+  Lock,
+  ShieldCheck,
+} from "lucide-react";
 
 const connectSchema = z.object({
   site_url: z
@@ -20,18 +34,38 @@ type ConnectFormData = z.infer<typeof connectSchema>;
 
 interface StepConnectProps {
   ulid: string;
+  app?: any;
+  setupState?: any;
   onNext: () => void;
 }
 
-export function StepConnect({ ulid, onNext }: StepConnectProps) {
+export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
   const [errorDetails, setErrorDetails] = useState<{ code: string; message: string } | null>(null);
   const [verificationResult, setVerificationResult] = useState<any | null>(null);
+  const [prefilledStoreUrl, setPrefilledStoreUrl] = useState<string>("");
+
+  // Fetch verified connection if already exists on backend
+  const { data: connectionData } = useQuery({
+    queryKey: ["app-connection", ulid],
+    queryFn: async () => {
+      try {
+        const res = await apiClient(`/api/apps/${ulid}/connection`);
+        return res?.connection || null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!ulid,
+  });
 
   const {
     register,
     handleSubmit,
+    setValue,
+    reset,
+    watch,
     formState: { errors },
   } = useForm<ConnectFormData>({
     resolver: zodResolver(connectSchema),
@@ -41,6 +75,86 @@ export function StepConnect({ ulid, onNext }: StepConnectProps) {
       consumer_secret: "",
     },
   });
+
+  // Load and restore previous inputs on mount or when connection loads
+  useEffect(() => {
+    let saved: any = null;
+    try {
+      const stored = localStorage.getItem(`appifyhub_connect_${ulid}`);
+      if (stored) saved = JSON.parse(stored);
+    } catch {}
+
+    const storedUserData = typeof window !== "undefined" ? getUserData() : {};
+
+    const storeUrl =
+      saved?.site_url ||
+      connectionData?.site_url ||
+      app?.site_url ||
+      app?.website_url ||
+      setupState?.app?.site_url ||
+      setupState?.app?.website_url ||
+      storedUserData.website_url ||
+      "";
+
+    const ck = saved?.consumer_key || "";
+    const cs = saved?.consumer_secret || "";
+
+    if (storeUrl || ck || cs) {
+      const cleanUrl =
+        storeUrl && storeUrl.startsWith("http")
+          ? storeUrl
+          : storeUrl
+          ? `https://${storeUrl}`
+          : "https://";
+
+      reset({
+        site_url: cleanUrl,
+        consumer_key: ck,
+        consumer_secret: cs,
+      });
+
+      if (cleanUrl && cleanUrl !== "https://") {
+        setPrefilledStoreUrl(cleanUrl);
+      }
+    }
+
+    // Check if previously verified
+    let verifiedSaved = null;
+    try {
+      const vStored = localStorage.getItem(`appifyhub_connect_verified_${ulid}`);
+      if (vStored) verifiedSaved = JSON.parse(vStored);
+    } catch {}
+
+    if (verifiedSaved) {
+      setVerificationResult(verifiedSaved);
+    } else if (connectionData?.status === "verified" || app?.connection_status === "verified") {
+      setVerificationResult({
+        verified: true,
+        connection: connectionData,
+        store: {
+          name: app?.name || "Connected Store",
+          products_count: setupState?.website_data?.catalog?.total_products ?? "Active",
+          currency: setupState?.website_data?.catalog?.currency ?? "INR",
+          wc_version: "Ready",
+        },
+      });
+    }
+  }, [ulid, connectionData, app, setupState, reset]);
+
+  // Keep saved connection data in sync when user edits fields
+  useEffect(() => {
+    const subscription = watch((value) => {
+      if (value.site_url || value.consumer_key || value.consumer_secret) {
+        try {
+          localStorage.setItem(`appifyhub_connect_${ulid}`, JSON.stringify(value));
+          if (value.site_url && value.site_url !== "https://") {
+            localStorage.setItem("appifyhub_temp_store_url", value.site_url);
+          }
+        } catch {}
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [watch, ulid]);
 
   const onVerify = async (data: ConnectFormData) => {
     setIsVerifying(true);
@@ -52,6 +166,14 @@ export function StepConnect({ ulid, onNext }: StepConnectProps) {
         method: "POST",
         body: JSON.stringify(data),
       });
+
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(`appifyhub_connect_${ulid}`, JSON.stringify(data));
+          localStorage.setItem("appifyhub_temp_store_url", data.site_url);
+          localStorage.setItem(`appifyhub_connect_verified_${ulid}`, JSON.stringify(res));
+        } catch {}
+      }
 
       setVerificationResult(res);
     } catch (err: any) {
@@ -146,14 +268,29 @@ export function StepConnect({ ulid, onNext }: StepConnectProps) {
 
           <div className="pt-2 text-xs text-emerald-700 flex items-center justify-between">
             <span>
-              Key in Vault: <code>{verificationResult.connection?.consumer_key_preview}</code>
+              Key in Vault: <code>{verificationResult.connection?.consumer_key_preview || "ck_••••••••"}</code>
             </span>
             <span className="italic">Secret safely encrypted at rest</span>
           </div>
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onVerify)} className="space-y-4">
+      {prefilledStoreUrl && prefilledStoreUrl !== "https://" && (
+        <div className="prefilled-details-banner">
+          <div className="prefilled-banner-left">
+            <div className="prefilled-icon-check">✓</div>
+            <div className="prefilled-banner-text">
+              <span className="prefilled-label">Store URL Auto-Fetched</span>
+              <span className="prefilled-val">
+                Connected address: <strong>{prefilledStoreUrl}</strong>
+              </span>
+            </div>
+          </div>
+          <span className="prefilled-editable-badge">Auto-populated</span>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit(onVerify)} className="space-y-4" autoComplete="off">
         <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
             Store URL (HTTPS required)
@@ -163,6 +300,9 @@ export function StepConnect({ ulid, onNext }: StepConnectProps) {
             <input
               {...register("site_url")}
               type="url"
+              autoComplete="off"
+              data-lpignore="true"
+              data-form-type="other"
               placeholder="https://yourstore.com"
               className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition"
             />
@@ -182,6 +322,11 @@ export function StepConnect({ ulid, onNext }: StepConnectProps) {
               <input
                 {...register("consumer_key")}
                 type="text"
+                autoComplete="off"
+                data-lpignore="true"
+                data-form-type="other"
+                autoCorrect="off"
+                spellCheck={false}
                 placeholder="ck_1234567890abcdef..."
                 className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition font-mono"
               />
@@ -200,6 +345,9 @@ export function StepConnect({ ulid, onNext }: StepConnectProps) {
               <input
                 {...register("consumer_secret")}
                 type={showSecret ? "text" : "password"}
+                autoComplete="new-password"
+                data-lpignore="true"
+                data-form-type="other"
                 placeholder="cs_0987654321fedcba..."
                 className="w-full pl-11 pr-11 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition font-mono"
               />
@@ -244,7 +392,7 @@ export function StepConnect({ ulid, onNext }: StepConnectProps) {
             ) : (
               <>
                 <ShieldCheck className="w-4 h-4" />
-                <span>Verify Connection</span>
+                <span>{verificationResult ? "Re-verify Connection" : "Verify Connection"}</span>
               </>
             )}
           </button>

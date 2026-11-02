@@ -348,6 +348,9 @@ export function PhoneFrame({
               if (sec.type === "banner") {
                 const item = sec.items?.[0] || {};
                 let activeImg = item.image || bannerUrl || fallbackBanner;
+                if (typeof activeImg === "string" && activeImg.includes("/storage/app_assets/")) {
+                  activeImg = activeImg.substring(activeImg.indexOf("/storage/app_assets/"));
+                }
                 let bannerTitle = item.title;
                 let bannerBadge = item.badge;
                 let bannerButton = item.button_text;
@@ -386,6 +389,16 @@ export function PhoneFrame({
                           <img
                             src={activeImg}
                             alt={bannerTitle}
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              const fallback =
+                                niche?.hero_image ||
+                                fallbackBanner ||
+                                "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp";
+                              if (target.src !== fallback) {
+                                target.src = fallback;
+                              }
+                            }}
                             className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent pointer-events-none" />
@@ -800,8 +813,7 @@ export function PhoneFrame({
                 JD
               </div>
               <div>
-                <h4 className="font-bold text-xs text-slate-900">Jane Doe</h4>
-                <p className="text-[10px] text-slate-400">customer@example.com</p>
+                <h4 className="font-bold text-xs text-slate-900">Store Member</h4>
                 <span className="inline-block mt-0.5 px-2 py-0.2 bg-emerald-50 text-emerald-700 text-[9px] font-bold rounded">
                   Active Member
                 </span>

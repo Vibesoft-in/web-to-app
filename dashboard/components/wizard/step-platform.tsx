@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowRight, CheckCircle2, Loader2, Store } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { getUserData, saveUserData } from "@/lib/user-data-store";
 
 interface StepPlatformProps {
   ulid: string;
@@ -11,9 +12,19 @@ interface StepPlatformProps {
 }
 
 export function StepPlatform({ ulid, app, onNext }: StepPlatformProps) {
-  const [platform, setPlatform] = useState<"woo" | "shopify">(app?.platform || "woo");
+  const storedData = typeof window !== "undefined" ? getUserData() : {};
+  const initialPlatform: "woo" | "shopify" =
+    app?.platform || (storedData.platform === "shopify" ? "shopify" : "woo");
+
+  const [platform, setPlatform] = useState<"woo" | "shopify">(initialPlatform);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (app?.platform) {
+      setPlatform(app.platform);
+    }
+  }, [app?.platform]);
 
   const handleSave = async () => {
     setIsSubmitting(true);
@@ -24,6 +35,7 @@ export function StepPlatform({ ulid, app, onNext }: StepPlatformProps) {
         method: "POST",
         body: JSON.stringify({ platform }),
       });
+      saveUserData({ platform });
       onNext();
     } catch (err: any) {
       setErrorMsg(err.message || "Failed to update platform.");
@@ -42,6 +54,21 @@ export function StepPlatform({ ulid, app, onNext }: StepPlatformProps) {
           Choose the e-commerce engine that powers your catalog and orders.
         </p>
       </div>
+
+      {(app?.platform || storedData.platform) && (
+        <div className="prefilled-details-banner">
+          <div className="prefilled-banner-left">
+            <div className="prefilled-icon-check">✓</div>
+            <div className="prefilled-banner-text">
+              <span className="prefilled-label">Platform Auto-Selected</span>
+              <span className="prefilled-val">
+                Your store platform is configured as <strong>{platform === "shopify" ? "Shopify" : "WooCommerce"}</strong>.
+              </span>
+            </div>
+          </div>
+          <span className="prefilled-editable-badge">Pre-configured</span>
+        </div>
+      )}
 
       {errorMsg && (
         <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">

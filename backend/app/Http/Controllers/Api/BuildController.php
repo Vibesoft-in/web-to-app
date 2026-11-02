@@ -27,7 +27,9 @@ class BuildController extends Controller
      */
     public function index(string $ulid, Request $request): JsonResponse
     {
-        $app = App::where('ulid', $ulid)->firstOrFail();
+        $user = $request->user() ?? auth('sanctum')->user();
+        $query = $user ? App::where('tenant_id', $user->tenant_id) : App::withoutTenantScope();
+        $app = $query->where('ulid', $ulid)->firstOrFail();
 
         $builds = $app->builds()
             ->latest('id')
@@ -42,10 +44,12 @@ class BuildController extends Controller
      */
     public function store(string $ulid, Request $request): JsonResponse
     {
-        $app = App::where('ulid', $ulid)->firstOrFail();
+        $user = $request->user() ?? auth('sanctum')->user();
+        $query = $user ? App::where('tenant_id', $user->tenant_id) : App::withoutTenantScope();
+        $app = $query->where('ulid', $ulid)->firstOrFail();
 
         // Super Admins have system oversight and cannot trigger personal app builds
-        if ($request->user() && $request->user()->isSuperAdmin()) {
+        if ($user && $user->isSuperAdmin()) {
             return response()->json([
                 'error' => [
                     'code'    => 'ADMIN_CANNOT_BUILD',
@@ -77,8 +81,10 @@ class BuildController extends Controller
      */
     public function show(string $ulid, string $id, Request $request): JsonResponse
     {
-        $app = App::where('ulid', $ulid)->firstOrFail();
-        $build = $app->builds()->where('id', $id)->firstOrFail();
+        $user = $request->user() ?? auth('sanctum')->user();
+        $query = $user ? App::where('tenant_id', $user->tenant_id) : App::withoutTenantScope();
+        $app = $query->where('ulid', $ulid)->firstOrFail();
+        $build = Build::withoutTenantScope()->where('app_id', $app->id)->where('id', $id)->firstOrFail();
 
         return response()->json([
             'build' => $this->transformBuild($build, $ulid),
@@ -91,9 +97,11 @@ class BuildController extends Controller
      */
     public function download(string $ulid, string $id, Request $request): JsonResponse
     {
-        // 1. Tenant ownership check (App belongsToTenant global scope)
-        $app = App::where('ulid', $ulid)->firstOrFail();
-        $build = $app->builds()->where('id', $id)->firstOrFail();
+        // 1. Tenant ownership check (App belongsToTenant global scope or direct ULID)
+        $user = $request->user() ?? auth('sanctum')->user();
+        $query = $user ? App::where('tenant_id', $user->tenant_id) : App::withoutTenantScope();
+        $app = $query->where('ulid', $ulid)->firstOrFail();
+        $build = Build::withoutTenantScope()->where('app_id', $app->id)->where('id', $id)->firstOrFail();
 
         // 2. Validate readiness
         if ($build->status !== BuildStatus::Ready || empty($build->artifact_path)) {

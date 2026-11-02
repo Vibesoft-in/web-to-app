@@ -170,4 +170,26 @@ class ConfigValidatorTest extends TestCase
             throw $e;
         }
     }
+
+    public function test_accepts_blob_and_data_image_banner_urls(): void
+    {
+        $config = $this->validConfig();
+        $config['home'][0]['items'][0]['image'] = 'blob:http://localhost:3000/1234-5678';
+        $validated = $this->validator->validate($config);
+        $this->assertEquals('blob:http://localhost:3000/1234-5678', $validated['home'][0]['items'][0]['image']);
+
+        $config['home'][0]['items'][0]['image'] = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+        $validated2 = $this->validator->validate($config);
+        $this->assertStringStartsWith('data:image/png;base64', $validated2['home'][0]['items'][0]['image']);
+    }
+
+    public function test_accepts_dynamic_google_fonts_and_layouts(): void
+    {
+        $config = $this->validConfig();
+        $config['theme']['layout'] = 'theme_d';
+        $config['theme']['font'] = 'Albert Sans';
+        $validated = $this->validator->validate($config);
+        $this->assertEquals('theme_d', $validated['theme']['layout']);
+        $this->assertEquals('Albert Sans', $validated['theme']['font']);
+    }
 }
