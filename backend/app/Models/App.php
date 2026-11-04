@@ -64,7 +64,10 @@ class App extends Model
     public function isCompleted(): bool
     {
         return in_array($this->status?->value ?? (string) $this->status, ['completed', 'live', 'active'], true)
-            || $this->builds()->where('status', \App\Enums\BuildStatus::Ready)->exists();
+            || ($this->setup_step?->value ?? (string) $this->setup_step) === 'build'
+            || ($this->setup_step?->value ?? (string) $this->setup_step) === 'completed'
+            || $this->builds()->where('status', \App\Enums\BuildStatus::Ready)->exists()
+            || $this->builds()->exists();
     }
 
     public function markCompleted(): void

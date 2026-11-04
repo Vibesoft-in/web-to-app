@@ -76,7 +76,8 @@ export default function WizardStepPage() {
         a.status === "completed" ||
         a.status === "live" ||
         a.status === "active" ||
-        bList.some((b: any) => b.is_ready || b.status === "ready")
+        a.setup_step === "build" ||
+        bList.length > 0
       );
     })
   );

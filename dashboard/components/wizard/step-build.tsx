@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { openRazorpayModal } from "@/lib/razorpay";
@@ -43,7 +44,9 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
     finished_at?: string;
   } | null>(null);
 
+  const router = useRouter();
   const queryClient = useQueryClient();
+  const [isFinishing, setIsFinishing] = useState(false);
   const [purchasingAddon, setPurchasingAddon] = useState<string | null>(null);
   const [addonSuccessMsg, setAddonSuccessMsg] = useState<string | null>(null);
   const [addonErrorMsg, setAddonErrorMsg] = useState<string | null>(null);
@@ -169,6 +172,30 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
       setAddonErrorMsg(err?.message || "Failed to complete add-on purchase.");
     } finally {
       setPurchasingAddon(null);
+    }
+  };
+
+  // Proactively ensure app is marked complete on reaching Step 10
+  useEffect(() => {
+    apiClient(`/api/apps/${ulid}/complete`, { method: "POST" })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["apps"] });
+        queryClient.invalidateQueries({ queryKey: ["setup-state", ulid] });
+      })
+      .catch(() => {});
+  }, [ulid, queryClient]);
+
+  const handleCompleteAndReturn = async () => {
+    try {
+      setIsFinishing(true);
+      await apiClient(`/api/apps/${ulid}/complete`, { method: "POST" });
+      await queryClient.invalidateQueries({ queryKey: ["apps"] });
+      await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      await queryClient.invalidateQueries({ queryKey: ["setup-state", ulid] });
+    } catch (e) {
+      console.warn("Could not mark app complete on exit:", e);
+    } finally {
+      router.push("/dashboard");
     }
   };
 

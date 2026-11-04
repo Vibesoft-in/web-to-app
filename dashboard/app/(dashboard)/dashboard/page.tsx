@@ -126,7 +126,7 @@ const SETUP_STEP_DETAILS: Record<
     stepNumber: 10,
     title: "Compilation & APK Build",
     description: "Compile and download your native Android APK and Google Play .AAB.",
-    nextAction: "Compile Mobile Build",
+    nextAction: "Ready & Completed",
   },
 };
 
@@ -247,15 +247,30 @@ function UserDashboardContent() {
   });
 
   const isAppDraft = (appItem: any) => {
+    // If explicitly completed or live or active
+    if (
+      appItem?.is_completed ||
+      appItem?.status === "completed" ||
+      appItem?.status === "live" ||
+      appItem?.status === "active"
+    ) {
+      return false;
+    }
+    // If the app has reached or completed step 10 (build)
+    if (
+      appItem?.setup_step === "build" ||
+      appItem?.setup_step === "completed" ||
+      appItem?.setup_step === "finish"
+    ) {
+      return false;
+    }
+    // If the app has any builds
     const builds = appItem?.builds || [];
-    const hasReadyBuild = builds.some((b: any) => b.is_ready || b.status === "ready");
-    return Boolean(
-      !appItem?.is_completed &&
-      !hasReadyBuild &&
-      appItem?.status !== "completed" &&
-      appItem?.status !== "live" &&
-      appItem?.status !== "active"
-    );
+    if (builds.length > 0) {
+      return false;
+    }
+    // Otherwise it is an in-progress draft (steps 1 through 9)
+    return true;
   };
 
   const hasPreviouslyBuiltApps = Boolean(
@@ -1627,9 +1642,12 @@ function UserDashboardContent() {
                         nextAction: "Select Platform",
                       };
                       const isAppRebuilding = Boolean(rebuildingAppUlids[appItem.ulid]);
+                      const isStep10OrBuild = stepInfo.stepNumber >= 10 || currentStepKey === "build";
                       const buildPercentage = isAppRebuilding
                         ? 95
-                        : Math.max(10, Math.min(90, Math.round(((stepInfo.stepNumber - 1) / 10) * 100)));
+                        : isStep10OrBuild
+                        ? 100
+                        : Math.max(10, Math.min(90, Math.round((stepInfo.stepNumber / 10) * 100)));
                       const circumference = 88;
                       const strokeDashoffset = circumference - (circumference * buildPercentage) / 100;
                       const storeUrl = appItem.connection?.store_url || appItem.connection?.site_url;
@@ -1915,9 +1933,12 @@ function UserDashboardContent() {
                       nextAction: "Select Platform",
                     };
                     const isAppRebuilding = Boolean(rebuildingAppUlids[appItem.ulid]);
+                    const isStep10OrBuild = stepInfo.stepNumber >= 10 || currentStepKey === "build";
                     const buildPercentage = isAppRebuilding
                       ? 95
-                      : Math.max(10, Math.min(90, Math.round(((stepInfo.stepNumber - 1) / 10) * 100)));
+                      : isStep10OrBuild
+                      ? 100
+                      : Math.max(10, Math.min(90, Math.round((stepInfo.stepNumber / 10) * 100)));
                     const circumference = 88;
                     const strokeDashoffset = circumference - (circumference * buildPercentage) / 100;
                     const storeUrl = appItem.connection?.store_url || appItem.connection?.site_url;
