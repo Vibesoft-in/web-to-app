@@ -55,6 +55,40 @@ const NICHE_PRESETS_MAP: Record<string, Array<{
   button_text: string;
   image: string;
 }>> = {
+  crafts: [
+    {
+      id: "crochet_knit",
+      name: "Handmade Crochet",
+      badge: "Artisan Knit",
+      title: "Handcrafted Crochet & Knit Creations",
+      button_text: "Explore Creations →",
+      image: "https://images.unsplash.com/photo-1584992236310-6edddc08acff?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "mehandi_bridal",
+      name: "Traditional Bridal Art",
+      badge: "Bridal Henna",
+      title: "Intricate Bridal Mehandi & Traditional Art",
+      button_text: "Book & Explore →",
+      image: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "artisan_crafts",
+      name: "Artisan Handmade Crafts",
+      badge: "100% Handcrafted",
+      title: "Unique Handcrafted Gifts & Home Accents",
+      button_text: "Shop Handcrafted →",
+      image: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80",
+    },
+    {
+      id: "embroidery_couture",
+      name: "Embroidered Collections",
+      badge: "Hand Embroidered",
+      title: "Traditional Zari & Needlework Masterpieces",
+      button_text: "Discover Needlework →",
+      image: "https://images.unsplash.com/photo-1607613009820-a29f7bb81c04?auto=format&fit=crop&w=800&q=80",
+    },
+  ],
   fashion: [
     {
       id: "summer_fashion",
@@ -848,13 +882,27 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
     return url;
   };
 
+  const isStaleBulbBanner =
+    Boolean(
+      (bannerItem.title?.includes("High-Performance Lighting") ||
+        bannerItem.title?.includes("Lighting & Bulbs") ||
+        bannerItem.badge?.includes("SUPER BRIGHT") ||
+        bannerItem.button_text?.includes("Halogen") ||
+        bannerItem.button_text?.includes("Shop Halogen & LED") ||
+        bannerItem.image?.includes("Formula-Rally") ||
+        bannerItem.image?.includes("lighting.rishabhtyagi.in") ||
+        bannerItem.image?.includes("photo-1517524008697")) &&
+      detectedNicheKey !== "lighting"
+    );
+
   const rawBannerImage =
     localBannerPreview ||
     (bannerItem.image &&
     !bannerItem.image.includes("photo-1441986300917") &&
     !bannerItem.image.includes("placeholders/banner1") &&
-    !(bannerItem.image.includes("Formula-Rally") && detectedNicheKey !== "lighting") &&
-    !(bannerItem.image.includes("lighting.rishabhtyagi.in") && detectedNicheKey !== "lighting")
+    !bannerItem.image.includes("Formula-Rally") &&
+    !bannerItem.image.includes("lighting.rishabhtyagi.in") &&
+    !bannerItem.image.includes("photo-1517524008697")
       ? bannerItem.image
       : detectedNiche?.hero_image ||
         previewData?.banner_image ||
@@ -862,20 +910,43 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
         config.theme?.banner_url ||
         "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80");
 
-  const activeBannerImage = sanitizeImageUrl(rawBannerImage);
+  const isStaleBulbImg =
+    typeof rawBannerImage === "string" &&
+    (rawBannerImage.includes("Formula-Rally") ||
+      rawBannerImage.includes("lighting.rishabhtyagi.in") ||
+      rawBannerImage.includes("photo-1517524008697")) &&
+    detectedNicheKey !== "lighting";
+
+  const activeBannerImage = sanitizeImageUrl(
+    isStaleBulbImg
+      ? detectedNiche?.hero_image ||
+        "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80"
+      : rawBannerImage
+  );
 
   const activeBannerTitle =
-    bannerItem.title && bannerItem.title !== "Exclusive Online Collection" && !(bannerItem.title.includes("High-Performance Lighting") && detectedNicheKey !== "lighting")
+    !isStaleBulbBanner &&
+    bannerItem.title &&
+    bannerItem.title !== "Exclusive Online Collection" &&
+    !bannerItem.title.includes("High-Performance Lighting") &&
+    !bannerItem.title.includes("Lighting & Bulbs")
       ? bannerItem.title
       : detectedNiche?.hero_title || `${storeDisplayName} Collection`;
 
   const activeBannerBadge =
-    bannerItem.badge && bannerItem.badge !== "Featured Store Deal" && !(bannerItem.badge.includes("SUPER BRIGHT") && detectedNicheKey !== "lighting")
+    !isStaleBulbBanner &&
+    bannerItem.badge &&
+    bannerItem.badge !== "Featured Store Deal" &&
+    !bannerItem.badge.includes("SUPER BRIGHT")
       ? bannerItem.badge
       : detectedNiche?.hero_badge || "NEW ARRIVALS 2026";
 
   const activeBannerButton =
-    bannerItem.button_text && bannerItem.button_text !== "Shop Now →" && !(bannerItem.button_text.includes("Shop Halogen & LED") && detectedNicheKey !== "lighting")
+    !isStaleBulbBanner &&
+    bannerItem.button_text &&
+    bannerItem.button_text !== "Shop Now →" &&
+    !bannerItem.button_text.includes("Halogen") &&
+    !bannerItem.button_text.includes("Shop Halogen & LED")
       ? bannerItem.button_text
       : detectedNiche?.hero_button || "Shop Collection →";
 
@@ -888,17 +959,22 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
       ? config.home.find((s: any) => s.type === "banner")?.items?.[0]
       : null;
 
-    const isStaleBulbBanner =
+    const isStaleBulbDraft =
       detectedNiche.key !== "lighting" &&
       (currentBannerItem?.image?.includes("Formula-Rally") ||
-       currentBannerItem?.image?.includes("lighting.rishabhtyagi.in") ||
-       currentBannerItem?.title?.includes("High-Performance Lighting"));
+        currentBannerItem?.image?.includes("lighting.rishabhtyagi.in") ||
+        currentBannerItem?.image?.includes("photo-1517524008697") ||
+        currentBannerItem?.title?.includes("High-Performance Lighting") ||
+        currentBannerItem?.title?.includes("Lighting & Bulbs") ||
+        currentBannerItem?.badge?.includes("SUPER BRIGHT") ||
+        currentBannerItem?.button_text?.includes("Halogen") ||
+        currentBannerItem?.button_text?.includes("Shop Halogen & LED"));
 
     const isPlaceholderImage =
       !currentBannerItem?.image ||
       currentBannerItem.image.includes("photo-1441986300917") ||
       currentBannerItem.image.includes("placeholders/banner") ||
-      isStaleBulbBanner;
+      isStaleBulbDraft;
 
     let hasLocalCustomBanner = false;
     try {
@@ -907,15 +983,20 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
         saved &&
         !saved.includes("photo-1441986300917") &&
         !saved.includes("placeholders/banner") &&
-        !(saved.includes("Formula-Rally") && detectedNiche.key !== "lighting") &&
-        !(saved.includes("lighting.rishabhtyagi.in") && detectedNiche.key !== "lighting")
+        !saved.includes("Formula-Rally") &&
+        !saved.includes("lighting.rishabhtyagi.in") &&
+        !saved.includes("photo-1517524008697")
       ) {
         hasLocalCustomBanner = true;
       }
     } catch {}
 
     // Only apply default niche image if user has NO custom banner set anywhere (or if stuck on bulb banner)
-    if ((isPlaceholderImage || isStaleBulbBanner) && (!hasLocalCustomBanner || isStaleBulbBanner) && detectedNiche.hero_image) {
+    if (
+      (isPlaceholderImage || isStaleBulbDraft) &&
+      (!hasLocalCustomBanner || isStaleBulbDraft) &&
+      detectedNiche.hero_image
+    ) {
       hasSyncedNicheBanner.current = true;
       updateBanner({
         image: detectedNiche.hero_image,

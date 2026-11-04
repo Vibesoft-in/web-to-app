@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -21,6 +21,7 @@ import {
   Shield,
   Sparkles,
   Store,
+  Trash2,
 } from "lucide-react";
 
 const newAppSchema = z.object({
@@ -66,6 +67,7 @@ export default function NewAppPage() {
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   const [draftToDelete, setDraftToDelete] = useState<any | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: authData, refetch: refetchAuth } = useQuery({
     queryKey: ["auth", "me"],
@@ -74,6 +76,36 @@ export default function NewAppPage() {
   });
 
   const isAdmin = Boolean(authData?.user?.is_super_admin || authData?.user?.email === "admin@webintoapp.com");
+
+  const { data: appsData, refetch: refetchApps } = useQuery({
+    queryKey: ["apps"],
+    queryFn: async () => {
+      try {
+        const res = await apiClient("/api/apps");
+        return Array.isArray(res) ? res : res.apps || [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: Boolean(authData?.user && !isAdmin),
+  });
+
+  const isAppDraft = (appItem: any) => {
+    if (!appItem) return false;
+    const statusStr = (typeof appItem.status === "string" ? appItem.status : appItem.status?.value || "").toLowerCase();
+    const stepStr = (typeof appItem.setup_step === "string" ? appItem.setup_step : appItem.setup_step?.value || "").toLowerCase();
+    if (Boolean(appItem.is_completed) || statusStr === "completed" || statusStr === "live" || statusStr === "active") return false;
+    if (stepStr === "build" || stepStr === "completed" || stepStr === "finish") return false;
+    const builds = appItem.builds || [];
+    if (builds.length > 0) return false;
+    return true;
+  };
+
+  const draftApps = (appsData || []).filter((a: any) => isAppDraft(a));
+  const latestDraft = authData?.user?.latest_draft;
+  const unfinishedProjects: any[] = draftApps.length > 0
+    ? draftApps
+    : (latestDraft && isAppDraft(latestDraft) ? [latestDraft] : []);
 
   // Auto-fetch data from searchParams or user data store
   const storedData = typeof window !== "undefined" ? getUserData() : {};
@@ -465,31 +497,47 @@ export default function NewAppPage() {
           </div>
         )}
 
-        {Boolean(authData?.user?.latest_draft) &&
-          !["build", "completed", "finish"].includes((authData.user.latest_draft.setup_step || "").toLowerCase()) &&
-          !["completed", "live", "active"].includes((authData.user.latest_draft.status || "").toLowerCase()) &&
-          !authData.user.latest_draft.is_completed && (
-          <div className="mb-6 p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
-                <Store className="w-4 h-4" />
+        {unfinishedProjects.length > 0 && (
+          <div className="space-y-3 mb-6">
+            {unfinishedProjects.map((draftItem: any) => (
+              <div
+                key={draftItem.ulid || draftItem.id}
+                className="p-4 sm:p-5 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-[#78593D] text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                    <Store className="w-5 h-5 text-amber-100" />
+                  </div>
+                  <div>
+                    <p className="text-xs sm:text-sm font-bold text-[#1C1917]">
+                      Unfinished Project: <span className="font-extrabold text-[#78593D]">{draftItem.name}</span>
+                    </p>
+                    <p className="text-[11px] text-[#7E756B] mt-0.5">
+                      Saved at Step: <span className="font-bold uppercase tracking-wider text-[#78593D]">{draftItem.setup_step || "PLATFORM"}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <Link
+                    href={`/dashboard/apps/${draftItem.ulid}/setup/${draftItem.setup_step || "platform"}`}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white font-bold text-xs shadow-xs transition active:scale-98 cursor-pointer"
+                  >
+                    <span>Resume Project</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => setDraftToDelete(draftItem)}
+                    className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 text-xs font-bold transition flex items-center justify-center cursor-pointer active:scale-95"
+                    title="Delete Unfinished Project"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-600" />
+                  </button>
+                </div>
               </div>
-              <div>
-                <p className="text-xs font-bold text-indigo-950">
-                  Unfinished Project: <span className="font-extrabold text-indigo-700">{authData.user.latest_draft.name}</span>
-                </p>
-                <p className="text-[11px] text-indigo-600 mt-0.5">
-                  Saved at Step: <span className="font-bold uppercase tracking-wider">{authData.user.latest_draft.setup_step}</span>
-                </p>
-              </div>
-            </div>
-            <Link
-              href={`/dashboard/apps/${authData.user.latest_draft.ulid}/setup/${authData.user.latest_draft.setup_step || "platform"}`}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition self-start sm:self-auto"
-            >
-              <span>Resume Project</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+            ))}
           </div>
         )}
 
@@ -805,6 +853,9 @@ export default function NewAppPage() {
         onDeleted={() => {
           setDraftToDelete(null);
           refetchAuth();
+          refetchApps();
+          queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+          queryClient.invalidateQueries({ queryKey: ["apps"] });
         }}
       />
 </div>

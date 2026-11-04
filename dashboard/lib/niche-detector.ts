@@ -58,6 +58,7 @@ export function detectStoreNicheFromData(
 
   // Scoring table
   const scores: Record<string, number> = {
+    crafts: 0,
     fashion: 0,
     beauty: 0,
     jewelry: 0,
@@ -69,6 +70,8 @@ export function detectStoreNicheFromData(
   };
 
   const patterns: Record<string, RegExp> = {
+    crafts:
+      /\b(crochet|crocheted|knit|knitting|knitwear|yarn|wool|handmade|handcrafted|mehandi|mehndi|henna|crafts?|embroidery|artisan|pottery|sewing|macrame|needlework|handloom|traditional art|handicrafts?)\b/i,
     fashion:
       /\b(clothing|apparel|dress|dresses|shirt|shirts|tshirt|tshirts|t-shirt|t-shirts|jeans|denim|jacket|jackets|hoodie|hoodies|trousers|pants|skirt|skirts|tops?|sweater|sweaters|footwear|shoes?|sneakers?|boots?|heels?|sandals?|menswear|womenswear|kidswear|fashion|streetwear|ethnic|saree|sari|kurti|kurtas?|lehenga|suits?|activewear|sportswear|lingerie|accessories|handbags?|wallets?|scarf|scarves|belts?|eyewear|sunglasses)\b/i,
     beauty:
@@ -107,11 +110,11 @@ export function detectStoreNicheFromData(
     }
   }
 
-  // 3. Store name & URL Weight = 8
+  // 3. Store name & URL Weight = 12 (crucial for URL-based store identity)
   const brandHaystack = `${storeName} ${siteUrl}`;
   for (const [key, regex] of Object.entries(patterns)) {
     if (regex.test(brandHaystack)) {
-      scores[key] += 8;
+      scores[key] += 12;
     }
   }
 
@@ -119,8 +122,16 @@ export function detectStoreNicheFromData(
   let topNiche = "fashion";
   let maxScore = 0;
   for (const [key, score] of Object.entries(scores)) {
-    // Never pick lighting unless specifically high automotive scores and no apparel/beauty matches
-    if (key === "lighting" && (score < 25 || (scores.fashion || 0) > 0 || (scores.beauty || 0) > 0)) {
+    // Never pick lighting unless specifically high automotive scores (>= 30) and strictly no apparel/beauty/crafts matches
+    if (
+      key === "lighting" &&
+      (score < 30 ||
+        (scores.fashion || 0) > 0 ||
+        (scores.beauty || 0) > 0 ||
+        (scores.crafts || 0) > 0 ||
+        !brandHaystack.toLowerCase().includes("headlight") &&
+        !brandHaystack.toLowerCase().includes("halogen"))
+    ) {
       continue;
     }
     if (score > maxScore) {
@@ -132,6 +143,48 @@ export function detectStoreNicheFromData(
   const cleanName = storeName && storeName.trim() ? storeName.trim() : "Exclusive";
 
   switch (topNiche) {
+    case "crafts":
+      return {
+        key: "crafts",
+        name: "Handmade, Crafts & Crochet",
+        badge: "Auto-Detected Niche: Handmade, Crafts & Crochet Store",
+        preset_heading: "Curated Handcrafted & Crochet Presets (1-Click)",
+        hero_title: `${cleanName} Handcrafted & Crochet Collection`,
+        hero_badge: "HANDMADE WITH LOVE • 2026",
+        hero_button: "Shop Handcrafted →",
+        hero_image:
+          firstProductImage ||
+          "https://images.unsplash.com/photo-1584992236310-6edddc08acff?auto=format&fit=crop&w=1200&q=80",
+        presets: [
+          {
+            id: "crochet_knit",
+            name: "Handmade Crochet",
+            badge: "Artisan Knit",
+            title: `${cleanName} Handcrafted Crochet & Knit Creations`,
+            button_text: "Explore Creations →",
+            image:
+              firstProductImage ||
+              "https://images.unsplash.com/photo-1584992236310-6edddc08acff?auto=format&fit=crop&w=800&q=80",
+          },
+          {
+            id: "mehandi_bridal",
+            name: "Traditional Bridal Art",
+            badge: "Bridal Henna",
+            title: `${cleanName} Traditional Bridal Art & Designs`,
+            button_text: "Explore Art →",
+            image: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80",
+          },
+          {
+            id: "artisan_crafts",
+            name: "Artisan Handmade Crafts",
+            badge: "100% Handcrafted",
+            title: "Unique Handcrafted Gifts & Accents",
+            button_text: "Shop Handcrafted →",
+            image: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80",
+          },
+        ],
+      };
+
     case "beauty":
       return {
         key: "beauty",
@@ -292,22 +345,22 @@ export function detectStoreNicheFromData(
         name: "Automotive Lighting & Electrical",
         badge: "Auto-Detected Niche: Lighting & Auto Electrical Store",
         preset_heading: "Curated Lighting & Electrical Presets (1-Click)",
-        hero_title: `${cleanName} High-Performance Lighting & Bulbs`,
-        hero_badge: "SUPER BRIGHT • 2026 EDITION",
-        hero_button: "Shop Halogen & LED →",
+        hero_title: `${cleanName} Automotive Headlights & Lighting`,
+        hero_badge: "PREMIUM AUTOMOTIVE VISION",
+        hero_button: "Shop Headlights →",
         hero_image:
           firstProductImage ||
-          "https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=1200&q=80",
+          "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1200&q=80",
         presets: [
           {
-            id: "h7_halogen",
-            name: "Formula Rally H7",
-            badge: "Super Bright 55W",
-            title: "Formula Rally H7 Halogen Headlights",
-            button_text: "Shop Halogen Lamps →",
+            id: "led_headlights",
+            name: "LED Headlight Systems",
+            badge: "Max Lumens",
+            title: `${cleanName} Premium LED Headlights`,
+            button_text: "Shop Headlights →",
             image:
               firstProductImage ||
-              "https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=800&q=80",
+              "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800&q=80",
           },
         ],
       };

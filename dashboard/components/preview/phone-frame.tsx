@@ -363,16 +363,33 @@ export function PhoneFrame({
                 let bannerBadge = item.badge;
                 let bannerButton = item.button_text;
 
-                if (!bannerTitle || bannerTitle === "Exclusive Online Collection" || (bannerTitle.includes("High-Performance Lighting") && autoNiche?.key !== "lighting")) {
+                const isStaleBulb =
+                  (bannerTitle?.includes("High-Performance Lighting") ||
+                    bannerTitle?.includes("Lighting & Bulbs") ||
+                    bannerBadge?.includes("SUPER BRIGHT") ||
+                    bannerButton?.includes("Halogen") ||
+                    bannerButton?.includes("Shop Halogen & LED") ||
+                    (typeof activeImg === "string" &&
+                      (activeImg.includes("Formula-Rally") ||
+                        activeImg.includes("lighting.rishabhtyagi.in") ||
+                        activeImg.includes("photo-1517524008697")))) &&
+                  autoNiche?.key !== "lighting";
+
+                if (isStaleBulb || !bannerTitle || bannerTitle === "Exclusive Online Collection") {
                   bannerTitle = autoNiche?.hero_title || `${appName} Collection`;
                 }
-                if (!bannerBadge || bannerBadge === "Featured Store Deal" || (bannerBadge.includes("SUPER BRIGHT") && autoNiche?.key !== "lighting")) {
+                if (isStaleBulb || !bannerBadge || bannerBadge === "Featured Store Deal") {
                   bannerBadge = autoNiche?.hero_badge || "NEW ARRIVALS 2026";
                 }
-                if (!bannerButton || bannerButton === "Shop Now →" || (bannerButton.includes("Shop Halogen & LED") && autoNiche?.key !== "lighting")) {
+                if (isStaleBulb || !bannerButton || bannerButton === "Shop Now →") {
                   bannerButton = autoNiche?.hero_button || "Shop Collection →";
                 }
-                if (!activeImg || activeImg.includes("photo-1441986300917") || activeImg.includes("placeholders/banner1") || (activeImg.includes("Formula-Rally") && autoNiche?.key !== "lighting") || (activeImg.includes("lighting.rishabhtyagi.in") && autoNiche?.key !== "lighting")) {
+                if (
+                  isStaleBulb ||
+                  !activeImg ||
+                  activeImg.includes("photo-1441986300917") ||
+                  activeImg.includes("placeholders/banner1")
+                ) {
                   activeImg = autoNiche?.hero_image || activeImg;
                 }
 

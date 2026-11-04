@@ -210,20 +210,36 @@ class MobileAppHtmlBuilder
         $bannerImage = $homeBanner['image']
             ?? ($config['app']['banner_url'] ?? ($config['theme']['banner_url'] ?? ''));
 
-        if (str_contains((string) $bannerImage, 'photo-1441986300917') || str_contains((string) $bannerImage, 'placeholders/banner')) {
+        if (
+            str_contains((string) $bannerImage, 'photo-1441986300917') ||
+            str_contains((string) $bannerImage, 'placeholders/banner') ||
+            str_contains((string) $bannerImage, 'Formula-Rally') ||
+            str_contains((string) $bannerImage, 'lighting.rishabhtyagi.in') ||
+            str_contains((string) $bannerImage, 'photo-1517524008697')
+        ) {
             $bannerImage = '';
         }
         if (empty($bannerImage) && !empty($products[0]['images'][0])) {
             $bannerImage = $products[0]['images'][0];
         }
 
-        $bannerBadge = htmlspecialchars($homeBanner['badge'] ?? 'NEW ARRIVALS • 2026', ENT_QUOTES, 'UTF-8');
+        $rawBadge = $homeBanner['badge'] ?? 'NEW ARRIVALS • 2026';
+        if (str_contains($rawBadge, 'SUPER BRIGHT')) {
+            $rawBadge = 'NEW ARRIVALS • 2026';
+        }
+        $bannerBadge = htmlspecialchars($rawBadge, ENT_QUOTES, 'UTF-8');
+
         $rawTitle = $homeBanner['title'] ?? '';
-        if (empty($rawTitle) || $rawTitle === 'High-Performance Lighting & Bulbs') {
+        if (empty($rawTitle) || $rawTitle === 'High-Performance Lighting & Bulbs' || str_contains($rawTitle, 'Lighting & Bulbs')) {
             $rawTitle = $appName . ' Collection';
         }
         $bannerTitle = htmlspecialchars($rawTitle, ENT_QUOTES, 'UTF-8');
-        $bannerButton = htmlspecialchars($homeBanner['button_text'] ?? 'Shop Collection →', ENT_QUOTES, 'UTF-8');
+
+        $rawButton = $homeBanner['button_text'] ?? 'Shop Collection →';
+        if (str_contains($rawButton, 'Halogen')) {
+            $rawButton = 'Shop Collection →';
+        }
+        $bannerButton = htmlspecialchars($rawButton, ENT_QUOTES, 'UTF-8');
 
         $bannerImageHtml = !empty($bannerImage)
             ? "<img src=\"{$bannerImage}\" class=\"hero-bg-img\" alt=\"Banner\" onerror=\"this.style.display='none'\">"

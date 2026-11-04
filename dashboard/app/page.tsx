@@ -6,11 +6,14 @@ import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { clearUserData } from "@/lib/user-data-store";
+import { DeleteAppModal } from "@/components/dashboard/delete-app-modal";
+import { ArrowRight, Store, Trash2 } from "lucide-react";
 
 export default function HomePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [isYearly, setIsYearly] = useState(false);
+  const [appToDelete, setAppToDelete] = useState<any | null>(null);
 
   const { data: authData } = useQuery({
     queryKey: ["auth", "me"],
@@ -47,15 +50,14 @@ export default function HomePage() {
 
   const apps = appsData || [];
   const isAppDraft = (appItem: any) => {
-    const builds = appItem?.builds || [];
-    const hasReadyBuild = builds.some((b: any) => b.is_ready || b.status === "ready");
-    return Boolean(
-      !appItem?.is_completed &&
-      !hasReadyBuild &&
-      appItem?.status !== "completed" &&
-      appItem?.status !== "live" &&
-      appItem?.status !== "active"
-    );
+    if (!appItem) return false;
+    const statusStr = (typeof appItem.status === "string" ? appItem.status : appItem.status?.value || "").toLowerCase();
+    const stepStr = (typeof appItem.setup_step === "string" ? appItem.setup_step : appItem.setup_step?.value || "").toLowerCase();
+    if (Boolean(appItem.is_completed) || statusStr === "completed" || statusStr === "live" || statusStr === "active") return false;
+    if (stepStr === "build" || stepStr === "completed" || stepStr === "finish") return false;
+    const builds = appItem.builds || [];
+    if (builds.length > 0) return false;
+    return true;
   };
 
   const hasPreviouslyBuiltApps = Boolean(
@@ -63,7 +65,14 @@ export default function HomePage() {
     (apps.length > 0 && apps.some((a: any) => !isAppDraft(a)))
   );
 
-  const latestDraft = user?.latest_draft || apps.find((a: any) => isAppDraft(a));
+  const draftApps = (apps || []).filter((a: any) => isAppDraft(a));
+  const latestDraft = user?.latest_draft && isAppDraft(user.latest_draft)
+    ? user.latest_draft
+    : draftApps[0] || null;
+
+  const unfinishedProjects: any[] = draftApps.length > 0
+    ? draftApps
+    : (latestDraft ? [latestDraft] : []);
   const draftHref = latestDraft?.ulid
     ? `/dashboard/apps/${latestDraft.ulid}/setup/${latestDraft.setup_step || "platform"}`
     : "/dashboard/apps/new";
@@ -130,8 +139,29 @@ export default function HomePage() {
           <div className="header-actions">
             {user ? (
               <>
+                {latestDraft && (
+                  <Link
+                    href={`/dashboard/apps/${latestDraft.ulid}/setup/${latestDraft.setup_step || "platform"}`}
+                    className="btn-action-pill"
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "12px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      background: "#78593D",
+                      color: "#FFFFFF",
+                      borderRadius: "12px",
+                      fontWeight: 700,
+                      textDecoration: "none",
+                    }}
+                  >
+                    <span>Resume {latestDraft.name || "Draft"}</span>
+                    <ArrowRight style={{ width: 13, height: 13 }} />
+                  </Link>
+                )}
                 <Link
-                  href={isAdmin ? "http://localhost:8000/admin" : primaryTargetHref}
+                  href={isAdmin ? "http://localhost:8000/admin" : hasPreviouslyBuiltApps ? "/dashboard" : "/dashboard/apps/new"}
                   className="btn-outline"
                 >
                   <span>
@@ -139,8 +169,6 @@ export default function HomePage() {
                       ? "Admin Oversight"
                       : hasPreviouslyBuiltApps
                       ? "Dashboard"
-                      : latestDraft
-                      ? "Resume App"
                       : "Create App"}
                   </span>
                 </Link>
@@ -190,6 +218,114 @@ export default function HomePage() {
           =================================================== */}
       <main className="page-body">
         <div className="home-page-wrapper">
+          {/* ─── UNFINISHED PROJECTS HOME BANNER ─── */}
+          {user && unfinishedProjects.length > 0 && (
+            <section style={{ maxWidth: 1100, margin: "24px auto 0", padding: "0 20px" }}>
+              {unfinishedProjects.map((draftItem: any) => (
+                <div
+                  key={draftItem.ulid || draftItem.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    flexWrap: "wrap",
+                    gap: "16px",
+                    padding: "16px 22px",
+                    borderRadius: "20px",
+                    background: "#FAF7F2",
+                    border: "1px solid #EBE6DF",
+                    boxShadow: "0 2px 8px rgba(120, 89, 61, 0.08)",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                    <div
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 14,
+                        background: "#78593D",
+                        color: "#FFFFFF",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Store style={{ width: 22, height: 22, color: "#FDF8F3" }} />
+                    </div>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: 800,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
+                            background: "#EFEAE2",
+                            color: "#78593D",
+                            border: "1px solid #D6C8B8",
+                            padding: "2px 8px",
+                            borderRadius: "6px",
+                          }}
+                        >
+                          Unfinished Project
+                        </span>
+                        <span style={{ fontSize: "11px", color: "#7E756B" }}>
+                          Saved at Step: <strong style={{ textTransform: "uppercase", color: "#78593D", fontWeight: 700 }}>{draftItem.setup_step || "PLATFORM"}</strong>
+                        </span>
+                      </div>
+                      <h3 style={{ fontSize: "16px", fontWeight: 900, color: "#1C1917", margin: "4px 0 0" }}>
+                        {draftItem.name}
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <Link
+                      href={`/dashboard/apps/${draftItem.ulid}/setup/${draftItem.setup_step || "platform"}`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "10px 20px",
+                        borderRadius: "12px",
+                        background: "#78593D",
+                        color: "#FFFFFF",
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        textDecoration: "none",
+                        boxShadow: "0 2px 6px rgba(120, 89, 61, 0.2)",
+                      }}
+                    >
+                      <span>Resume Project</span>
+                      <ArrowRight style={{ width: 15, height: 15 }} />
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={() => setAppToDelete(draftItem)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "10px",
+                        borderRadius: "12px",
+                        background: "#FFF1F2",
+                        border: "1px solid #FECDD3",
+                        color: "#E11D48",
+                        cursor: "pointer",
+                      }}
+                      title="Delete Unfinished Project"
+                    >
+                      <Trash2 style={{ width: 16, height: 16 }} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </section>
+          )}
+
           {/* ─── 1. HERO SECTION ─── */}
           <section className="hero-section">
             <div className="hero-container">
@@ -1659,6 +1795,18 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+
+      {/* ── 3-STEP POPUP APPLICATION DELETION MODAL ── */}
+      <DeleteAppModal
+        isOpen={Boolean(appToDelete)}
+        onClose={() => setAppToDelete(null)}
+        app={appToDelete}
+        onDeleted={() => {
+          setAppToDelete(null);
+          queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+          queryClient.invalidateQueries({ queryKey: ["apps"] });
+        }}
+      />
     </div>
   );
 }

@@ -435,9 +435,30 @@ class ConfigController extends Controller
             if (! $bannerImage && ! empty($draftConfig['app']['banner_url'])) {
                 $bannerImage = $draftConfig['app']['banner_url'];
             }
-            if (! $bannerImage || str_contains($bannerImage, 'assets.webintoapp.com/placeholders') || str_contains($bannerImage, 'photo-1441986300917') || (str_contains($bannerImage, 'Formula-Rally') && ($detectedNiche['key'] ?? '') !== 'lighting') || (str_contains($bannerImage, 'lighting.rishabhtyagi.in') && ($detectedNiche['key'] ?? '') !== 'lighting')) {
+
+            $isStaleBulb = $bannerImage && (
+                str_contains($bannerImage, 'Formula-Rally') ||
+                str_contains($bannerImage, 'lighting.rishabhtyagi.in') ||
+                str_contains($bannerImage, 'photo-1517524008697')
+            ) && ($detectedNiche['key'] ?? '') !== 'lighting';
+
+            if (! $bannerImage || $isStaleBulb || str_contains($bannerImage, 'assets.webintoapp.com/placeholders') || str_contains($bannerImage, 'photo-1441986300917')) {
                 // Intelligently fallback to niche hero image or first product image:
                 $bannerImage = $detectedNiche['hero_image'];
+
+                // Automatically update and cleanse draft configuration if it held stale bulb banner
+                if ($draft && $isStaleBulb && ! empty($draftConfig['home'])) {
+                    foreach ($draftConfig['home'] as $idx => $sec) {
+                        if (($sec['type'] ?? '') === 'banner') {
+                            $draftConfig['home'][$idx]['items'][0]['image'] = $detectedNiche['hero_image'];
+                            $draftConfig['home'][$idx]['items'][0]['title'] = $detectedNiche['hero_title'];
+                            $draftConfig['home'][$idx]['items'][0]['badge'] = $detectedNiche['hero_badge'];
+                            $draftConfig['home'][$idx]['items'][0]['button_text'] = $detectedNiche['hero_button'];
+                            break;
+                        }
+                    }
+                    $draft->update(['config' => $draftConfig]);
+                }
             }
 
             $websiteLogo = $draftConfig['app']['logo_url'] ?? $draftConfig['theme']['logo_url'] ?? null;
@@ -1193,6 +1214,7 @@ class ConfigController extends Controller
         }
 
         $scores = [
+            'crafts'      => 0,
             'fashion'     => 0,
             'beauty'      => 0,
             'jewelry'     => 0,
@@ -1204,6 +1226,7 @@ class ConfigController extends Controller
         ];
 
         $patterns = [
+            'crafts'      => '/\b(crochet|crocheted|knit|knitting|knitwear|yarn|wool|handmade|handcrafted|mehandi|mehndi|henna|crafts?|embroidery|artisan|pottery|sewing|macrame|needlework|handloom|traditional art|handicrafts?)\b/i',
             'fashion'     => '/\b(clothing|apparel|dress|dresses|shirt|shirts|tshirt|tshirts|t-shirt|t-shirts|jeans|denim|jacket|jackets|hoodie|hoodies|trousers|pants|skirt|skirts|tops?|sweater|sweaters|footwear|shoes?|sneakers?|boots?|heels?|sandals?|menswear|womenswear|kidswear|fashion|streetwear|ethnic|saree|sari|kurti|kurtas?|lehenga|suits?|activewear|sportswear|lingerie|accessories|handbags?|wallets?|scarf|scarves|belts?|eyewear|sunglasses)\b/i',
             'beauty'      => '/\b(beauty|cosmetics?|skincare|skin care|serums?|moisturizers?|cleansers?|toners?|sunscreen|lipsticks?|lip gloss|mascara|foundations?|makeup|make-up|fragrances?|perfumes?|eau de parfum|haircare|shampoos?|conditioners?|hair oil|lotion|body butter|ayurvedic|glow|anti-aging)\b/i',
             'jewelry'     => '/\b(jewel|jewelry|jewellery|gold|silver 925|diamonds?|platinum|necklaces?|rings?|earrings?|bracelets?|bangles?|pendants?|gemstones?|luxury watches?|chronographs?|bridal jewelry|pearls?|solitaires?)\b/i',
@@ -1234,11 +1257,11 @@ class ConfigController extends Controller
             }
         }
 
-        // 3. Store name & site URL Weight = 8
+        // 3. Store name & site URL Weight = 12 (high weight for store branding)
         $brandText = ($storeName ?? '') . ' ' . ($siteUrl ?? '');
         foreach ($patterns as $k => $regex) {
             if (preg_match($regex, $brandText)) {
-                $scores[$k] += 8;
+                $scores[$k] += 12;
             }
         }
 
@@ -1257,7 +1280,7 @@ class ConfigController extends Controller
         $topNiche = 'fashion';
         $maxScore = 0;
         foreach ($scores as $k => $score) {
-            if ($k === 'lighting' && ($score < 25 || ($scores['fashion'] ?? 0) > 0 || ($scores['beauty'] ?? 0) > 0)) {
+            if ($k === 'lighting' && ($score < 30 || ($scores['fashion'] ?? 0) > 0 || ($scores['beauty'] ?? 0) > 0 || ($scores['crafts'] ?? 0) > 0 || (!str_contains($brandText, 'headlight') && !str_contains($brandText, 'halogen')))) {
                 continue;
             }
             if ($score > $maxScore) {
@@ -1269,67 +1292,69 @@ class ConfigController extends Controller
         $cleanBrand = $storeName && trim($storeName) ? trim($storeName) : 'Exclusive';
         $heroFallbackImg = $firstProductImage ?? ($sampleProducts[0]['image'] ?? null);
 
+        if ($topNiche === 'crafts') {
+            $craftsPresets = [
+                [
+                    'id'          => 'crochet_knit',
+                    'name'        => 'Handmade Crochet',
+                    'badge'       => 'Artisan Knit',
+                    'title'       => "{$cleanBrand} Handcrafted Crochet & Knit Creations",
+                    'button_text' => 'Explore Creations →',
+                    'image'       => $sampleProducts[0]['image'] ?? 'https://images.unsplash.com/photo-1584992236310-6edddc08acff?auto=format&fit=crop&w=800&q=80',
+                ],
+                [
+                    'id'          => 'mehandi_bridal',
+                    'name'        => 'Traditional Bridal Art',
+                    'badge'       => 'Bridal Henna',
+                    'title'       => "{$cleanBrand} Traditional Bridal Art & Designs",
+                    'button_text' => 'Explore Art →',
+                    'image'       => $sampleProducts[1]['image'] ?? 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80',
+                ],
+                [
+                    'id'          => 'artisan_crafts',
+                    'name'        => 'Artisan Handmade Crafts',
+                    'badge'       => '100% Handcrafted',
+                    'title'       => 'Unique Handcrafted Gifts & Accents',
+                    'button_text' => 'Shop Handcrafted →',
+                    'image'       => $sampleProducts[2]['image'] ?? 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80',
+                ],
+            ];
+
+            return [
+                'key'             => 'crafts',
+                'name'            => 'Handmade, Crafts & Crochet',
+                'badge'           => 'Auto-Detected Niche: Handmade, Crafts & Crochet Store',
+                'preset_heading'  => 'Curated Handcrafted & Crochet Presets (1-Click)',
+                'hero_title'      => "{$cleanBrand} Handcrafted & Crochet Collection",
+                'hero_badge'      => 'HANDMADE WITH LOVE • 2026',
+                'hero_button'     => 'Shop Handcrafted →',
+                'hero_image'      => $heroFallbackImg ?? 'https://images.unsplash.com/photo-1584992236310-6edddc08acff?auto=format&fit=crop&w=1200&q=80',
+                'presets'         => array_merge(array_slice($sampleProducts, 0, 4), $craftsPresets),
+                'sample_products' => array_slice($sampleProducts, 0, 8),
+            ];
+        }
+
         if ($topNiche === 'lighting') {
             $lightingPresets = [
                 [
-                    'id'          => 'h7_halogen',
-                    'name'        => 'Ultra White Headlights',
-                    'badge'       => 'Super Bright 55W',
-                    'title'       => 'Ultra White High-Beam Headlights',
-                    'button_text' => 'Shop Headlamps →',
-                    'image'       => $sampleProducts[0]['image'] ?? 'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=800&q=80',
-                ],
-                [
-                    'id'          => 'h3_halogen',
-                    'name'        => 'All-Weather Fog Lamps',
-                    'badge'       => 'Fog & Auxiliary',
-                    'title'       => 'All-Weather High-Output Fog Bulbs',
-                    'button_text' => 'Upgrade Vision →',
-                    'image'       => $sampleProducts[1]['image'] ?? 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80',
-                ],
-                [
-                    'id'          => 'auto_fuses',
-                    'name'        => 'Blade & Mini Fuses',
-                    'badge'       => 'Electrical Protection',
-                    'title'       => 'Maxi & Mini Blade Fuse Packs',
-                    'button_text' => 'Shop Fuses →',
-                    'image'       => $sampleProducts[2]['image'] ?? 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=800&q=80',
-                ],
-                [
-                    'id'          => 'capless',
-                    'name'        => 'LED Marker Bulbs',
-                    'badge'       => 'OEM Indicator',
-                    'title'       => 'Interior Dashboard & Marker Lights',
-                    'button_text' => 'Find Bulbs →',
-                    'image'       => $sampleProducts[3]['image'] ?? 'https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&w=800&q=80',
-                ],
-                [
-                    'id'          => 'night_fighter',
-                    'name'        => 'Night Fighter 6000K',
+                    'id'          => 'led_headlights',
+                    'name'        => 'Premium LED Headlights',
                     'badge'       => 'Max Lumens',
-                    'title'       => 'Ultra-Bright Night Fighter Halogen',
-                    'button_text' => 'See Clearly →',
-                    'image'       => 'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=800&q=80',
-                ],
-                [
-                    'id'          => 'clearance',
-                    'name'        => 'Lighting Clearance',
-                    'badge'       => 'Special Deals',
-                    'title'       => 'Up to 35% Off Lighting & Fuses',
-                    'button_text' => 'Claim Deals →',
-                    'image'       => 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80',
+                    'title'       => "{$cleanBrand} Premium LED Headlights",
+                    'button_text' => 'Shop Headlights →',
+                    'image'       => $sampleProducts[0]['image'] ?? 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800&q=80',
                 ],
             ];
 
             return [
                 'key'             => 'lighting',
-                'name'            => 'Lighting & Electrical',
-                'badge'           => 'Auto-Detected Niche: Lighting & Electrical Store',
-                'preset_heading'  => 'Curated Lighting & Electrical Presets (1-Click)',
-                'hero_title'      => "{$cleanBrand} Lighting & Bulbs",
-                'hero_badge'      => 'SUPER BRIGHT • 2026 EDITION',
-                'hero_button'     => 'Shop Halogen & LED →',
-                'hero_image'      => $heroFallbackImg ?? 'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=1200&q=80',
+                'name'            => 'Automotive Lighting',
+                'badge'           => 'Auto-Detected Niche: Automotive Lighting Store',
+                'preset_heading'  => 'Curated Automotive Lighting Presets (1-Click)',
+                'hero_title'      => "{$cleanBrand} Automotive Headlights & Lighting",
+                'hero_badge'      => 'AUTOMOTIVE VISION • 2026',
+                'hero_button'     => 'Shop Headlights →',
+                'hero_image'      => $heroFallbackImg ?? 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1200&q=80',
                 'presets'         => array_merge(array_slice($sampleProducts, 0, 4), $lightingPresets),
                 'sample_products' => array_slice($sampleProducts, 0, 8),
             ];
