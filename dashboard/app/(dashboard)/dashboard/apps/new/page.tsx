@@ -55,7 +55,7 @@ export default function NewAppPage() {
   // Live URL Platform Verification State
   const [checkingPlatform, setCheckingPlatform] = useState(false);
   const [platformFeedback, setPlatformFeedback] = useState<{
-    type: "checking" | "matched" | "unsupported" | null;
+    type: "checking" | "matched" | "unsupported" | "invalid" | null;
     title?: string;
     message?: string;
     detectedPlatform?: string | null;
@@ -254,7 +254,15 @@ export default function NewAppPage() {
         const data = await res.json();
         setCheckingPlatform(false);
 
-        if (data.is_custom || data.detected_platform === "custom" || data.is_supported === false) {
+        if (data.is_invalid || data.detected_platform === "invalid" || (!data.success && data.is_invalid)) {
+          setPlatformFeedback({
+            type: "invalid",
+            title: data.title || "Invalid Website Entry",
+            message:
+              data.message ||
+              "Invalid Website Entry: This website could not be found or reached. Please verify the URL.",
+          });
+        } else if (data.is_custom || data.detected_platform === "custom" || data.is_supported === false) {
           setPlatformFeedback({
             type: "unsupported",
             title: "Custom Platform Detected",
@@ -340,6 +348,13 @@ export default function NewAppPage() {
         ? rawUrl
         : `https://${rawUrl}`
       : "";
+
+    if (cleanUrl && platformFeedback.type === "invalid") {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+      setErrorMsg(platformFeedback.message || "Invalid Website Entry: Please enter a live, accessible website URL.");
+      return;
+    }
 
     if (cleanUrl && platformFeedback.type === "unsupported") {
       isSubmittingRef.current = false;
@@ -621,6 +636,16 @@ export default function NewAppPage() {
                   <strong className="block font-bold">{platformFeedback.title}</strong>
                   <span>{platformFeedback.message}</span>
                 </div>
+              </div>
+            )}
+
+            {platformFeedback.type === "invalid" && (
+              <div className="mt-2.5 p-3 rounded-xl bg-amber-50/90 border border-amber-300 text-amber-900 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-amber-800">
+                  <span className="text-sm">⚠</span>
+                  <span>{platformFeedback.title || "Invalid Website Entry"}</span>
+                </div>
+                <p className="leading-relaxed text-amber-800/90">{platformFeedback.message}</p>
               </div>
             )}
 

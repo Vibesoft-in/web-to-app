@@ -49,7 +49,7 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
   const [badgeStyle, setBadgeStyle] = useState<{ border?: string; color?: string; background?: string }>({});
   const [checkingPlatform, setCheckingPlatform] = useState(false);
   const [feedback, setFeedback] = useState<{
-    type: "checking" | "matched" | "mismatched" | "unsupported" | null;
+    type: "checking" | "matched" | "mismatched" | "unsupported" | "invalid" | null;
     title?: string;
     message?: string;
     detectedPlatform?: string | null;
@@ -167,13 +167,26 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
       });
 
       const data = await response.json();
-      if (!data.success) {
-        setFeedback({ type: null });
-        setCheckingPlatform(false);
+      setCheckingPlatform(false);
+
+      if (data.is_invalid || data.detected_platform === "invalid" || (!data.success && data.is_invalid)) {
+        setPlatform("");
+        setIsManualSelection(false);
+        setBadgeStatus("Invalid Entry");
+        setBadgeStyle({
+          border: "1px solid #FCD34D",
+          color: "#92400E",
+          background: "#FEF3C7",
+        });
+        setFeedback({
+          type: "invalid",
+          title: data.title || "Invalid Website Entry",
+          message:
+            data.message ||
+            "Invalid Website Entry: This website could not be reached or does not exist. Please check the URL.",
+        });
         return;
       }
-
-      setCheckingPlatform(false);
 
       if (data.is_custom || data.detected_platform === "custom" || data.is_supported === false) {
         setPlatform("");
@@ -274,6 +287,10 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
     }
     if (!websiteUrl.trim() || !websiteUrl.includes(".")) {
       setErrorMessage("Please enter a valid website URL for conversion.");
+      return;
+    }
+    if (feedback.type === "invalid") {
+      setErrorMessage(feedback.message || "Invalid Website Entry: Please enter a live, accessible website URL.");
       return;
     }
     if (feedback.type === "unsupported") {
@@ -821,6 +838,25 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
                         <div className="feedback-inner is-checking">
                           <span className="feedback-spinner" />
                           <span>{feedback.title}</span>
+                        </div>
+                      )}
+
+                      {feedback.type === "invalid" && (
+                        <div
+                          className="feedback-inner"
+                          style={{
+                            border: "1px solid #FCD34D",
+                            background: "#FFFBEB",
+                            color: "#92400E",
+                          }}
+                        >
+                          <span className="feedback-badge-icon" style={{ color: "#D97706" }}>
+                            ⚠
+                          </span>
+                          <div className="feedback-text-wrap">
+                            <strong style={{ color: "#92400E" }}>{feedback.title || "Invalid Website Entry"}</strong>
+                            <p style={{ color: "#B45309" }}>{feedback.message}</p>
+                          </div>
                         </div>
                       )}
 
