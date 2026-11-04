@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { apiClient } from "@/lib/api-client";
 import { getUserData, saveUserData } from "@/lib/user-data-store";
+import { normalizeWebsiteUrl } from "@/lib/url-utils";
 import {
   ArrowRight,
   Check,
@@ -213,7 +214,7 @@ export default function NewAppPage() {
 
   // Live platform check as the user types website URL
   useEffect(() => {
-    const clean = (watchedUrl || "").trim();
+    const clean = normalizeWebsiteUrl(watchedUrl || "");
     if (!clean || clean.length < 4 || !clean.includes(".")) {
       setPlatformFeedback({ type: null });
       return;
@@ -343,11 +344,7 @@ export default function NewAppPage() {
     setErrorMsg(null);
 
     const rawUrl = data.website_url?.trim() || prefilledUrl?.trim() || "";
-    const cleanUrl = rawUrl
-      ? rawUrl.startsWith("http://") || rawUrl.startsWith("https://")
-        ? rawUrl
-        : `https://${rawUrl}`
-      : "";
+    const cleanUrl = normalizeWebsiteUrl(rawUrl);
 
     if (cleanUrl && platformFeedback.type === "invalid") {
       isSubmittingRef.current = false;
@@ -610,6 +607,13 @@ export default function NewAppPage() {
               <input
                 {...register("website_url")}
                 type="text"
+                onBlur={(e) => {
+                  const raw = e.target.value;
+                  if (raw && raw.trim() && !/^https?:\/\//i.test(raw.trim())) {
+                    const normalized = normalizeWebsiteUrl(raw);
+                    setValue("website_url", normalized, { shouldValidate: true });
+                  }
+                }}
                 placeholder="https://yourstore.com"
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition"
               />

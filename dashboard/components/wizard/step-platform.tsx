@@ -185,7 +185,7 @@ export function StepPlatform({ ulid, app, onNext }: StepPlatformProps) {
             </>
           ) : (
             <>
-              <span>Next: Store Connection</span>
+              <span>Next</span>
               <ArrowRight className="w-4 h-4" />
             </>
           )}

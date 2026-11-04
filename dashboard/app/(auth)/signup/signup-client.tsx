@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { getUserData, saveUserData } from "@/lib/user-data-store";
+import { normalizeWebsiteUrl } from "@/lib/url-utils";
 
 interface SignupClientProps {
   initialTheme?: string;
@@ -309,9 +310,7 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
     setIsSubmitting(true);
 
     try {
-      const cleanUrl = websiteUrl.trim().startsWith("http")
-        ? websiteUrl.trim()
-        : `https://${websiteUrl.trim()}`;
+      const cleanUrl = normalizeWebsiteUrl(websiteUrl);
 
       const finalBusinessName =
         websiteName.trim() || `${name.trim()}'s Store`;
@@ -718,7 +717,7 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
                       </svg>
                     </span>
                     <input
-                      type="url"
+                      type="text"
                       id="website_url"
                       name="website_url"
                       required
@@ -726,6 +725,13 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
                       placeholder="https://yourstore.com"
                       value={websiteUrl}
                       onChange={(e) => setWebsiteUrl(e.target.value)}
+                      onBlur={(e) => {
+                        const raw = e.target.value;
+                        if (raw && raw.trim() && !/^https?:\/\//i.test(raw.trim())) {
+                          const normalized = normalizeWebsiteUrl(raw);
+                          setWebsiteUrl(normalized);
+                        }
+                      }}
                       className="auth-input"
                     />
                   </div>

@@ -610,7 +610,7 @@ export function StepBranding({ ulid, app, setupState, onNext }: StepBrandingProp
             </>
           ) : (
             <>
-              <span>Next: Live App Preview</span>
+              <span>Next</span>
               <ArrowRight className="w-4 h-4" />
             </>
           )}

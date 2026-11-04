@@ -1781,7 +1781,7 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
             </>
           ) : (
             <>
-              <span>Next: Integrations &amp; Add-ons</span>
+              <span>Next</span>
               <ArrowRight className="w-4 h-4" />
             </>
           )}

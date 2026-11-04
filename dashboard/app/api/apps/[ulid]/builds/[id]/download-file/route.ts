@@ -75,19 +75,23 @@ export async function GET(
 
     const downloadUrl = signedRes.data?.download_url;
     if (downloadUrl) {
-      // If signed URL is a remote S3/GCS/CDN URL, redirect directly
-      const isRemote = downloadUrl.startsWith("http://") || downloadUrl.startsWith("https://");
-      const isLocalhost =
-        downloadUrl.includes("127.0.0.1") || downloadUrl.includes("localhost");
+      // If signed URL is a known external cloud storage URL (S3, GCS, R2, etc.), redirect directly
+      const isCloudStorage =
+        downloadUrl.includes("amazonaws.com") ||
+        downloadUrl.includes("storage.googleapis.com") ||
+        downloadUrl.includes("blob.core.windows.net") ||
+        downloadUrl.includes("r2.cloudflarestorage.com");
 
-      if (isRemote && !isLocalhost) {
+      if (isCloudStorage) {
         return NextResponse.redirect(downloadUrl);
       }
 
       // Try streaming from local or backend download url
       try {
         const fileRes = await fetch(downloadUrl);
-        if (fileRes.ok) {
+        const cType = (fileRes.headers.get("content-type") || "").toLowerCase();
+        // Only accept if response is successful and NOT an error json
+        if (fileRes.ok && !cType.includes("application/json")) {
           const ab = await fileRes.arrayBuffer();
           if (ab.byteLength > 1000) {
             binaryBuffer = ab;

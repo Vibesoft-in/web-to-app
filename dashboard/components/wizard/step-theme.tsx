@@ -492,7 +492,7 @@ export function StepTheme({ ulid, onNext }: StepThemeProps) {
             </>
           ) : (
             <>
-              <span>Next: App Branding</span>
+              <span>Next</span>
               <ArrowRight className="w-4 h-4" />
             </>
           )}

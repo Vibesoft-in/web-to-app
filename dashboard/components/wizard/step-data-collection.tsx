@@ -1146,7 +1146,7 @@ export function StepDataCollection({ ulid, app, setupState, onNext }: StepDataCo
             </>
           ) : (
             <>
-              <span>Next: Select Theme</span>
+              <span>Next</span>
               <ArrowRight className="w-4 h-4" />
             </>
           )}

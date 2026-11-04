@@ -1,5 +1,42 @@
 "use client";
 
+function getAddonShortName(name: string, slug?: string): string {
+  const lower = (name + " " + (slug || "")).toLowerCase();
+  if (lower.includes("admin")) return "Admin Panel";
+  if (lower.includes("play") || lower.includes("store") || lower.includes("aab")) return "Play Store Publishing";
+  if (lower.includes("push") || lower.includes("notif")) return "Push Notifications";
+  if (lower.includes("whatsapp")) return "WhatsApp Integration";
+  if (lower.includes("analytic") || lower.includes("telemetry")) return "App Analytics";
+  if (lower.includes("nav") || lower.includes("menu")) return "Custom Navigation";
+  if (lower.includes("white") || lower.includes("brand") || lower.includes("splash")) return "White-Label Branding";
+  if (lower.includes("api") || lower.includes("erp")) return "API & ERP Integration";
+  return name;
+}
+
+function getAddonOneLineDesc(shortName: string, desc: string): string {
+  switch (shortName) {
+    case "Admin Panel":
+      return "Standalone web control portal for live product sync, push messaging, and orders.";
+    case "Play Store Publishing":
+      return "Guaranteed Google Play submission with policy compliance and signed .aab generation.";
+    case "Push Notifications":
+      return "Automated lock-screen broadcasts, flash deal triggers, and cart recovery alerts.";
+    case "WhatsApp Integration":
+      return "Automated WhatsApp order tracking, COD confirmation, and floating live chat.";
+    case "App Analytics":
+      return "Real-time user behavior tracking, screen views, and funnel drop-off metrics.";
+    case "Custom Navigation":
+      return "Drag-and-drop bottom tab bar, custom side drawer, and deep-link menu designer.";
+    case "White-Label Branding":
+      return "Remove all platform watermarks with custom animated splash screen and package ID.";
+    case "API & ERP Integration":
+      return "Custom enterprise webhook bridges for SAP, Tally, Zoho, and custom logistics.";
+    default:
+      return desc ? desc.split(".")[0] + "." : "Enhance your mobile application experience.";
+  }
+}
+import { AddonLearnMoreModal, AddonDetail } from "@/components/addons/addon-learn-more-modal";
+import { STANDARDIZED_ADDONS } from "@/lib/addons-data";
 import { useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -18,6 +55,7 @@ import {
   BarChart3,
   Compass,
   CheckCircle2,
+  Info,
   ShoppingBag,
   Plus,
   X,
@@ -203,6 +241,7 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
   // Mandatory Payment Terms & Conditions Consent State
   const [hasPaymentConsented, setHasPaymentConsented] = useState(false);
   const [isPaymentTermsModalOpen, setIsPaymentTermsModalOpen] = useState(false);
+  const [selectedLearnMoreAddon, setSelectedLearnMoreAddon] = useState<AddonDetail | null>(null);
   const [consentError, setConsentError] = useState<string | null>(null);
 
   // Fetch recorded payment consent from backend
@@ -938,34 +977,70 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
             {availableAddons.map((addon) => {
               const isChecked = selectedAddonIds.includes(addon.id);
               const priceNum = Math.round((addon.price || 0) / 100);
+              const shortName = getAddonShortName(addon.name, addon.slug);
+              const oneLineDesc = getAddonOneLineDesc(shortName, addon.description);
+
+              const matchingStandard = STANDARDIZED_ADDONS.find(
+                (s) => s.shortName === shortName || s.id === addon.slug
+              );
+
+              const addonDetail: AddonDetail = matchingStandard
+                ? {
+                    ...matchingStandard,
+                    id: addon.id,
+                    price: `₹${priceNum.toLocaleString("en-IN")}`,
+                    priceNum,
+                    isActive: false,
+                  }
+                : {
+                    id: addon.id,
+                    shortName,
+                    originalName: addon.name,
+                    oneLineDesc,
+                    price: `₹${priceNum.toLocaleString("en-IN")}`,
+                    priceNum,
+                    licenseType: "Lifetime Module",
+                    isActive: false,
+                    category: addon.category || "Add-on",
+                    featureDetails: {
+                      title: addon.description,
+                      items: addon.features || ["Direct mobile integration", "Priority updates"],
+                    },
+                    whyItIsUsed: {
+                      problem: "Expands your app capabilities without custom development.",
+                      benefits: ["Immediate activation", "Full compatibility guarantee"],
+                      targetAudience: "All growing store owners",
+                    },
+                    howItWorks: {
+                      steps: ["Select add-on", "Complete checkout", "App compiles with new features"],
+                    },
+                    purchaseInfo: {
+                      priceLabel: `₹${priceNum.toLocaleString("en-IN")}`,
+                      license: "Lifetime Module",
+                      conditions: "Compatible with your active plan",
+                      activeStatusLabel: "Available to Buy",
+                    },
+                  };
 
               return (
                 <div
                   key={addon.id}
-                  onClick={() => toggleAddon(addon.id)}
-                  className={`p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer flex flex-col justify-between relative group select-none ${
+                  className={`p-4 rounded-2xl border-2 transition-all duration-200 flex flex-col justify-between relative group select-none min-h-[175px] ${
                     isChecked
                       ? "bg-amber-50/40 border-amber-800 ring-2 ring-amber-800/20 shadow-md shadow-amber-900/10"
                       : "bg-white border-slate-200 hover:border-amber-400 hover:shadow-sm"
                   }`}
                 >
                   <div>
-                    {/* Top Badge & Checkbox */}
-                    <div className="flex items-center justify-between gap-2 mb-2.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-100/80 text-amber-900 border border-amber-200/60">
-                          {addon.category}
-                        </span>
-                        {addon.badge && (
-                          <span className="text-[10px] font-bold text-slate-500 hidden sm:inline">
-                            &bull; {addon.badge}
-                          </span>
-                        )}
-                      </div>
+                    {/* Top Row: Category & Status Checkbox */}
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-100/80 text-amber-900 border border-amber-200/60">
+                        {addon.category}
+                      </span>
 
-                      {/* Custom Checkbox Indicator */}
                       <div
-                        className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors ${
+                        onClick={() => toggleAddon(addon.id)}
+                        className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors cursor-pointer ${
                           isChecked
                             ? "bg-amber-900 text-white"
                             : "border-2 border-slate-300 group-hover:border-amber-600 bg-white"
@@ -975,36 +1050,24 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
                       </div>
                     </div>
 
-                    {/* Title with Category Icon */}
-                    <div className="flex items-start gap-2 mb-1.5">
+                    {/* Short Heading */}
+                    <div className="flex items-start gap-2 mb-1">
                       <div className="mt-0.5 p-1 rounded-lg bg-slate-50 border border-slate-100 flex-shrink-0">
                         {getAddonIcon(addon.slug, addon.category)}
                       </div>
                       <h4 className="font-extrabold text-sm text-slate-900 leading-snug">
-                        {addon.name}
+                        {shortName}
                       </h4>
                     </div>
 
-                    {/* Description */}
-                    <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed mt-1">
-                      {addon.description}
+                    {/* One-Line Description */}
+                    <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                      {oneLineDesc}
                     </p>
-
-                    {/* Feature bullet preview */}
-                    {addon.features && addon.features.length > 0 && (
-                      <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-1 text-[10.5px] text-slate-600">
-                        {addon.features.slice(0, 2).map((feat, fIdx) => (
-                          <div key={fIdx} className="flex items-center gap-1.5 truncate">
-                            <span className="w-1 h-1 rounded-full bg-amber-800 flex-shrink-0" />
-                            <span className="truncate">{feat}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
 
-                  {/* Price Tag & Add/Added Status Button */}
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                  {/* Price Tag & Action Buttons (Learn More + Toggle Add) */}
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
                     <div>
                       <div className="flex items-baseline gap-0.5">
                         <span className="text-xs font-bold text-slate-500">₹</span>
@@ -1012,29 +1075,44 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
                           {priceNum.toLocaleString("en-IN")}
                         </span>
                       </div>
-                      <span className="text-[10px] text-slate-400 block -mt-0.5">One-time / Lifetime</span>
+                      <span className="text-[10px] text-slate-400 block -mt-0.5">Lifetime</span>
                     </div>
 
-                    <button
-                      type="button"
-                      className={`px-3 py-1 rounded-xl text-xs font-extrabold transition flex items-center gap-1 ${
-                        isChecked
-                          ? "bg-amber-900 text-white shadow-xs"
-                          : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                      }`}
-                    >
-                      {isChecked ? (
-                        <>
-                          <Check className="w-3 h-3" />
-                          <span>Added</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-3 h-3" />
-                          <span>Add</span>
-                        </>
-                      )}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedLearnMoreAddon(addonDetail);
+                        }}
+                        className="py-1 px-2.5 rounded-lg text-[11px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <Info className="w-3 h-3 text-slate-500" />
+                        <span>Learn More</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleAddon(addon.id)}
+                        className={`px-3 py-1 rounded-lg text-xs font-extrabold transition flex items-center gap-1 cursor-pointer ${
+                          isChecked
+                            ? "bg-amber-900 text-white shadow-xs"
+                            : "bg-slate-900 text-white hover:bg-black"
+                        }`}
+                      >
+                        {isChecked ? (
+                          <>
+                            <Check className="w-3 h-3" />
+                            <span>Added</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-3 h-3" />
+                            <span>Add</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -1459,7 +1537,7 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
               : "bg-slate-300 text-slate-500 cursor-not-allowed shadow-none"
           }`}
         >
-          <span>Next: Build &amp; Compile APK</span>
+          <span>Next</span>
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
@@ -1582,6 +1660,15 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
           </div>
         </div>
       )}
-    </div>
+    
+      {/* ── MODAL: 4-SECTION ADD-ON LEARN MORE POPUP ── */}
+      <AddonLearnMoreModal
+        isOpen={Boolean(selectedLearnMoreAddon)}
+        onClose={() => setSelectedLearnMoreAddon(null)}
+        addon={selectedLearnMoreAddon}
+        isSelectedInCart={selectedLearnMoreAddon ? selectedAddonIds.includes(Number(selectedLearnMoreAddon.id)) : false}
+        onSelectOrBuy={(a) => toggleAddon(Number(a.id))}
+      />
+</div>
   );
 }

@@ -85,7 +85,7 @@ export function StepIntegrations({ onNext }: StepIntegrationsProps) {
           onClick={onNext}
           className="w-full sm:w-auto justify-center px-7 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-indigo-600/20 cursor-pointer active:scale-98"
         >
-          <span>Next: Subscription Plans</span>
+          <span>Next</span>
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>

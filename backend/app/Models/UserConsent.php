@@ -40,3 +40,4 @@ class UserConsent extends Model
         return $this->belongsTo(App::class);
     }
 }
+

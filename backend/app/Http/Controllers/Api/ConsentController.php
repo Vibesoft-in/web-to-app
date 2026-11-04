@@ -101,3 +101,4 @@ class ConsentController extends Controller
         ], 201);
     }
 }
+

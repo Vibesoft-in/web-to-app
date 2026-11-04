@@ -1,5 +1,8 @@
 "use client";
 
+import { ApiGuideModal } from "./api-guide-modal";
+import { VerificationErrorModal } from "./verification-error-modal";
+
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
@@ -50,6 +53,7 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
   const [isVerifying, setIsVerifying] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
   const [errorDetails, setErrorDetails] = useState<{ code: string; message: string } | null>(null);
+  const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
   const [verificationResult, setVerificationResult] = useState<any | null>(null);
   const [prefilledStoreUrl, setPrefilledStoreUrl] = useState<string>("");
   const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
@@ -201,6 +205,7 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
         code: "INVALID_KEYS",
         message: "WooCommerce Consumer Secret (cs_...) is required.",
       });
+      setIsErrorModalOpen(true);
       return;
     }
 
@@ -228,6 +233,7 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
         code: err.code || "VERIFICATION_FAILED",
         message: err.message || "Failed to verify connection to your store.",
       });
+      setIsErrorModalOpen(true);
     } finally {
       setIsVerifying(false);
     }
@@ -287,17 +293,20 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
         </p>
       </div>
 
-      {/* ── ERROR ALERT ── */}
-      {errorDetails && (
-        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm space-y-1 animate-in fade-in">
-          <div className="flex items-center gap-2 font-bold text-rose-900">
-            <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0" />
-            <span>Connection Error ({errorDetails.code})</span>
+      {/* ── COMPACT NOTIFICATION / ERROR TRIGGER ── */}
+      {errorDetails && !isErrorModalOpen && (
+        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between animate-in fade-in">
+          <div className="flex items-center gap-2 font-medium">
+            <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+            <span>Connection Failed ({errorDetails.code}): {errorDetails.message}</span>
           </div>
-          <p className="pl-7 text-xs">{errorDetails.message}</p>
-          <p className="pl-7 text-xs text-rose-700 font-medium mt-1">
-            Fix Tip: {getErrorExplanation(errorDetails.code)}
-          </p>
+          <button
+            type="button"
+            onClick={() => setIsErrorModalOpen(true)}
+            className="text-xs font-bold text-rose-700 underline hover:text-rose-900 ml-2 flex-shrink-0 cursor-pointer"
+          >
+            Review Error &amp; Guidance
+          </button>
         </div>
       )}
 
@@ -538,7 +547,7 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
                 : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
             }`}
           >
-            <span>Next: Store Score</span>
+            <span>Next</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -550,212 +559,24 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
         )}
       </form>
 
-      {/* ── POPUP MODAL: PLATFORM-SPECIFIC STEP-BY-STEP API GUIDE ── */}
-      {mounted &&
-        isGuideModalOpen &&
-        createPortal(
-          <div className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
-            <div
-              className="fixed inset-0"
-              onClick={() => setIsGuideModalOpen(false)}
-            />
+      {/* ── POPUP MODAL: PLATFORM-SPECIFIC VISUAL API GUIDE ── */}
+      <ApiGuideModal
+        isOpen={isGuideModalOpen}
+        onClose={() => setIsGuideModalOpen(false)}
+        detectedPlatform={rawPlatform}
+        storeUrl={watch("site_url") || prefilledStoreUrl}
+      />
 
-            <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl relative z-10 border border-slate-200 my-auto max-h-[90vh] overflow-y-auto">
-              <button
-                type="button"
-                onClick={() => setIsGuideModalOpen(false)}
-                className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-                title="Close"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              {/* Modal Tabs: WooCommerce vs Shopify */}
-              <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
-                <button
-                  type="button"
-                  onClick={() => setGuidePlatformTab("woocommerce")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 ${
-                    guidePlatformTab === "woocommerce"
-                      ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/20"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  <Store className="w-3.5 h-3.5" />
-                  <span>WooCommerce Guide</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setGuidePlatformTab("shopify")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 ${
-                    guidePlatformTab === "shopify"
-                      ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/20"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>Shopify Custom App Guide</span>
-                </button>
-              </div>
-
-              {guidePlatformTab === "woocommerce" ? (
-                /* ── WOOCOMMERCE GUIDE ── */
-                <div className="space-y-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0">
-                      <Key className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-black text-slate-900 tracking-tight">
-                        Generate WooCommerce REST API Keys
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Follow these 4 simple steps in your WordPress Admin to create secure API credentials.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 text-xs mt-4">
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0">
-                        1
-                      </div>
-                      <div className="space-y-1">
-                        <strong className="text-slate-900 block">Log in to WordPress Admin</strong>
-                        <p className="text-slate-600 leading-relaxed">
-                          Navigate to your WordPress dashboard (e.g., <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-indigo-700 font-mono">https://yourstore.com/wp-admin</code>).
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0">
-                        2
-                      </div>
-                      <div className="space-y-1">
-                        <strong className="text-slate-900 block">Go to WooCommerce Settings &rarr; Advanced &rarr; REST API</strong>
-                        <p className="text-slate-600 leading-relaxed">
-                          In the sidebar, click <strong>WooCommerce</strong> &rarr; <strong>Settings</strong>. Click the <strong>Advanced</strong> tab at top, then select <strong>REST API</strong>.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0">
-                        3
-                      </div>
-                      <div className="space-y-1.5">
-                        <strong className="text-slate-900 block">Click &quot;Add Key&quot; and configure Read/Write permissions</strong>
-                        <p className="text-slate-600 leading-relaxed">
-                          Set Description to <code className="bg-white px-1 py-0.5 rounded border border-slate-200 font-mono">Mobile App</code> and change Permissions to <strong>Read/Write</strong>.
-                        </p>
-                        <span className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md inline-block font-medium">
-                          ✓ Read/Write is mandatory so customers can place orders and sync live cart.
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0">
-                        4
-                      </div>
-                      <div className="space-y-1">
-                        <strong className="text-slate-900 block">Copy Consumer Key &amp; Consumer Secret</strong>
-                        <p className="text-slate-600 leading-relaxed">
-                          Click <strong>Generate API Key</strong>. Copy the <code>ck_...</code> and <code>cs_...</code> keys directly into the wizard input fields.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* ── SHOPIFY GUIDE ── */
-                <div className="space-y-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0">
-                      <Layers className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-black text-slate-900 tracking-tight">
-                        Create a Shopify Custom App &amp; Access Token
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Follow these steps in Shopify Admin to configure Admin API scopes and get your access token.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 text-xs mt-4">
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0">
-                        1
-                      </div>
-                      <div className="space-y-1">
-                        <strong className="text-slate-900 block">Go to Apps &amp; Sales Channels in Shopify Admin</strong>
-                        <p className="text-slate-600 leading-relaxed">
-                          In Shopify Admin, click <strong>Settings</strong> (bottom-left) &rarr; <strong>Apps and sales channels</strong> &rarr; click <strong>Develop apps</strong>.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0">
-                        2
-                      </div>
-                      <div className="space-y-1">
-                        <strong className="text-slate-900 block">Create Custom App</strong>
-                        <p className="text-slate-600 leading-relaxed">
-                          Click <strong>Create an app</strong>. Enter App Name: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-indigo-700 font-mono">Mobile App Converter</code>. Select yourself as App Developer.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0">
-                        3
-                      </div>
-                      <div className="space-y-1.5">
-                        <strong className="text-slate-900 block">Configure Admin API Scopes</strong>
-                        <p className="text-slate-600 leading-relaxed">
-                          Click <strong>Configure Admin API scopes</strong>. Search and enable:
-                        </p>
-                        <div className="flex flex-wrap gap-1.5 font-mono text-[11px]">
-                          <span className="bg-white px-2 py-0.5 rounded border border-slate-200 text-indigo-700 font-bold">read_products</span>
-                          <span className="bg-white px-2 py-0.5 rounded border border-slate-200 text-indigo-700 font-bold">read_orders</span>
-                          <span className="bg-white px-2 py-0.5 rounded border border-slate-200 text-indigo-700 font-bold">read_customers</span>
-                          <span className="bg-white px-2 py-0.5 rounded border border-slate-200 text-indigo-700 font-bold">write_customers</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0">
-                        4
-                      </div>
-                      <div className="space-y-1">
-                        <strong className="text-slate-900 block">Install App &amp; Copy Access Token</strong>
-                        <p className="text-slate-600 leading-relaxed">
-                          Click <strong>Install app</strong> &rarr; click <strong>Reveal token once</strong> &rarr; Copy the token starting with <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-indigo-700 font-mono">shpat_...</code> into the wizard.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-6 pt-4 border-t border-slate-200 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsGuideModalOpen(false)}
-                  className="px-6 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-sm active:scale-95"
-                >
-                  Got It, Close Guide
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
+      {/* ── POPUP MODAL: VERIFICATION ERROR POPUP SYSTEM ── */}
+      <VerificationErrorModal
+        isOpen={isErrorModalOpen}
+        onClose={() => setIsErrorModalOpen(false)}
+        onRetry={() => handleSubmit(onVerify)()}
+        errorCode={errorDetails?.code}
+        errorMessage={errorDetails?.message}
+        platform={rawPlatform}
+        storeUrl={watch("site_url") || prefilledStoreUrl}
+      />
     </div>
   );
 }
