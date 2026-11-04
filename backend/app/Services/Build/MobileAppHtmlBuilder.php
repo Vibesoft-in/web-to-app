@@ -217,9 +217,13 @@ class MobileAppHtmlBuilder
             $bannerImage = $products[0]['images'][0];
         }
 
-        $bannerBadge = htmlspecialchars($homeBanner['badge'] ?? 'SUPER BRIGHT • 2026 EDITION', ENT_QUOTES, 'UTF-8');
-        $bannerTitle = htmlspecialchars($homeBanner['title'] ?? 'High-Performance Lighting & Bulbs', ENT_QUOTES, 'UTF-8');
-        $bannerButton = htmlspecialchars($homeBanner['button_text'] ?? 'Shop Store Catalog →', ENT_QUOTES, 'UTF-8');
+        $bannerBadge = htmlspecialchars($homeBanner['badge'] ?? 'NEW ARRIVALS • 2026', ENT_QUOTES, 'UTF-8');
+        $rawTitle = $homeBanner['title'] ?? '';
+        if (empty($rawTitle) || $rawTitle === 'High-Performance Lighting & Bulbs') {
+            $rawTitle = $appName . ' Collection';
+        }
+        $bannerTitle = htmlspecialchars($rawTitle, ENT_QUOTES, 'UTF-8');
+        $bannerButton = htmlspecialchars($homeBanner['button_text'] ?? 'Shop Collection →', ENT_QUOTES, 'UTF-8');
 
         $bannerImageHtml = !empty($bannerImage)
             ? "<img src=\"{$bannerImage}\" class=\"hero-bg-img\" alt=\"Banner\" onerror=\"this.style.display='none'\">"

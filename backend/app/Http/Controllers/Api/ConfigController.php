@@ -435,7 +435,7 @@ class ConfigController extends Controller
             if (! $bannerImage && ! empty($draftConfig['app']['banner_url'])) {
                 $bannerImage = $draftConfig['app']['banner_url'];
             }
-            if (! $bannerImage || str_contains($bannerImage, 'assets.webintoapp.com/placeholders') || str_contains($bannerImage, 'photo-1441986300917')) {
+            if (! $bannerImage || str_contains($bannerImage, 'assets.webintoapp.com/placeholders') || str_contains($bannerImage, 'photo-1441986300917') || (str_contains($bannerImage, 'Formula-Rally') && ($detectedNiche['key'] ?? '') !== 'lighting') || (str_contains($bannerImage, 'lighting.rishabhtyagi.in') && ($detectedNiche['key'] ?? '') !== 'lighting')) {
                 // Intelligently fallback to niche hero image or first product image:
                 $bannerImage = $detectedNiche['hero_image'];
             }
@@ -1160,9 +1160,11 @@ class ConfigController extends Controller
      */
     private function detectStoreNiche(?string $siteUrl, ?string $storeName, array $categories = [], array $products = [], ?string $html = ''): array
     {
-        $categoryNames = array_map(fn($c) => is_array($c) ? ($c['name'] ?? '') : (string) $c, $categories);
+        $categoryNames = array_map(fn($c) => is_array($c) ? ($c['name'] ?? $c['slug'] ?? '') : (string) $c, $categories);
         $productNames = array_map(fn($p) => is_array($p) ? ($p['title'] ?? $p['name'] ?? '') : (string) $p, $products);
         $sampleProducts = [];
+        $firstProductImage = null;
+
         foreach ($products as $p) {
             if (is_array($p)) {
                 $pTitle = $p['title'] ?? $p['name'] ?? 'Store Product';
@@ -1174,6 +1176,9 @@ class ConfigController extends Controller
                 }
 
                 if ($pImg && is_string($pImg)) {
+                    if (! $firstProductImage && ! str_contains($pImg, 'placeholder') && ! str_contains($pImg, 'Formula-Rally') && ! str_contains($pImg, 'lighting.rishabhtyagi.in')) {
+                        $firstProductImage = $pImg;
+                    }
                     $sampleProducts[] = [
                         'id'          => (string) ($p['id'] ?? uniqid()),
                         'name'        => $pTitle,
@@ -1187,38 +1192,97 @@ class ConfigController extends Controller
             }
         }
 
-        $haystack = strtolower(
-            ($siteUrl ?? '') . ' ' .
-            ($storeName ?? '') . ' ' .
-            implode(' ', $categoryNames) . ' ' .
-            implode(' ', $productNames) . ' ' .
-            substr(strip_tags($html ?? ''), 0, 3000)
-        );
+        $scores = [
+            'fashion'     => 0,
+            'beauty'      => 0,
+            'jewelry'     => 0,
+            'electronics' => 0,
+            'home'        => 0,
+            'grocery'     => 0,
+            'fitness'     => 0,
+            'lighting'    => 0,
+        ];
 
-        $isLighting = (bool) preg_match('/(?:light|lighting|lamp|lamps|bulb|bulbs|led|halogen|fuse|fuses|lumens|chandelier|fixture|sconce|luminaire|headlight|headlamp|xenon|h7|h4|h1|h3|hdll|capless|electrical)/i', $haystack);
-        $isElectronics = (bool) preg_match('/(?:electronic|gadget|mobile|phone|smartphone|laptop|audio|earbuds|headphone|smartwatch|charger|cable|computer|speaker)/i', $haystack);
-        $isJewelry = (bool) preg_match('/(?:jewel|jewelry|jewellery|gold|silver|diamond|necklace|ring|earring|bracelet|bangle|pendant|gemstone|watch|watches)/i', $haystack);
-        $isBeauty = (bool) preg_match('/(?:beauty|cosmetic|cosmetics|skincare|serum|makeup|lipstick|fragrance|perfume|haircare|lotion|glow|ayurvedic)/i', $haystack);
-        $isHome = (bool) preg_match('/(?:furniture|decor|sofa|chair|table|interior|curtain|bedsheet|cushion|pottery|kitchenware|cookware|living|nordic)/i', $haystack);
-        $isGrocery = (bool) preg_match('/(?:grocery|organic|food|snack|spices|tea|coffee|sweets|bakery|supermarket|dry fruits|grains)/i', $haystack);
+        $patterns = [
+            'fashion'     => '/\b(clothing|apparel|dress|dresses|shirt|shirts|tshirt|tshirts|t-shirt|t-shirts|jeans|denim|jacket|jackets|hoodie|hoodies|trousers|pants|skirt|skirts|tops?|sweater|sweaters|footwear|shoes?|sneakers?|boots?|heels?|sandals?|menswear|womenswear|kidswear|fashion|streetwear|ethnic|saree|sari|kurti|kurtas?|lehenga|suits?|activewear|sportswear|lingerie|accessories|handbags?|wallets?|scarf|scarves|belts?|eyewear|sunglasses)\b/i',
+            'beauty'      => '/\b(beauty|cosmetics?|skincare|skin care|serums?|moisturizers?|cleansers?|toners?|sunscreen|lipsticks?|lip gloss|mascara|foundations?|makeup|make-up|fragrances?|perfumes?|eau de parfum|haircare|shampoos?|conditioners?|hair oil|lotion|body butter|ayurvedic|glow|anti-aging)\b/i',
+            'jewelry'     => '/\b(jewel|jewelry|jewellery|gold|silver 925|diamonds?|platinum|necklaces?|rings?|earrings?|bracelets?|bangles?|pendants?|gemstones?|luxury watches?|chronographs?|bridal jewelry|pearls?|solitaires?)\b/i',
+            'electronics' => '/\b(electronics?|gadgets?|smartphones?|mobile phones?|laptops?|computers?|tablets?|headphones?|earphones?|earbuds?|bluetooth speakers?|smartwatches?|chargers?|power banks?|keyboards?|monitors?|gaming gear)\b/i',
+            'home'        => '/\b(furniture|home decor|interiors?|sofas?|couch|chairs?|dining tables?|beds?|mattresses?|wardrobes?|cabinets?|bookshelves?|cushions?|curtains?|rugs?|carpets?|bedsheets?|linens?|blankets?|kitchenware|cookware)\b/i',
+            'grocery'     => '/\b(grocery|groceries|supermarkets?|organic food|fresh fruits?|vegetables?|grains|pulses|spices|herbs|cooking oils?|snacks?|chocolates?|sweets|dry fruits|coffee beans?|tea leaves?|bakery|farm-fresh)\b/i',
+            'fitness'     => '/\b(fitness|gym|workout|athletic|running shoes?|cycling|yoga mats?|dumbbells?|supplements?|whey protein|sports gear|badminton|football|cricket)\b/i',
+            'lighting'    => '/\b(headlights?|headlamps?|taillights?|fog lamps?|fog lights?|xenon bulbs?|halogen bulbs?|car bulbs?|\bh7\b|\bh4\b|\bh1\b|\bh11\b|blade fuses?|maxi fuses?|capless bulbs?|automotive lighting|car spare parts?|automotive electrical)\b/i',
+        ];
 
-        if ($isLighting) {
+        // 1. Categories Weight = 10
+        foreach ($categoryNames as $cat) {
+            if (empty($cat)) continue;
+            foreach ($patterns as $k => $regex) {
+                if (preg_match($regex, $cat)) {
+                    $scores[$k] += 10;
+                }
+            }
+        }
+
+        // 2. Products Weight = 5
+        foreach ($productNames as $prod) {
+            if (empty($prod)) continue;
+            foreach ($patterns as $k => $regex) {
+                if (preg_match($regex, $prod)) {
+                    $scores[$k] += 5;
+                }
+            }
+        }
+
+        // 3. Store name & site URL Weight = 8
+        $brandText = ($storeName ?? '') . ' ' . ($siteUrl ?? '');
+        foreach ($patterns as $k => $regex) {
+            if (preg_match($regex, $brandText)) {
+                $scores[$k] += 8;
+            }
+        }
+
+        // 4. Clean HTML body text (weight = 1 per match)
+        if (! empty($html)) {
+            $cleanHtml = preg_replace('/<(?:script|style|svg)[^>]*>.*?<\/(?:script|style|svg)>/is', '', $html);
+            $cleanText = substr(strip_tags($cleanHtml), 0, 4000);
+            foreach ($patterns as $k => $regex) {
+                if (preg_match_all($regex, $cleanText, $m)) {
+                    $scores[$k] += min(count($m[0]), 5);
+                }
+            }
+        }
+
+        // Pick top scoring niche (fashion default)
+        $topNiche = 'fashion';
+        $maxScore = 0;
+        foreach ($scores as $k => $score) {
+            if ($score > $maxScore) {
+                $maxScore = $score;
+                $topNiche = $k;
+            }
+        }
+
+        $cleanBrand = $storeName && trim($storeName) ? trim($storeName) : 'Exclusive';
+        $heroFallbackImg = $firstProductImage ?? ($sampleProducts[0]['image'] ?? null);
+
+        if ($topNiche === 'lighting') {
             $lightingPresets = [
                 [
                     'id'          => 'h7_halogen',
-                    'name'        => 'Formula Rally H7',
+                    'name'        => 'Ultra White Headlights',
                     'badge'       => 'Super Bright 55W',
-                    'title'       => 'Formula Rally H7 Halogen Headlights',
-                    'button_text' => 'Shop Halogen Lamps →',
-                    'image'       => $sampleProducts[0]['image'] ?? 'https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp',
+                    'title'       => 'Ultra White High-Beam Headlights',
+                    'button_text' => 'Shop Headlamps →',
+                    'image'       => $sampleProducts[0]['image'] ?? 'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=800&q=80',
                 ],
                 [
                     'id'          => 'h3_halogen',
-                    'name'        => 'All-Weather H3 Halogen',
+                    'name'        => 'All-Weather Fog Lamps',
                     'badge'       => 'Fog & Auxiliary',
-                    'title'       => 'All-Weather H3 Halogen Bulbs',
+                    'title'       => 'All-Weather High-Output Fog Bulbs',
                     'button_text' => 'Upgrade Vision →',
-                    'image'       => $sampleProducts[1]['image'] ?? 'https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/part-no-430g-h3-12v-55w-pk22s-gold-6.jpg',
+                    'image'       => $sampleProducts[1]['image'] ?? 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80',
                 ],
                 [
                     'id'          => 'auto_fuses',
@@ -1226,15 +1290,15 @@ class ConfigController extends Controller
                     'badge'       => 'Electrical Protection',
                     'title'       => 'Maxi & Mini Blade Fuse Packs',
                     'button_text' => 'Shop Fuses →',
-                    'image'       => $sampleProducts[2]['image'] ?? 'https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/FUSE-MAXI.webp',
+                    'image'       => $sampleProducts[2]['image'] ?? 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=800&q=80',
                 ],
                 [
                     'id'          => 'capless',
-                    'name'        => 'Capless Indicator Bulbs',
+                    'name'        => 'LED Marker Bulbs',
                     'badge'       => 'OEM Indicator',
-                    'title'       => 'Capless Dashboard & Marker Lights',
+                    'title'       => 'Interior Dashboard & Marker Lights',
                     'button_text' => 'Find Bulbs →',
-                    'image'       => $sampleProducts[3]['image'] ?? 'https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Capless.webp',
+                    'image'       => $sampleProducts[3]['image'] ?? 'https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&w=800&q=80',
                 ],
                 [
                     'id'          => 'night_fighter',
@@ -1259,16 +1323,16 @@ class ConfigController extends Controller
                 'name'            => 'Lighting & Electrical',
                 'badge'           => 'Auto-Detected Niche: Lighting & Electrical Store',
                 'preset_heading'  => 'Curated Lighting & Electrical Presets (1-Click)',
-                'hero_title'      => 'High-Performance Lighting & Bulbs',
+                'hero_title'      => "{$cleanBrand} Lighting & Bulbs",
                 'hero_badge'      => 'SUPER BRIGHT • 2026 EDITION',
                 'hero_button'     => 'Shop Halogen & LED →',
-                'hero_image'      => ! empty($sampleProducts[0]['image']) ? $sampleProducts[0]['image'] : 'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=1200&q=80',
-                'presets'         => $lightingPresets,
+                'hero_image'      => $heroFallbackImg ?? 'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=1200&q=80',
+                'presets'         => array_merge(array_slice($sampleProducts, 0, 4), $lightingPresets),
                 'sample_products' => array_slice($sampleProducts, 0, 8),
             ];
         }
 
-        if ($isElectronics) {
+        if ($topNiche === 'electronics') {
             $electronicsPresets = [
                 [
                     'id'          => 'wireless_audio',
@@ -1325,16 +1389,16 @@ class ConfigController extends Controller
                 'name'            => 'Electronics & Gadgets',
                 'badge'           => 'Auto-Detected Niche: Electronics & Gadgets Store',
                 'preset_heading'  => 'Curated Tech & Gadget Presets (1-Click)',
-                'hero_title'      => 'Next-Gen Smart Audio & Devices',
+                'hero_title'      => "{$cleanBrand} Smart Gadgets & Audio",
                 'hero_badge'      => 'FEATURED TECH • 2026',
                 'hero_button'     => 'Shop Electronics →',
-                'hero_image'      => ! empty($sampleProducts[0]['image']) ? $sampleProducts[0]['image'] : 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=1200&q=80',
-                'presets'         => $electronicsPresets,
+                'hero_image'      => $heroFallbackImg ?? 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=1200&q=80',
+                'presets'         => array_merge(array_slice($sampleProducts, 0, 4), $electronicsPresets),
                 'sample_products' => array_slice($sampleProducts, 0, 8),
             ];
         }
 
-        if ($isJewelry) {
+        if ($topNiche === 'jewelry') {
             $jewelryPresets = [
                 [
                     'id'          => 'solitaire_rings',
@@ -1391,16 +1455,16 @@ class ConfigController extends Controller
                 'name'            => 'Jewelry & Luxury',
                 'badge'           => 'Auto-Detected Niche: Fine Jewelry & Luxury Store',
                 'preset_heading'  => 'Curated Jewelry & Luxury Presets (1-Click)',
-                'hero_title'      => 'Timeless Diamond & Gold Jewels',
+                'hero_title'      => "{$cleanBrand} Timeless Fine Jewels",
                 'hero_badge'      => 'HANDCRAFTED LUXURY',
                 'hero_button'     => 'Explore Collection →',
-                'hero_image'      => ! empty($sampleProducts[0]['image']) ? $sampleProducts[0]['image'] : 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=1200&q=80',
-                'presets'         => $jewelryPresets,
+                'hero_image'      => $heroFallbackImg ?? 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=1200&q=80',
+                'presets'         => array_merge(array_slice($sampleProducts, 0, 4), $jewelryPresets),
                 'sample_products' => array_slice($sampleProducts, 0, 8),
             ];
         }
 
-        if ($isBeauty) {
+        if ($topNiche === 'beauty') {
             $beautyPresets = [
                 [
                     'id'          => 'skincare_serum',
@@ -1457,16 +1521,16 @@ class ConfigController extends Controller
                 'name'            => 'Beauty & Cosmetics',
                 'badge'           => 'Auto-Detected Niche: Beauty & Cosmetics Store',
                 'preset_heading'  => 'Curated Beauty & Skincare Presets (1-Click)',
-                'hero_title'      => 'Glowing Skincare & Pure Botanicals',
+                'hero_title'      => "{$cleanBrand} Beauty & Skincare Collection",
                 'hero_badge'      => 'CLEAN BEAUTY ESSENTIALS',
                 'hero_button'     => 'Shop Beauty Routine →',
-                'hero_image'      => ! empty($sampleProducts[0]['image']) ? $sampleProducts[0]['image'] : 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=1200&q=80',
-                'presets'         => $beautyPresets,
+                'hero_image'      => $heroFallbackImg ?? 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=1200&q=80',
+                'presets'         => array_merge(array_slice($sampleProducts, 0, 4), $beautyPresets),
                 'sample_products' => array_slice($sampleProducts, 0, 8),
             ];
         }
 
-        if ($isHome) {
+        if ($topNiche === 'home') {
             $homePresets = [
                 [
                     'id'          => 'nordic_decor',
@@ -1523,16 +1587,16 @@ class ConfigController extends Controller
                 'name'            => 'Home Decor & Furniture',
                 'badge'           => 'Auto-Detected Niche: Home Decor & Living Store',
                 'preset_heading'  => 'Curated Home & Living Presets (1-Click)',
-                'hero_title'      => 'Modern Nordic Living & Interiors',
+                'hero_title'      => "{$cleanBrand} Modern Living & Interiors",
                 'hero_badge'      => 'COZY SPACE MAKEOVER',
                 'hero_button'     => 'Explore Living →',
-                'hero_image'      => ! empty($sampleProducts[0]['image']) ? $sampleProducts[0]['image'] : 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1200&q=80',
-                'presets'         => $homePresets,
+                'hero_image'      => $heroFallbackImg ?? 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1200&q=80',
+                'presets'         => array_merge(array_slice($sampleProducts, 0, 4), $homePresets),
                 'sample_products' => array_slice($sampleProducts, 0, 8),
             ];
         }
 
-        if ($isGrocery) {
+        if ($topNiche === 'grocery') {
             $groceryPresets = [
                 [
                     'id'          => 'organic_farm',
@@ -1589,11 +1653,11 @@ class ConfigController extends Controller
                 'name'            => 'Grocery & Organics',
                 'badge'           => 'Auto-Detected Niche: Organic Food & Grocery Store',
                 'preset_heading'  => 'Curated Farm & Grocery Presets (1-Click)',
-                'hero_title'      => 'Farm Fresh Organics & Gourmet Staples',
+                'hero_title'      => "{$cleanBrand} Farm-Fresh Organics & Staples",
                 'hero_badge'      => '100% PURE & FRESH',
                 'hero_button'     => 'Shop Fresh Basket →',
-                'hero_image'      => ! empty($sampleProducts[0]['image']) ? $sampleProducts[0]['image'] : 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80',
-                'presets'         => $groceryPresets,
+                'hero_image'      => $heroFallbackImg ?? 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80',
+                'presets'         => array_merge(array_slice($sampleProducts, 0, 4), $groceryPresets),
                 'sample_products' => array_slice($sampleProducts, 0, 8),
             ];
         }
@@ -1655,11 +1719,11 @@ class ConfigController extends Controller
             'name'            => 'Fashion & Apparel',
             'badge'           => 'Auto-Detected Niche: Fashion & Apparel Store',
             'preset_heading'  => 'Curated Fashion & Apparel Presets (1-Click)',
-            'hero_title'      => 'Exclusive Designer Fashion Collection',
-            'hero_badge'      => 'NEW ARRIVALS 2026',
+            'hero_title'      => "{$cleanBrand} Fashion Collection",
+            'hero_badge'      => 'TRENDING STYLES • 2026',
             'hero_button'     => 'Shop Collection →',
-            'hero_image'      => ! empty($sampleProducts[0]['image']) ? $sampleProducts[0]['image'] : 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80',
-            'presets'         => $fashionPresets,
+            'hero_image'      => $heroFallbackImg ?? 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80',
+            'presets'         => array_merge(array_slice($sampleProducts, 0, 4), $fashionPresets),
             'sample_products' => array_slice($sampleProducts, 0, 8),
         ];
     }

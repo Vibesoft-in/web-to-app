@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { detectStoreNicheFromData } from "@/lib/niche-detector";
 import {
   Heart,
   Home,
@@ -66,6 +67,13 @@ export function PhoneFrame({
   const radius = theme.radius !== undefined ? `${theme.radius}px` : "12px";
   const buttonRadius = theme.radius !== undefined ? `${Math.min(theme.radius, 14)}px` : "8px";
   const appName = config?.app?.name || "My Mobile Store";
+  const autoNiche = useMemo(() => {
+    if (niche && niche.key && niche.hero_title && !niche.hero_title.includes("High-Performance Lighting")) {
+      return niche;
+    }
+    const detected = detectStoreNicheFromData(categories, products, appName);
+    return niche && niche.key === detected.key ? { ...detected, ...niche } : detected;
+  }, [niche, categories, products, appName]);
   const font = theme.font || "Poppins";
   const fontFamilies: Record<string, string> = {
     "Poppins": "'Poppins', sans-serif",
@@ -355,17 +363,17 @@ export function PhoneFrame({
                 let bannerBadge = item.badge;
                 let bannerButton = item.button_text;
 
-                if (!bannerTitle || bannerTitle === "Exclusive Online Collection") {
-                  bannerTitle = niche?.hero_title || "High-Performance Lighting & Bulbs";
+                if (!bannerTitle || bannerTitle === "Exclusive Online Collection" || (bannerTitle.includes("High-Performance Lighting") && autoNiche?.key !== "lighting")) {
+                  bannerTitle = autoNiche?.hero_title || `${appName} Collection`;
                 }
-                if (!bannerBadge || bannerBadge === "Featured Store Deal") {
-                  bannerBadge = niche?.hero_badge || "SUPER BRIGHT • 2026 EDITION";
+                if (!bannerBadge || bannerBadge === "Featured Store Deal" || (bannerBadge.includes("SUPER BRIGHT") && autoNiche?.key !== "lighting")) {
+                  bannerBadge = autoNiche?.hero_badge || "NEW ARRIVALS 2026";
                 }
-                if (!bannerButton || bannerButton === "Shop Now →") {
-                  bannerButton = niche?.hero_button || "Shop Halogen & LED →";
+                if (!bannerButton || bannerButton === "Shop Now →" || (bannerButton.includes("Shop Halogen & LED") && autoNiche?.key !== "lighting")) {
+                  bannerButton = autoNiche?.hero_button || "Shop Collection →";
                 }
-                if (!activeImg || activeImg.includes("photo-1441986300917") || activeImg.includes("placeholders/banner1")) {
-                  activeImg = niche?.hero_image || activeImg;
+                if (!activeImg || activeImg.includes("photo-1441986300917") || activeImg.includes("placeholders/banner1") || (activeImg.includes("Formula-Rally") && autoNiche?.key !== "lighting") || (activeImg.includes("lighting.rishabhtyagi.in") && autoNiche?.key !== "lighting")) {
+                  activeImg = autoNiche?.hero_image || activeImg;
                 }
 
                 return (
@@ -392,9 +400,9 @@ export function PhoneFrame({
                             onError={(e) => {
                               const target = e.currentTarget;
                               const fallback =
-                                niche?.hero_image ||
+                                autoNiche?.hero_image ||
                                 fallbackBanner ||
-                                "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp";
+                                "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80";
                               if (target.src !== fallback) {
                                 target.src = fallback;
                               }

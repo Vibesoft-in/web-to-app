@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { detectStoreNicheFromData } from "@/lib/niche-detector";
 import {
   ArrowRight,
   CheckCircle2,
@@ -57,19 +58,19 @@ const NICHE_PRESETS_MAP: Record<string, Array<{
   lighting: [
     {
       id: "h7_halogen",
-      name: "Formula Rally H7",
+      name: "Ultra White Headlights",
       badge: "Super Bright 55W",
-      title: "Formula Rally H7 Halogen Headlights",
-      button_text: "Shop Halogen Lamps →",
-      image: "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp",
+      title: "Ultra White High-Beam Headlights",
+      button_text: "Shop Headlamps →",
+      image: "https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=800&q=80",
     },
     {
       id: "h3_halogen",
-      name: "All-Weather H3 Halogen",
+      name: "All-Weather Fog Lamps",
       badge: "Fog & Auxiliary",
-      title: "All-Weather H3 Halogen Bulbs",
+      title: "All-Weather High-Output Fog Bulbs",
       button_text: "Upgrade Vision →",
-      image: "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/sd-23.webp",
+      image: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80",
     },
     {
       id: "auto_fuses",
@@ -77,15 +78,15 @@ const NICHE_PRESETS_MAP: Record<string, Array<{
       badge: "Electrical Protection",
       title: "Maxi & Mini Blade Fuse Packs",
       button_text: "Shop Fuses →",
-      image: "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/PART-NO.-FLP0021-X3-1-5-INCH-OFF-ROAD-SPOT-LAMP-FOG-LAMP.png",
+      image: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=800&q=80",
     },
     {
       id: "capless",
-      name: "Capless Indicator Bulbs",
+      name: "LED Marker Bulbs",
       badge: "OEM Indicator",
-      title: "Capless Dashboard & Marker Lights",
+      title: "Interior Dashboard & Marker Lights",
       button_text: "Find Bulbs →",
-      image: "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/sd-25.webp",
+      image: "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&w=800&q=80",
     },
     {
       id: "night_fighter",
@@ -524,12 +525,18 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
                 ? [...res.config.home]
                 : prev.home;
 
-            // If a custom banner was uploaded or saved locally, prioritize it over generic placeholders
-            if (savedLocalBanner && !savedLocalBanner.includes("photo-1441986300917") && !savedLocalBanner.includes("placeholders/banner")) {
+            // If a custom banner was uploaded or saved locally, prioritize it over generic placeholders (ignore stale bulb URLs)
+            if (
+              savedLocalBanner &&
+              !savedLocalBanner.includes("photo-1441986300917") &&
+              !savedLocalBanner.includes("placeholders/banner") &&
+              !savedLocalBanner.includes("Formula-Rally") &&
+              !savedLocalBanner.includes("lighting.rishabhtyagi.in")
+            ) {
               const bannerIdx = preservedHome?.findIndex((s: any) => s.type === "banner");
               if (bannerIdx >= 0 && preservedHome[bannerIdx]?.items?.[0]) {
                 const currentImg = preservedHome[bannerIdx].items[0].image;
-                if (!currentImg || currentImg.includes("photo-1441986300917") || currentImg.includes("placeholders/banner")) {
+                if (!currentImg || currentImg.includes("photo-1441986300917") || currentImg.includes("placeholders/banner") || currentImg.includes("Formula-Rally") || currentImg.includes("lighting.rishabhtyagi.in")) {
                   preservedHome[bannerIdx] = {
                     ...preservedHome[bannerIdx],
                     items: [
@@ -800,13 +807,33 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
 
   // ─── HERO BANNER EDITING & NICHE ADAPTATION LOGIC ───
   const [selectedNicheKey, setSelectedNicheKey] = useState<string>("auto");
-  const detectedNiche = previewData?.niche;
-  const detectedNicheKey = detectedNiche?.key || "lighting";
+  const storeDisplayName = previewData?.store_name || config?.app?.name || "Exclusive";
+
+  const clientDetectedNiche = useMemo(() => {
+    return detectStoreNicheFromData(
+      previewData?.categories,
+      previewData?.products,
+      storeDisplayName,
+      previewData?.store_url
+    );
+  }, [previewData?.categories, previewData?.products, storeDisplayName, previewData?.store_url]);
+
+  const detectedNiche = useMemo(() => {
+    if (previewData?.niche && previewData.niche.key && previewData.niche.key !== "lighting") {
+      return previewData.niche;
+    }
+    if (clientDetectedNiche && clientDetectedNiche.key !== "lighting") {
+      return clientDetectedNiche;
+    }
+    return previewData?.niche || clientDetectedNiche;
+  }, [previewData?.niche, clientDetectedNiche]);
+
+  const detectedNicheKey = detectedNiche?.key || "fashion";
   const activeNicheKey = selectedNicheKey === "auto" ? detectedNicheKey : selectedNicheKey;
   const activePresets =
     activeNicheKey === detectedNicheKey && Array.isArray(detectedNiche?.presets) && detectedNiche.presets.length > 0
       ? detectedNiche.presets
-      : (NICHE_PRESETS_MAP[activeNicheKey] || NICHE_PRESETS_MAP.lighting);
+      : (NICHE_PRESETS_MAP[activeNicheKey] || NICHE_PRESETS_MAP.fashion);
 
   const homeBannerSection = Array.isArray(config.home)
     ? config.home.find((s: any) => s.type === "banner")
@@ -825,68 +852,81 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
     localBannerPreview ||
     (bannerItem.image &&
     !bannerItem.image.includes("photo-1441986300917") &&
-    !bannerItem.image.includes("placeholders/banner1")
+    !bannerItem.image.includes("placeholders/banner1") &&
+    !(bannerItem.image.includes("Formula-Rally") && detectedNicheKey !== "lighting") &&
+    !(bannerItem.image.includes("lighting.rishabhtyagi.in") && detectedNicheKey !== "lighting")
       ? bannerItem.image
       : detectedNiche?.hero_image ||
         previewData?.banner_image ||
         config.app?.banner_url ||
         config.theme?.banner_url ||
-        "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp");
+        "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80");
 
   const activeBannerImage = sanitizeImageUrl(rawBannerImage);
 
   const activeBannerTitle =
-    bannerItem.title && bannerItem.title !== "Exclusive Online Collection"
+    bannerItem.title && bannerItem.title !== "Exclusive Online Collection" && !(bannerItem.title.includes("High-Performance Lighting") && detectedNicheKey !== "lighting")
       ? bannerItem.title
-      : detectedNiche?.hero_title || "High-Performance Lighting & Bulbs";
+      : detectedNiche?.hero_title || `${storeDisplayName} Collection`;
 
   const activeBannerBadge =
-    bannerItem.badge && bannerItem.badge !== "Featured Store Deal"
+    bannerItem.badge && bannerItem.badge !== "Featured Store Deal" && !(bannerItem.badge.includes("SUPER BRIGHT") && detectedNicheKey !== "lighting")
       ? bannerItem.badge
-      : detectedNiche?.hero_badge || "SUPER BRIGHT • 2026 EDITION";
+      : detectedNiche?.hero_badge || "NEW ARRIVALS 2026";
 
   const activeBannerButton =
-    bannerItem.button_text && bannerItem.button_text !== "Shop Now →"
+    bannerItem.button_text && bannerItem.button_text !== "Shop Now →" && !(bannerItem.button_text.includes("Shop Halogen & LED") && detectedNicheKey !== "lighting")
       ? bannerItem.button_text
-      : detectedNiche?.hero_button || "Shop Halogen & LED →";
+      : detectedNiche?.hero_button || "Shop Collection →";
 
-  // Automatically calibrate initial banner to detected store niche when loaded (ONLY IF user hasn't uploaded/customized banner)
+  // Automatically calibrate initial banner to detected store niche when loaded
   const hasSyncedNicheBanner = useRef(false);
   useEffect(() => {
-    // Crucial: Wait until draft configuration has loaded from backend before checking
-    if (!hasLoadedDraft.current || !previewData?.niche || hasSyncedNicheBanner.current) return;
+    if (!hasLoadedDraft.current || !detectedNiche || hasSyncedNicheBanner.current) return;
 
     const currentBannerItem = Array.isArray(config?.home)
       ? config.home.find((s: any) => s.type === "banner")?.items?.[0]
       : null;
 
-    // Check if the current banner is just an unconfigured generic placeholder
+    const isStaleBulbBanner =
+      detectedNiche.key !== "lighting" &&
+      (currentBannerItem?.image?.includes("Formula-Rally") ||
+       currentBannerItem?.image?.includes("lighting.rishabhtyagi.in") ||
+       currentBannerItem?.title?.includes("High-Performance Lighting"));
+
     const isPlaceholderImage =
       !currentBannerItem?.image ||
       currentBannerItem.image.includes("photo-1441986300917") ||
-      currentBannerItem.image.includes("placeholders/banner");
+      currentBannerItem.image.includes("placeholders/banner") ||
+      isStaleBulbBanner;
 
     let hasLocalCustomBanner = false;
     try {
       const saved = localStorage.getItem(`app_banner_${ulid}`);
-      if (saved && !saved.includes("photo-1441986300917") && !saved.includes("placeholders/banner")) {
+      if (
+        saved &&
+        !saved.includes("photo-1441986300917") &&
+        !saved.includes("placeholders/banner") &&
+        !(saved.includes("Formula-Rally") && detectedNiche.key !== "lighting") &&
+        !(saved.includes("lighting.rishabhtyagi.in") && detectedNiche.key !== "lighting")
+      ) {
         hasLocalCustomBanner = true;
       }
     } catch {}
 
-    // Only apply default niche image if user has NO custom banner set anywhere
-    if (isPlaceholderImage && !hasLocalCustomBanner && previewData.niche.hero_image) {
+    // Only apply default niche image if user has NO custom banner set anywhere (or if stuck on bulb banner)
+    if ((isPlaceholderImage || isStaleBulbBanner) && (!hasLocalCustomBanner || isStaleBulbBanner) && detectedNiche.hero_image) {
       hasSyncedNicheBanner.current = true;
       updateBanner({
-        image: previewData.niche.hero_image,
-        title: previewData.niche.hero_title,
-        badge: previewData.niche.hero_badge,
-        button_text: previewData.niche.hero_button,
+        image: detectedNiche.hero_image,
+        title: detectedNiche.hero_title,
+        badge: detectedNiche.hero_badge,
+        button_text: detectedNiche.hero_button,
       });
     } else {
       hasSyncedNicheBanner.current = true;
     }
-  }, [hasLoadedDraft.current, previewData?.niche, config?.home, ulid]);
+  }, [hasLoadedDraft.current, detectedNiche, config?.home, ulid]);
 
   const updateBanner = (updates: {
     image?: string;
@@ -1078,9 +1118,9 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
                   const safeImg =
                     activeBannerImage && !activeBannerImage.startsWith("blob:")
                       ? activeBannerImage
-                      : previewData?.niche?.hero_image ||
+                      : detectedNiche?.hero_image ||
                         previewData?.banner_image ||
-                        "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp";
+                        "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80";
                   return { ...it, image: safeImg };
                 }
                 return it;
@@ -1237,14 +1277,17 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
                 type="button"
                 onClick={() => {
                   setLocalBannerPreview(null);
+                  try {
+                    localStorage.removeItem(`app_banner_${ulid}`);
+                  } catch {}
                   updateBanner({
                     image:
-                      previewData?.niche?.hero_image ||
+                      detectedNiche?.hero_image ||
                       previewData?.banner_image ||
-                      "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp",
-                    title: previewData?.niche?.hero_title || "High-Performance Lighting & Bulbs",
-                    badge: previewData?.niche?.hero_badge || "SUPER BRIGHT • 2026 EDITION",
-                    button_text: previewData?.niche?.hero_button || "Shop Halogen & LED →",
+                      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80",
+                    title: detectedNiche?.hero_title || `${storeDisplayName} Collection`,
+                    badge: detectedNiche?.hero_badge || "NEW ARRIVALS 2026",
+                    button_text: detectedNiche?.hero_button || "Shop Collection →",
                   });
                 }}
                 className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1 hover:bg-white px-2 py-1 rounded-lg border border-transparent hover:border-slate-200 transition cursor-pointer"
@@ -1263,9 +1306,9 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
                 onError={(e) => {
                   const target = e.currentTarget;
                   const fallback =
-                    previewData?.niche?.hero_image ||
+                    detectedNiche?.hero_image ||
                     previewData?.banner_image ||
-                    "https://lighting.rishabhtyagi.in/wp-content/uploads/2026/10/Formula-Rally-H7-Halogen-Headlight.webp";
+                    "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80";
                   if (target.src !== fallback) {
                     target.src = fallback;
                   }
