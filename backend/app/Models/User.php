@@ -107,9 +107,8 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
             ->where('tenant_id', $this->tenant_id)
             ->where(function ($q) {
                 $q->whereIn('status', ['completed', 'live', 'active'])
-                  ->orWhereHas('builds', function ($bq) {
-                      $bq->where('status', \App\Enums\BuildStatus::Ready);
-                  });
+                  ->orWhereIn('setup_step', ['build', 'completed'])
+                  ->orWhereHas('builds');
             })->exists();
     }
 
@@ -118,9 +117,8 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         return App::withoutTenantScope()
             ->where('tenant_id', $this->tenant_id)
             ->whereNotIn('status', ['completed', 'live', 'active'])
-            ->whereDoesntHave('builds', function ($bq) {
-                $bq->where('status', \App\Enums\BuildStatus::Ready);
-            })
+            ->whereNotIn('setup_step', ['build', 'completed'])
+            ->whereDoesntHave('builds')
             ->latest('updated_at')
             ->first();
     }

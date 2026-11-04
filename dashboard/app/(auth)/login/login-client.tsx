@@ -61,7 +61,7 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
       return;
     }
 
-    if (currentUser?.latest_draft?.ulid) {
+    if (currentUser?.latest_draft?.ulid && currentUser.latest_draft.setup_step !== "build" && currentUser.latest_draft.setup_step !== "completed" && currentUser.latest_draft.status !== "completed") {
       const step = currentUser.latest_draft.setup_step || "platform";
       router.push(`/dashboard/apps/${currentUser.latest_draft.ulid}/setup/${step}`);
       return;

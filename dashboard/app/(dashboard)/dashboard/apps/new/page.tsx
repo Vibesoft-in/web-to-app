@@ -450,7 +450,7 @@ export default function NewAppPage() {
           </div>
         )}
 
-        {authData?.user?.latest_draft && (
+        {authData?.user?.latest_draft && authData.user.latest_draft.setup_step !== "build" && authData.user.latest_draft.setup_step !== "completed" && authData.user.latest_draft.status !== "completed" && (
           <div className="mb-6 p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">

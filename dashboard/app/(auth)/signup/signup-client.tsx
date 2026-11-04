@@ -72,7 +72,7 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
           }
           if (meRes.user.has_built_apps) {
             router.replace("/dashboard");
-          } else if (meRes.user.latest_draft?.ulid) {
+          } else if (meRes.user.latest_draft?.ulid && meRes.user.latest_draft.setup_step !== "build" && meRes.user.latest_draft.setup_step !== "completed" && meRes.user.latest_draft.status !== "completed") {
             const step = meRes.user.latest_draft.setup_step || "platform";
             router.replace(`/dashboard/apps/${meRes.user.latest_draft.ulid}/setup/${step}`);
           } else {
