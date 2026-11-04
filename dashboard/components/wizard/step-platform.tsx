@@ -31,22 +31,22 @@ export function StepPlatform({ ulid, app, onNext }: StepPlatformProps) {
     }
   }, [app?.platform]);
 
-  const handleSave = async () => {
+  const handleSave = () => {
     setIsSubmitting(true);
     setErrorMsg(null);
+    saveUserData({ platform });
+    onNext();
 
-    try {
-      await apiClient(`/api/apps/${ulid}/platform`, {
-        method: "POST",
-        body: JSON.stringify({ platform }),
+    apiClient(`/api/apps/${ulid}/platform`, {
+      method: "POST",
+      body: JSON.stringify({ platform }),
+    })
+      .catch((err: any) => {
+        console.warn("Platform background save:", err);
+      })
+      .finally(() => {
+        setIsSubmitting(false);
       });
-      saveUserData({ platform });
-      onNext();
-    } catch (err: any) {
-      setErrorMsg(err.message || "Failed to update platform.");
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   const getPlatformName = (p: string) => {

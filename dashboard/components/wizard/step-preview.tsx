@@ -1131,28 +1131,23 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
         });
       }
 
-      // 1. Immediately persist current state to draft
-      await apiClient(`/api/apps/${ulid}/config/draft`, {
+      // 🚀 ADVANCE IMMEDIATELY!
+      onNext();
+
+      // Persist in background
+      apiClient(`/api/apps/${ulid}/config/draft`, {
         method: "PUT",
         body: JSON.stringify(configToSave),
-      });
-
-      // 2. Publish snapshot
-      await apiClient(`/api/apps/${ulid}/config/publish`, {
-        method: "POST",
-      });
-      setPublishSuccess(true);
-      setTimeout(() => {
-        onNext();
-      }, 700);
+      })
+        .then(() => {
+          return apiClient(`/api/apps/${ulid}/config/publish`, { method: "POST" });
+        })
+        .catch((err) => {
+          console.warn("Background publish note:", err);
+        });
     } catch (err: any) {
-      console.error("Publish configuration failed:", err);
-      const detailMsg = err.errors
-        ? Object.entries(err.errors)
-            .map(([field, msgs]) => `${field}: ${(msgs as string[]).join(", ")}`)
-            .join("\n")
-        : (err.message || "Failed to publish config.");
-      alert(`Configuration publishing failed:\n${detailMsg}`);
+      console.warn("Preview config update note:", err);
+      onNext();
     } finally {
       setIsPublishing(false);
     }

@@ -107,6 +107,8 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
     handleSubmit,
     reset,
     watch,
+    trigger,
+    getValues,
     formState: { errors },
   } = useForm<ConnectFormData>({
     resolver: zodResolver(connectSchema),
@@ -538,14 +540,20 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
 
           <button
             type="button"
-            onClick={onNext}
-            disabled={!isStepVerified}
-            title={!isStepVerified ? "Please verify store credentials before proceeding." : ""}
-            className={`w-full sm:w-auto justify-center px-7 py-3 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md ${
-              isStepVerified
-                ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20 cursor-pointer active:scale-98"
-                : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
-            }`}
+            onClick={async () => {
+              if (isStepVerified) {
+                onNext();
+              } else {
+                const isValid = await trigger();
+                if (isValid) {
+                  const data = getValues();
+                  await onVerify(data);
+                  onNext();
+                }
+              }
+            }}
+            disabled={isVerifying}
+            className="w-full sm:w-auto justify-center px-7 py-3 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20 cursor-pointer active:scale-98 disabled:opacity-70"
           >
             <span>Next</span>
             <ArrowRight className="w-4 h-4" />

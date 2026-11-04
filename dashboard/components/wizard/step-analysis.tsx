@@ -449,7 +449,6 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
     }));
   };
   const [isConsultModalOpen, setIsConsultModalOpen] = useState(false);
-  const [activeTooltipId, setActiveTooltipId] = useState<string | null>(null);
   const [consultSubmitted, setConsultSubmitted] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -940,13 +939,13 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
 
       </div>
 
-      {/* ── REQ 4: COMPACT IN-DEPTH WEBSITE & STORE DIAGNOSTICS GRID WITH BENCHMARK BAR CHARTS ── */}
+      {/* ── REQ 3: COMPACT IN-DEPTH WEBSITE & STORE DIAGNOSTICS GRID WITH CIRCULAR CHARTS ── */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h3 className="font-bold text-slate-900 text-sm sm:text-base">In-Depth Website &amp; Store Diagnostics</h3>
             <p className="text-xs text-slate-500">
-              Live automated benchmark analysis across Core Web Vitals, server latency, SSL security, and store compatibility.
+              Live automated audit across Core Web Vitals, server latency, SSL security, and store compatibility.
             </p>
           </div>
           <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 w-fit">
@@ -978,176 +977,151 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
             {
               id: "perf",
               heading: "Performance Score",
-              fullName: "Lighthouse Mobile Performance",
-              actualValue: `${Number(googlePageSpeed.performance || 0)}%`,
-              barWidth: Math.min(100, Math.max(5, Number(googlePageSpeed.performance || 0))),
+              percentage: Number(googlePageSpeed.performance || 0),
               meetsBenchmark: Number(googlePageSpeed.performance || 0) >= 80,
-              benchmarkLabel: "Req: ≥ 80%",
+              benchmarkLabel: "Benchmark: ≥ 80%",
               statusLabel: Number(googlePageSpeed.performance || 0) >= 80 ? "Optimal" : "Needs Attention",
-              explanation: "Evaluates mobile loading speed, DOM responsiveness, and layout stability.",
               subtext: `FCP: ${googlePageSpeed.fcp || "1.2s"} • TBT: ${googlePageSpeed.tbt || "120ms"}`,
             },
             {
               id: "seo",
               heading: "SEO Score",
-              fullName: "Search Engine Optimization (SEO)",
-              actualValue: `${Number(googlePageSpeed.seo || 0)}%`,
-              barWidth: Math.min(100, Math.max(5, Number(googlePageSpeed.seo || 0))),
+              percentage: Number(googlePageSpeed.seo || 0),
               meetsBenchmark: Number(googlePageSpeed.seo || 0) >= 80,
-              benchmarkLabel: "Req: ≥ 80%",
+              benchmarkLabel: "Benchmark: ≥ 80%",
               statusLabel: Number(googlePageSpeed.seo || 0) >= 80 ? "Optimal" : "Needs Attention",
-              explanation: "Checks mobile viewport meta tags, crawlability, title tags, and schema markup.",
               subtext: "Meta • Headings • Crawl",
             },
             {
               id: "a11y",
               heading: "Accessibility Score",
-              fullName: "Accessibility & WCAG Compliance",
-              actualValue: `${Number(googlePageSpeed.accessibility || 0)}%`,
-              barWidth: Math.min(100, Math.max(5, Number(googlePageSpeed.accessibility || 0))),
+              percentage: Number(googlePageSpeed.accessibility || 0),
               meetsBenchmark: Number(googlePageSpeed.accessibility || 0) >= 80,
-              benchmarkLabel: "Req: ≥ 80%",
+              benchmarkLabel: "Benchmark: ≥ 80%",
               statusLabel: Number(googlePageSpeed.accessibility || 0) >= 80 ? "Optimal" : "Needs Attention",
-              explanation: "Audits tap target sizes, color contrast ratios, and screen-reader accessibility.",
               subtext: "Contrast • Alt Tags • UX",
             },
             {
               id: "mobile",
               heading: "Mobile Responsiveness",
-              fullName: "First Contentful Paint (FCP)",
-              actualValue: `${rawFcp.toFixed(1)}s`,
-              barWidth: Math.min(100, Math.max(10, mobileScore)),
-              meetsBenchmark: rawFcp <= 1.8,
-              benchmarkLabel: "Req: ≤ 1.8s",
-              statusLabel: rawFcp <= 1.8 ? "Optimal" : "Needs Attention",
-              explanation: "Time required to display the primary interactive elements on a mobile device.",
+              percentage: mobileScore,
+              meetsBenchmark: mobileScore >= 80,
+              benchmarkLabel: "Benchmark: FCP < 1.8s",
+              statusLabel: mobileScore >= 80 ? "Optimal" : "Needs Attention",
               subtext: `First Paint: ${rawFcp.toFixed(1)}s`,
             },
             {
               id: "sec",
               heading: "Security Score",
-              fullName: "SSL Certificate & HTTPS Protocol",
-              actualValue: isHttps ? "95%" : "40%",
-              barWidth: securityScore,
-              meetsBenchmark: securityScore >= 80,
-              benchmarkLabel: "Req: TLS Active",
-              statusLabel: securityScore >= 80 ? "Passed" : "Insecure",
-              explanation: "Validates active SSL certificates and end-to-end data encryption for checkout.",
+              percentage: securityScore,
+              meetsBenchmark: securityScore >= 85,
+              benchmarkLabel: "Benchmark: SSL Active",
+              statusLabel: securityScore >= 85 ? "Passed" : "Insecure",
               subtext: isHttps ? "TLS 1.3 Active" : "Insecure HTTP",
             },
             {
               id: "health",
               heading: "Website Health",
-              fullName: "Best Practices & Reliability",
-              actualValue: `${Number(googlePageSpeed.best_practices || 0)}%`,
-              barWidth: Math.min(100, Math.max(5, Number(googlePageSpeed.best_practices || 0))),
-              meetsBenchmark: Number(googlePageSpeed.best_practices || 0) >= 80,
-              benchmarkLabel: "Req: ≥ 80%",
-              statusLabel: Number(googlePageSpeed.best_practices || 0) >= 80 ? "Optimal" : "Needs Attention",
-              explanation: "Inspects clean console logs, modern JS libraries, and valid HTML structure.",
+              percentage: Number(googlePageSpeed.best_practices || 0),
+              meetsBenchmark: Number(googlePageSpeed.best_practices || 0) >= 85,
+              benchmarkLabel: "Benchmark: ≥ 85%",
+              statusLabel: Number(googlePageSpeed.best_practices || 0) >= 85 ? "Optimal" : "Needs Attention",
               subtext: "Doctype • HTTPS • APIs",
             },
             {
               id: "compat",
               heading: "Store Compatibility",
-              fullName: "Catalog Synchronization Engine",
-              actualValue: prodCount > 0 ? `${prodCount} Items` : "45%",
-              barWidth: compatScore,
+              percentage: compatScore,
               meetsBenchmark: compatScore >= 80,
-              benchmarkLabel: "Req: Active Store",
+              benchmarkLabel: "Benchmark: Active Catalog",
               statusLabel: compatScore >= 80 ? "Compatible" : "Incomplete",
-              explanation: "Verifies catalog data readiness, pricing schemas, and mobile app sync endpoints.",
               subtext: `${prodCount} Products Ready`,
             },
             {
               id: "latency",
-              heading: "Speed / Latency",
-              fullName: "Time to First Byte (TTFB)",
-              actualValue: `${rawTtfb}ms`,
-              barWidth: Math.min(100, Math.max(10, latencyScore)),
+              heading: "Speed Latency (TTFB)",
+              percentage: latencyScore,
               meetsBenchmark: rawTtfb <= 300,
-              benchmarkLabel: "Req: < 300ms",
+              benchmarkLabel: "Benchmark: < 300ms",
               statusLabel: rawTtfb <= 300 ? "Optimal" : "Slow",
-              explanation: "Server response time measured during initial handshake and HTTP connection.",
               subtext: `Response: ${rawTtfb}ms`,
             },
           ];
 
           return (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
               {diagnosticGridItems.map((item) => {
-                const isTooltipOpen = activeTooltipId === item.id;
-                // Green Bar if meets benchmark, Red Bar if below benchmark
-                const barColorClass = item.meetsBenchmark ? "bg-emerald-500" : "bg-rose-500";
-                const badgeColorClass = item.meetsBenchmark
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : "bg-rose-50 text-rose-700 border-rose-200";
+                const radius = 28;
+                const strokeWidth = 5;
+                const circumference = 2 * Math.PI * radius;
+                const strokeDashoffset =
+                  circumference - (Math.min(100, Math.max(0, item.percentage)) / 100) * circumference;
+                // Green Chart if meets benchmark, Red Chart if below benchmark
+                const chartColor = item.meetsBenchmark ? "#10b981" : "#ef4444";
 
                 return (
                   <div
                     key={item.id}
-                    className="relative group bg-white rounded-2xl border border-slate-200 p-3.5 flex flex-col justify-between shadow-xs hover:border-slate-300 hover:shadow-sm transition cursor-pointer select-none"
-                    onClick={() => setActiveTooltipId(isTooltipOpen ? null : item.id)}
-                    onMouseEnter={() => setActiveTooltipId(item.id)}
-                    onMouseLeave={() => setActiveTooltipId(null)}
+                    className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col items-center text-center shadow-xs hover:border-slate-300 transition"
                   >
-                    <div>
-                      {/* Metric Header & Status Badge */}
-                      <div className="flex items-center justify-between gap-1 mb-2">
-                        <span className="text-xs font-bold text-slate-800 tracking-tight truncate block max-w-[65%]">
-                          {item.heading}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex-shrink-0 ${badgeColorClass}`}>
-                          {item.statusLabel}
-                        </span>
-                      </div>
+                    <span
+                      className="text-xs font-bold text-slate-800 tracking-tight block truncate w-full mb-2"
+                      title={item.heading}
+                    >
+                      {item.heading}
+                    </span>
 
-                      {/* Measured Value & Required Benchmark */}
-                      <div className="flex items-baseline justify-between mb-1.5">
-                        <span className="text-base font-black text-slate-900 leading-none">
-                          {item.actualValue}
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-medium font-mono">
-                          {item.benchmarkLabel}
-                        </span>
-                      </div>
-
-                      {/* Horizontal Benchmark Bar Chart */}
-                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden my-1 relative">
-                        <div
-                          className={`h-full rounded-full transition-all duration-700 ease-out ${barColorClass}`}
-                          style={{ width: `${item.barWidth}%` }}
+                    {/* Circular Chart */}
+                    <div className="relative w-18 h-18 flex items-center justify-center my-1">
+                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 68 68">
+                        <circle
+                          cx="34"
+                          cy="34"
+                          r={radius}
+                          stroke="#f1f5f9"
+                          strokeWidth={strokeWidth}
+                          fill="none"
                         />
+                        <circle
+                          cx="34"
+                          cy="34"
+                          r={radius}
+                          stroke={chartColor}
+                          strokeWidth={strokeWidth}
+                          strokeDasharray={circumference}
+                          strokeDashoffset={strokeDashoffset}
+                          strokeLinecap="round"
+                          fill="none"
+                          className="transition-all duration-700 ease-out"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-base font-black text-slate-900 leading-none">
+                          {item.percentage}%
+                        </span>
                       </div>
                     </div>
 
-                    {/* Subtext info */}
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2 pt-1.5 border-t border-slate-100">
-                      <span className="truncate">{item.subtext}</span>
-                      <span className="text-[9px] text-slate-400 group-hover:text-indigo-600 font-medium">Info</span>
-                    </div>
-
-                    {/* ── INTERACTIVE HOVER / TAP TOOLTIP ── */}
-                    {isTooltipOpen && (
-                      <div
-                        className="absolute bottom-full left-0 right-0 mb-2 z-30 p-3 bg-slate-900 text-white rounded-xl shadow-xl text-left text-xs space-y-1.5 pointer-events-auto border border-slate-800 animate-in fade-in zoom-in-95"
-                        onClick={(e) => e.stopPropagation()}
+                    {/* Status Badge & Benchmarks */}
+                    <div className="mt-2 flex flex-col items-center gap-1 w-full">
+                      <span
+                        className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          item.meetsBenchmark
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-rose-50 text-rose-700 border-rose-200"
+                        }`}
                       >
-                        <div className="flex items-center justify-between border-b border-slate-800 pb-1">
-                          <span className="font-bold text-slate-200 text-[11px] truncate">{item.fullName}</span>
-                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${item.meetsBenchmark ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"}`}>
-                            {item.statusLabel}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1 text-[10.5px] font-mono text-slate-300">
-                          <div>Actual: <strong className="text-white">{item.actualValue}</strong></div>
-                          <div>Benchmark: <strong className="text-white">{item.benchmarkLabel.replace("Req: ", "")}</strong></div>
-                        </div>
-                        <p className="text-[10px] text-slate-300 leading-relaxed font-sans pt-0.5">
-                          {item.explanation}
-                        </p>
-                      </div>
-                    )}
+                        {item.statusLabel}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium block truncate max-w-full">
+                        {item.benchmarkLabel}
+                      </span>
+                      {item.subtext && (
+                        <span className="text-[9.5px] text-slate-400 block truncate max-w-full">
+                          {item.subtext}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}

@@ -112,12 +112,14 @@ export default function WizardStepPage() {
   }, [currentStepParam, ulid, router]);
 
   // URL STEP GUARD:
-  // If the step in the URL is not permitted by allowed_steps, automatically redirect to current_step
+  // Only redirect if step is significantly ahead of furthest reached step
   useEffect(() => {
     if (isAdvancing) return;
     if (state && state.allowed_steps && Array.isArray(state.allowed_steps) && state.allowed_steps.length > 0) {
-      const isAllowed = state.allowed_steps.includes(currentStepParam);
-      if (!isAllowed && state.current_step && state.current_step !== currentStepParam) {
+      const curIndex = STEPS.findIndex((s) => s.key === currentStepParam);
+      const stateIndex = STEPS.findIndex((s) => s.key === state.current_step);
+      const isAllowed = state.allowed_steps.includes(currentStepParam) || curIndex <= stateIndex + 1;
+      if (!isAllowed && curIndex > stateIndex + 1 && state.current_step && state.current_step !== currentStepParam) {
         router.replace(`/dashboard/apps/${ulid}/setup/${state.current_step}`);
       }
     }
@@ -152,17 +154,19 @@ export default function WizardStepPage() {
     );
   }
 
-  const navigateNext = async () => {
+  const navigateNext = () => {
     const currentIndex = STEPS.findIndex((s) => s.key === currentStepParam);
     if (currentIndex < STEPS.length - 1) {
       const nextStepKey = STEPS[currentIndex + 1].key;
       setIsAdvancing(true);
 
-      // Optimistically unlock the next step in query cache immediately
+      // Optimistically unlock all steps up to nextStepKey
+      const unlockedSteps = STEPS.slice(0, currentIndex + 2).map((s) => s.key);
+
       queryClient.setQueryData(["setup-state", ulid], (old: any) => {
         if (!old) return old;
         const oldAllowed = old.allowed_steps || [];
-        const newAllowed = Array.from(new Set([...oldAllowed, nextStepKey]));
+        const newAllowed = Array.from(new Set([...oldAllowed, ...unlockedSteps]));
         return {
           ...old,
           current_step: nextStepKey,
@@ -170,24 +174,32 @@ export default function WizardStepPage() {
         };
       });
 
-      try {
-        const res = await apiClient(`/api/apps/${ulid}/advance-step`, {
-          method: "POST",
-          body: JSON.stringify({ step: nextStepKey }),
+      // 🚀 INSTANT NAVIGATION ON VERY FIRST CLICK
+      router.push(`/dashboard/apps/${ulid}/setup/${nextStepKey}`);
+
+      // Persist advance-step in background
+      apiClient(`/api/apps/${ulid}/advance-step`, {
+        method: "POST",
+        body: JSON.stringify({ step: nextStepKey }),
+      })
+        .then((res) => {
+          if (res && res.allowed_steps) {
+            queryClient.setQueryData(["setup-state", ulid], (prev: any) => ({
+              ...prev,
+              ...res,
+              allowed_steps: Array.from(new Set([...(prev?.allowed_steps || []), ...(res.allowed_steps || [])])),
+            }));
+          }
+        })
+        .catch((err) => {
+          console.warn("Background step advance note:", err);
+        })
+        .finally(() => {
+          queryClient.invalidateQueries({ queryKey: ["apps"] });
+          setTimeout(() => {
+            setIsAdvancing(false);
+          }, 800);
         });
-        if (res && res.allowed_steps) {
-          queryClient.setQueryData(["setup-state", ulid], res);
-        }
-      } catch (err) {
-        console.error("Failed to advance step:", err);
-      } finally {
-        queryClient.invalidateQueries({ queryKey: ["setup-state", ulid] });
-        queryClient.invalidateQueries({ queryKey: ["apps"] });
-        router.push(`/dashboard/apps/${ulid}/setup/${nextStepKey}`);
-        setTimeout(() => {
-          setIsAdvancing(false);
-        }, 1000);
-      }
     }
   };
 

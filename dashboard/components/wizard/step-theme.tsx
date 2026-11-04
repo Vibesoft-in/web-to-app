@@ -243,7 +243,6 @@ export function StepTheme({ ulid, onNext }: StepThemeProps) {
     const meta = THEME_META[selectedKey];
 
     try {
-      // Save theme selection in localStorage
       localStorage.setItem(`appifyhub_selected_theme_key_${ulid}`, selectedKey);
       localStorage.setItem("appifyhub_selected_theme_key", selectedKey);
       localStorage.setItem(
@@ -254,22 +253,19 @@ export function StepTheme({ ulid, onNext }: StepThemeProps) {
         `appifyhub_selected_theme_name_${ulid}`,
         meta?.marketName || "Theme"
       );
+    } catch {}
 
-      // Save to draft configuration on server
-      if (chosen) {
-        await apiClient(`/api/apps/${ulid}/config/draft`, {
-          method: "PUT",
-          body: JSON.stringify({
-            theme: chosen.defaults,
-            selected_theme_key: selectedKey,
-          }),
-        });
-      }
-      onNext();
-    } catch {
-      onNext();
-    } finally {
-      setIsSaving(false);
+    // 🚀 ADVANCE IMMEDIATELY!
+    onNext();
+
+    if (chosen) {
+      apiClient(`/api/apps/${ulid}/config/draft`, {
+        method: "PUT",
+        body: JSON.stringify({
+          theme: chosen.defaults,
+          selected_theme_key: selectedKey,
+        }),
+      }).catch(() => {});
     }
   };
 

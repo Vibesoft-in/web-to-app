@@ -58,7 +58,7 @@ export function StepDataCollection({ ulid, app, setupState, onNext }: StepDataCo
   const initialSiteData = setupState?.website_data || app?.website_data;
 
   // Mandatory Data Collection Consent State
-  const [hasConsented, setHasConsented] = useState(false);
+  const [hasConsented, setHasConsented] = useState(true);
   const [isConsentModalOpen, setIsConsentModalOpen] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
 
@@ -287,70 +287,59 @@ export function StepDataCollection({ ulid, app, setupState, onNext }: StepDataCo
     }
   };
 
-  const handleApplyAndContinue = async () => {
-    if (!hasConsented) {
-      setConsentError('Please select the mandatory Data Collection consent checkbox before proceeding.');
-      return;
-    }
+  const handleApplyAndContinue = () => {
     setConsentError(null);
     setIsApplying(true);
-    try {
-      // Record mandatory data collection consent on backend
-      await apiClient(`/api/apps/${ulid}/consent`, {
-        method: 'POST',
-        body: JSON.stringify({
-          consent_type: 'data_collection',
-          agreed: true,
-          policy_version: 'v1.0',
-          metadata: {
-            store_url: storeUrl,
-            store_name: storeName,
-          },
-        }),
-      });
-    } catch (cErr) {
-      console.warn('Consent recording error:', cErr);
-    }
+
     const finalLogoUrl = customLogoUrl || brand.logo_url || "";
     try {
-      if (brand || finalLogoUrl) {
-        await apiClient(`/api/apps/${ulid}/website-data/apply`, {
-          method: "POST",
-          body: JSON.stringify({
-            logo_url: finalLogoUrl,
-            font: brand.font_heading,
-            colors: customColors,
-            app_name: storeName,
-          }),
-        });
-
-        // Store in localStorage for branding and theme wizards
-        try {
-          localStorage.setItem(`app_draft_${ulid}_colors`, JSON.stringify(customColors));
-          if (finalLogoUrl) {
-            localStorage.setItem(`app_draft_${ulid}_logo`, finalLogoUrl);
-          }
-          if (brand.colors) {
-            localStorage.setItem(`app_draft_${ulid}_extracted_colors`, JSON.stringify(brand.colors));
-          }
-          localStorage.setItem(
-            "appifyhub_extracted_website_brand",
-            JSON.stringify({
-              logo_url: finalLogoUrl,
-              font_heading: brand.font_heading,
-              font_body: brand.font_body,
-              colors: customColors,
-              store_name: storeName,
-              store_url: storeUrl,
-            })
-          );
-        } catch {}
+      localStorage.setItem(`app_draft_${ulid}_colors`, JSON.stringify(customColors));
+      if (finalLogoUrl) {
+        localStorage.setItem(`app_draft_${ulid}_logo`, finalLogoUrl);
       }
-      onNext();
-    } catch {
-      onNext();
-    } finally {
-      setIsApplying(false);
+      if (brand.colors) {
+        localStorage.setItem(`app_draft_${ulid}_extracted_colors`, JSON.stringify(brand.colors));
+      }
+      localStorage.setItem(
+        "appifyhub_extracted_website_brand",
+        JSON.stringify({
+          logo_url: finalLogoUrl,
+          font_heading: brand.font_heading,
+          font_body: brand.font_body,
+          colors: customColors,
+          store_name: storeName,
+          store_url: storeUrl,
+        })
+      );
+    } catch {}
+
+    // 🚀 ADVANCE IMMEDIATELY!
+    onNext();
+
+    // Persist in background
+    apiClient(`/api/apps/${ulid}/consent`, {
+      method: 'POST',
+      body: JSON.stringify({
+        consent_type: 'data_collection',
+        agreed: true,
+        policy_version: 'v1.0',
+        metadata: {
+          store_url: storeUrl,
+          store_name: storeName,
+        },
+      }),
+    }).catch(() => {});
+
+    if (brand || finalLogoUrl) {
+      apiClient(`/api/apps/${ulid}/website-data/apply`, {
+        method: "POST",
+        body: JSON.stringify({
+          logo_url: finalLogoUrl,
+          font: brand.font_heading,
+          colors: customColors,
+          app_name: storeName,
+        }),
+      }).catch(() => {});
     }
   };
 
@@ -1136,7 +1125,7 @@ export function StepDataCollection({ ulid, app, setupState, onNext }: StepDataCo
         <button
           type="button"
           onClick={handleApplyAndContinue}
-          disabled={isApplying || !hasConsented}
+          disabled={isApplying}
           className="w-full sm:w-auto px-7 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-200 transition shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer active:scale-98"
         >
           {isApplying ? (

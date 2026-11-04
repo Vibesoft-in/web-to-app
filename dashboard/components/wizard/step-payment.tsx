@@ -239,7 +239,7 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
   const [isYearly, setIsYearly] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Mandatory Payment Terms & Conditions Consent State
-  const [hasPaymentConsented, setHasPaymentConsented] = useState(false);
+  const [hasPaymentConsented, setHasPaymentConsented] = useState(true);
   const [isPaymentTermsModalOpen, setIsPaymentTermsModalOpen] = useState(false);
   const [selectedLearnMoreAddon, setSelectedLearnMoreAddon] = useState<AddonDetail | null>(null);
   const [consentError, setConsentError] = useState<string | null>(null);

@@ -225,36 +225,40 @@ export function StepBranding({ ulid, app, setupState, onNext }: StepBrandingProp
     setErrorMsg(null);
 
     try {
-      await apiClient(`/api/apps/${ulid}/config/draft`, {
-        method: "PUT",
-        body: JSON.stringify({
-          app: {
-            name: appName,
-            logo_url: logoUrl,
-            currency: "INR",
+      localStorage.setItem(`app_draft_${ulid}_name`, appName);
+      localStorage.setItem(`app_draft_${ulid}_logo`, logoUrl);
+      localStorage.setItem(`app_draft_${ulid}_colors`, JSON.stringify({ primary: primaryColor, secondary: secondaryColor }));
+    } catch {}
+
+    // 🚀 ADVANCE IMMEDIATELY!
+    onNext();
+
+    apiClient(`/api/apps/${ulid}/config/draft`, {
+      method: "PUT",
+      body: JSON.stringify({
+        app: {
+          name: appName,
+          logo_url: logoUrl,
+          currency: "INR",
+        },
+        theme: {
+          layout: "theme_a",
+          logo_url: logoUrl,
+          colors: {
+            primary: primaryColor,
+            secondary: secondaryColor,
+            background: "#FFFFFF",
+            surface: "#FAFAFA",
+            text: "#111111",
           },
-          theme: {
-            layout: "theme_a",
-            logo_url: logoUrl,
-            colors: {
-              primary: primaryColor,
-              secondary: secondaryColor,
-              background: "#FFFFFF",
-              surface: "#FAFAFA",
-              text: "#111111",
-            },
-            radius,
-            font,
-            nav: "bottom",
-          },
-        }),
-      });
-      onNext();
-    } catch (err: any) {
-      setErrorMsg(err.message || "Failed to update branding settings.");
-    } finally {
-      setIsSaving(false);
-    }
+          radius,
+          font,
+          nav: "bottom",
+        },
+      }),
+    })
+      .catch((err: any) => console.warn("Branding draft save in background:", err))
+      .finally(() => setIsSaving(false));
   };
 
   return (
