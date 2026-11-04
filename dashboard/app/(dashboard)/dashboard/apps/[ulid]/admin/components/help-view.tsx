@@ -11,6 +11,7 @@ import {
   Command,
   Flame,
   ShoppingBag,
+  Package,
   RotateCcw,
   Store,
   CreditCard,
