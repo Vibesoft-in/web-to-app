@@ -177,6 +177,7 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
 
       if (data.is_custom || data.detected_platform === "custom" || data.is_supported === false) {
         setPlatform("");
+        setIsManualSelection(false);
         setBadgeStatus("Custom Platform");
         setBadgeStyle({
           border: "1px solid #F2B9B0",
@@ -188,7 +189,7 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
           title: "Custom Platform Detected",
           message:
             data.message ||
-            "This website appears to be built on a custom platform. We currently only convert websites built on WooCommerce, Shopify, or WordPress.",
+            "Custom Platform Detected: This website appears to be built on a custom platform. AppifyHub only converts websites built on WooCommerce, Shopify, or WordPress.",
         });
       } else if (data.auto_platform && (!manual || !currentPlatform)) {
         setPlatform(data.auto_platform);
@@ -277,7 +278,7 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
     }
     if (feedback.type === "unsupported") {
       setErrorMessage(
-        "Custom Platform Error: This website appears to be built on a custom platform. We currently only convert websites built on WooCommerce, Shopify, or WordPress."
+        "Custom Platform Detected: This website appears to be built on a custom platform. AppifyHub only converts websites built on WooCommerce, Shopify, or WordPress."
       );
       return;
     }

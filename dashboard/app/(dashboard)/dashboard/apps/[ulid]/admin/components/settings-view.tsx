@@ -44,7 +44,7 @@ export function SettingsView({
 
   // Form State: The shop
   const [storeForm, setStoreForm] = useState({
-    name: storeName || "Low Tide Coffee Roasters",
+    name: storeName || "My Online Store",
     email: `orders@${storeDomain || "lowtide.coffee"}`,
     phone: "+44 (0) 20 7946 0912",
     timezone: "London / GMT",
@@ -61,7 +61,7 @@ export function SettingsView({
 
   // Team state
   const [teamMembers, setTeamMembers] = useState([
-    { id: "1", name: "Noor Al-Mansoor", email: `noor@${storeDomain || "lowtide.coffee"}`, role: "Head of Roasting", access: "Owner", active: true },
+    { id: "1", name: "Noor Al-Mansoor", email: `noor@${storeDomain || "lowtide.coffee"}`, role: "Store Manager", access: "Owner", active: true },
     { id: "2", name: "Tomás Vega", email: `tomas@${storeDomain || "lowtide.coffee"}`, role: "Production & Floor", access: "Admin", active: true },
     { id: "3", name: "Aisha Chen", email: `aisha@${storeDomain || "lowtide.coffee"}`, role: "Customer & Wholesale Care", access: "Staff", active: true },
   ]);
@@ -118,7 +118,7 @@ export function SettingsView({
       id: String(Date.now()),
       name: inviteName.trim(),
       email: inviteEmail.trim(),
-      role: "Roastery Associate",
+      role: "Operations Associate",
       access: inviteRole,
       active: true,
     };
@@ -237,7 +237,7 @@ export function SettingsView({
               </div>
 
               <div className="sm:col-span-2">
-                <label className="font-medium text-[#4A4742] dark:text-[#C5C0B6] block mb-1">Roastery & Dispatch Address</label>
+                <label className="font-medium text-[#4A4742] dark:text-[#C5C0B6] block mb-1">Store & Dispatch Address</label>
                 <input
                   type="text"
                   value={storeForm.address}
@@ -459,7 +459,7 @@ export function SettingsView({
                 { key: "stock", title: "Running low stock alerts", desc: "When a coffee or brew tool drops below its reorder point." },
                 { key: "messages", title: "Customer messages", desc: "A new conversation or reply in the inbox." },
                 { key: "wholesale", title: "Café accounts", desc: "Orders and requests from wholesale trade accounts." },
-                { key: "digest", title: "Morning digest", desc: "Yesterday’s takings and today’s roast list sent daily at 7 AM." },
+                { key: "digest", title: "Morning digest", desc: "Yesterday’s takings and today’s order digest sent daily at 7 AM." },
               ].map((item) => (
                 <li key={item.key} className="py-3 flex items-center justify-between gap-4">
                   <div>
@@ -504,7 +504,7 @@ export function SettingsView({
             {[
               { id: "starter", name: "Starter", price: "29", seats: 2, perks: ["Up to 2 seats", "Basic fulfilment board", "Daily sales summaries"] },
               { id: "growth", name: "Growth", price: "79", seats: 6, perks: ["Up to 6 seats", "Live fulfilment & Kanban", "Customer messaging", "Full Insights & heatmap"] },
-              { id: "scale", name: "Scale", price: "199", seats: 20, perks: ["Up to 20 seats", "Multi-roastery management", "Priority courier webhooks", "Roast forecasting engine"] },
+              { id: "scale", name: "Scale", price: "199", seats: 20, perks: ["Up to 20 seats", "Multi-store management", "Priority courier webhooks", "Inventory forecasting engine"] },
             ].map((p) => {
               const isCurrent = currentPlan === p.id;
               return (

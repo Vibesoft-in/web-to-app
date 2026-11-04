@@ -51,7 +51,7 @@ export function HelpView({
 
   const topics = [
     { id: "orders", icon: ShoppingBag, name: "Orders & fulfilment", desc: "The board, packing slips, refunds" },
-    { id: "roast", icon: Flame, name: "Roasting & stock", desc: "Roast queue, batches, reorder points" },
+    { id: "inventory", icon: Package, name: "Inventory & stock", desc: "Stock queue, batches, reorder points" },
     { id: "club", icon: RotateCcw, name: "Tide Club", desc: "Subscriptions, skips, renewals" },
     { id: "wholesale", icon: Store, name: "Café accounts", desc: "Trade prices, weekly runs, invoices" },
     { id: "money", icon: CreditCard, name: "Payments & payouts", desc: "When money lands, fees, taxes" },
@@ -62,7 +62,7 @@ export function HelpView({
     {
       topic: "orders",
       q: "How does an order move through the board?",
-      a: "Paid orders wait for the next roast run (8 AM or 1 PM). Moving an order advances it to Roasting/Processing; once roasted and packed, the 4 PM courier picks it up and marks it Shipped. Click the advance button on any card or drag it whenever reality runs ahead of schedule.",
+      a: "Paid orders wait for fulfillment. Moving an order advances it to Processing; once packed, it moves to Complete. Click the advance button on any card or drag it whenever reality runs ahead of schedule.",
     },
     {
       topic: "orders",
@@ -75,12 +75,12 @@ export function HelpView({
       a: "Open the order drawer and choose Refund. The money returns to the original payment card within 3–5 working days. If bags were returned unopened, tick 'Restock inventory' so units return to available stock.",
     },
     {
-      topic: "roast",
-      q: "What does 'Today live' and 'Next roast' calculate?",
-      a: "It aggregates all paid orders awaiting production across your active coffees, in units and kilos. Club boxes calculate as the featured seasonal coffee, and café kilo bags count against the master roast batch.",
+      topic: "inventory",
+      q: "What does 'Today live' calculate?",
+      a: "It aggregates all active customer orders awaiting fulfillment across your connected website catalog.",
     },
     {
-      topic: "roast",
+      topic: "inventory",
       q: "When does a product count as running low?",
       a: "When the available stock left after fulfilling open orders drops to or below its configured reorder point. The 'Lasts' column divides available units by the last fortnight's daily sales pace.",
     },
@@ -172,14 +172,14 @@ export function HelpView({
           How can we help, {userName.split(" ")[0]}?
         </h2>
         <p className="text-xs sm:text-sm text-[#8A857D] dark:text-[#9A958D] max-w-md mx-auto">
-          Operational answers for running your store — and real roastery support a message away.
+          Operational answers for running your store — and real merchant support a message away.
         </p>
 
         <div className="relative max-w-lg mx-auto pt-2">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A857D]" />
           <input
             type="text"
-            placeholder="Search refunds, courier cutoff, roast planning, subscriptions…"
+            placeholder="Search refunds, courier cutoff, stock planning, subscriptions…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm bg-white dark:bg-[#252625] border border-[#E6E1D8] dark:border-[#2C2D2B] rounded-xl text-[#1A1917] dark:text-[#F5F2EB] placeholder-[#8A857D] focus:outline-none focus:border-[#525B44] shadow-xs"

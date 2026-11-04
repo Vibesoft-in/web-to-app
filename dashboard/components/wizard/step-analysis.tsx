@@ -13,6 +13,8 @@ import {
   Calculator,
   Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Clock,
   Edit3,
   ExternalLink,
@@ -438,6 +440,14 @@ function getGoogleScoreStyle(score: number) {
 export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProps) {
   const queryClient = useQueryClient();
   const [hoveredPillarId, setHoveredPillarId] = useState<string | null>(null);
+  const [expandedCardIds, setExpandedCardIds] = useState<Record<string, boolean>>({});
+
+  const toggleCardAccordion = (id: string) => {
+    setExpandedCardIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
   const [isConsultModalOpen, setIsConsultModalOpen] = useState(false);
   const [consultSubmitted, setConsultSubmitted] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -931,22 +941,53 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
 
       {/* 11 Pillars In-Depth Diagnostics Grid */}
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="font-bold text-slate-900 text-base">In-Depth Website &amp; Store Diagnostics</h3>
             <p className="text-xs text-slate-500">
               Live website audit across latency, Google Core Web Vitals, checkout security, and catalog readiness.
             </p>
           </div>
-          <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 w-fit">
-            Google Insights Score: {totalScore} / 100 ({totalStyle.status})
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const allOpen = evaluatedPillars.length > 0 && evaluatedPillars.every((p) => expandedCardIds[p.id]);
+                if (allOpen) {
+                  setExpandedCardIds({});
+                } else {
+                  const all: Record<string, boolean> = {};
+                  evaluatedPillars.forEach((p) => {
+                    all[p.id] = true;
+                  });
+                  setExpandedCardIds(all);
+                }
+              }}
+              className="text-xs font-semibold text-slate-600 hover:text-indigo-600 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            >
+              {evaluatedPillars.length > 0 && evaluatedPillars.every((p) => expandedCardIds[p.id]) ? (
+                <>
+                  <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Collapse All</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Expand All</span>
+                </>
+              )}
+            </button>
+            <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 w-fit">
+              Google Insights Score: {totalScore} / 100 ({totalStyle.status})
+            </span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {evaluatedPillars.map((pillar) => {
             const Icon = pillar.icon;
             const isHovered = hoveredPillarId === pillar.id;
+            const isExpanded = !!expandedCardIds[pillar.id];
 
             return (
               <div
@@ -956,21 +997,23 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                 className={`bg-white border-2 rounded-2xl p-4 sm:p-5 transition flex flex-col justify-between ${
                   isHovered
                     ? "border-indigo-500 shadow-md ring-1 ring-indigo-500"
+                    : isExpanded
+                    ? "border-indigo-300 shadow-sm"
                     : "border-slate-200 shadow-xs hover:border-slate-300"
                 }`}
               >
                 <div>
-                  {/* Pillar Header with Status Badge */}
+                  {/* Pillar Header with Status Badge & Accordion Icon */}
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
                       <div
                         className="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-xs flex-shrink-0"
                         style={{ backgroundColor: pillar.color }}
                       >
                         <Icon className="w-4 h-4" />
                       </div>
-                      <div className="min-w-0">
-                        <h4 className="font-bold text-slate-900 text-xs sm:text-sm truncate">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold text-slate-900 text-xs sm:text-sm truncate" title={pillar.name}>
                           {pillar.name}
                         </h4>
                         <span className="text-[11px] text-slate-400 font-medium block truncate">
@@ -979,7 +1022,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                       </div>
                     </div>
 
-                    <div className="text-right flex-shrink-0">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
                       <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                         pillar.status === "good"
                           ? "bg-emerald-50 text-emerald-700 border-emerald-200"
@@ -989,36 +1032,82 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                       }`}>
                         {pillar.status === "good" ? "Optimal" : pillar.status === "moderate" ? "Needs Attention" : "Unoptimized"}
                       </span>
+
+                      {/* Accordion Toggle Icon Button */}
+                      <button
+                        type="button"
+                        onClick={() => toggleCardAccordion(pillar.id)}
+                        aria-label={isExpanded ? `Collapse ${pillar.name} details` : `Expand ${pillar.name} details`}
+                        title={isExpanded ? "Collapse details" : "Expand details"}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition border cursor-pointer ${
+                          isExpanded
+                            ? "bg-indigo-50 border-indigo-200 text-indigo-600 shadow-xs"
+                            : "bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                        }`}
+                      >
+                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? "rotate-180 text-indigo-600" : ""}`} />
+                      </button>
                     </div>
                   </div>
 
-                  {/* Measured Value Pill */}
-                  <div className="my-2.5 p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
+                  {/* Measured Value Pill - Clickable to toggle accordion as well */}
+                  <div
+                    onClick={() => toggleCardAccordion(pillar.id)}
+                    className="my-2.5 p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs cursor-pointer hover:bg-slate-100/70 transition"
+                  >
                     <span className="text-slate-500 font-medium">Measured Value:</span>
                     <span className="font-bold font-mono text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
                       {pillar.displayValue}
                     </span>
                   </div>
 
-                  <p className="text-xs text-slate-500 mb-3 leading-relaxed">
-                    {pillar.description}
-                  </p>
+                  {/* Collapsed State: Accordion Trigger */}
+                  {!isExpanded && (
+                    <button
+                      type="button"
+                      onClick={() => toggleCardAccordion(pillar.id)}
+                      className="w-full pt-1.5 flex items-center justify-between text-[11px] font-medium text-slate-400 hover:text-indigo-600 transition group cursor-pointer"
+                    >
+                      <span>View checklist &amp; diagnostics</span>
+                      <span className="text-[10px] text-slate-400 group-hover:text-indigo-600 flex items-center gap-1 font-semibold">
+                        Details <ChevronDown className="w-3 h-3 group-hover:translate-y-0.5 transition-transform" />
+                      </span>
+                    </button>
+                  )}
 
-                  {/* Diagnostic Checklist */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
-                    {(!isLowScore ? pillar.checklistHigh : pillar.checklistLow).map((check, cidx) => (
-                      <div key={cidx} className="flex items-start gap-1.5">
-                        {!isLowScore ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                        ) : (
-                          <AlertCircle className="w-3.5 h-3.5 text-rose-500 flex-shrink-0 mt-0.5" />
-                        )}
-                        <span className="text-slate-700 text-[11px]">
-                          {check}
-                        </span>
+                  {/* Expanded State: Accordion Details */}
+                  {isExpanded && (
+                    <div className="pt-2.5 border-t border-slate-100 space-y-2.5 animate-in fade-in duration-200">
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        {pillar.description}
+                      </p>
+
+                      {/* Diagnostic Checklist */}
+                      <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
+                        {(!isLowScore ? pillar.checklistHigh : pillar.checklistLow).map((check, cidx) => (
+                          <div key={cidx} className="flex items-start gap-1.5">
+                            {!isLowScore ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                            ) : (
+                              <AlertCircle className="w-3.5 h-3.5 text-rose-500 flex-shrink-0 mt-0.5" />
+                            )}
+                            <span className="text-slate-700 text-[11px] leading-snug">
+                              {check}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleCardAccordion(pillar.id)}
+                        className="w-full pt-1.5 text-right text-[10px] font-semibold text-slate-400 hover:text-indigo-600 transition cursor-pointer flex items-center justify-end gap-1"
+                      >
+                        <span>Hide Details</span>
+                        <ChevronUp className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -1026,116 +1115,44 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
         </div>
       </div>
 
-      {/* Reality Check / Growth Upsell Box when score is low OR visible for enhancement */}
-      <div
-        className={`rounded-3xl p-6 sm:p-8 border-2 transition ${
-          isLowScore
-            ? "bg-slate-900 text-white border-slate-800 shadow-xl"
-            : "bg-indigo-50/50 border-indigo-200 text-slate-900"
-        }`}
-      >
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <div className="flex items-center gap-2">
-              <span
-                className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                  isLowScore
-                    ? "bg-amber-400 text-slate-950"
-                    : "bg-indigo-600 text-white"
-                }`}
-              >
-                {isLowScore ? "Recommended Next Step" : "Optional Enhancement Service"}
-              </span>
-              <span className={isLowScore ? "text-slate-400 text-xs" : "text-slate-500 text-xs"}>
-                Grow Before You Launch
-              </span>
-            </div>
-
-            <h3 className={`text-xl sm:text-2xl font-black tracking-tight ${isLowScore ? "text-white" : "text-slate-900"}`}>
-              {isLowScore
-                ? "Pehle apni website enhance karein aur traffic badhwayein!"
-                : "Want to scale your website performance & traffic alongside your app?"}
-            </h3>
-
-            <p className={`text-xs sm:text-sm leading-relaxed ${isLowScore ? "text-slate-300" : "text-slate-600"}`}>
-              {isLowScore
-                ? "Agar aapka score 50 se kam hai, to humari dedicated eCommerce Growth Team aapki website ka SEO, Mobile Speed, Google/Meta Ads aur Catalog structure optimize karegi taaki aapka score 80+ (Best) pahuche aur app aane par record sales milein."
-                : "Our technical experts can help optimize your store's TTFB, Core Web Vitals (FCP, LCP, TBT), and search ranking while you build your mobile app."}
-            </p>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 text-xs">
-              <div className="flex items-center gap-1.5 font-semibold">
-                <Rocket className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>SEO &amp; Traffic Boost</span>
-              </div>
-              <div className="flex items-center gap-1.5 font-semibold">
-                <Zap className="w-4 h-4 text-sky-400 flex-shrink-0" />
-                <span>Speed Optimization</span>
-              </div>
-              <div className="flex items-center gap-1.5 font-semibold">
-                <ShoppingBag className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span>Catalog Cleanup</span>
-              </div>
-              <div className="flex items-center gap-1.5 font-semibold">
-                <BarChart3 className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                <span>Conversion CRO</span>
-              </div>
-            </div>
+      {/* Subtle Optional Enhancement Note (Not overly highlighted) */}
+      <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-start sm:items-center gap-2.5">
+          <Zap className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5 sm:mt-0" />
+          <div>
+            <span className="font-bold text-slate-900 mr-2">Optional Website Enhancement:</span>
+            <span className="text-slate-600">
+              Need technical help optimizing your store&apos;s TTFB, Core Web Vitals, or SEO rankings?
+            </span>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setIsConsultModalOpen(true)}
-            className={`w-full md:w-auto px-6 py-3.5 rounded-2xl font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 flex-shrink-0 shadow-lg cursor-pointer ${
-              isLowScore
-                ? "bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-amber-400/20 active:scale-95"
-                : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20"
-            }`}
-          >
-            <PhoneCall className="w-4 h-4" />
-            <span>Request Free Website &amp; Traffic Consultation</span>
-          </button>
         </div>
+        <button
+          type="button"
+          onClick={() => setIsConsultModalOpen(true)}
+          className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 self-start sm:self-auto flex-shrink-0 cursor-pointer"
+        >
+          <span>Request Free Consultation</span>
+          <ArrowRight className="w-3 h-3" />
+        </button>
       </div>
 
-      {/* Navigation Footer */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100">
-        <div>
-          {isLowScore ? (
-            <p className="text-xs text-amber-700 font-semibold">
-              ⚠️ Recommendation: Store score is low (&lt; 50). Enhance store performance before proceeding.
-            </p>
-          ) : (
-            <p className="text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Google PageSpeed Insights score verified ({totalScore}/100 • {totalStyle.status}). Ready for Data Collection.</span>
-            </p>
-          )}
+      {/* Navigation Footer with Clear Next Button */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-200 mt-6">
+        <div className="text-xs text-slate-600 flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+          <span>
+            Mobile readiness score verified: <strong className="text-slate-900">{totalScore}/100 ({totalStyle.status})</strong>. Ready for Catalog Sync.
+          </span>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
-          {isLowScore && (
-            <button
-              type="button"
-              onClick={() => setIsConsultModalOpen(true)}
-              className="w-full sm:w-auto px-5 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>Enhance Store First</span>
-            </button>
-          )}
-
-          <button
-            onClick={onNext}
-            className={`w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-2 shadow-md cursor-pointer ${
-              !isLowScore
-                ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20"
-                : "bg-slate-200 hover:bg-slate-300 text-slate-700"
-            }`}
-          >
-            <span>{!isLowScore ? "Continue to Data Collection" : "Proceed to Data Collection (Advanced)"}</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onNext}
+          className="w-full sm:w-auto justify-center px-7 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-indigo-600/20 cursor-pointer active:scale-98"
+        >
+          <span>Next: Data Collection</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Website & Traffic Growth Consultation Modal Rendered into document.body */}

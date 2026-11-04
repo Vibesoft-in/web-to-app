@@ -772,6 +772,15 @@ Route::post('/apps/{ulid}/admin-portal/coupons', [\App\Http\Controllers\Api\AppC
 Route::delete('/apps/{ulid}/admin-portal/coupons/{couponId}', [\App\Http\Controllers\Api\AppController::class, 'deleteCoupon'])
     ->name('api.apps.admin-portal.coupons.delete.direct');
 
+Route::get('/apps/{ulid}/admin-portal/terawallet-status', [\App\Http\Controllers\Api\AppController::class, 'getTeraWalletStatus'])
+    ->name('api.apps.admin-portal.terawallet-status.direct');
+
+Route::post('/apps/{ulid}/admin-portal/terawallet-verify', [\App\Http\Controllers\Api\AppController::class, 'verifyTeraWallet'])
+    ->name('api.apps.admin-portal.terawallet-verify.direct');
+
+Route::post('/apps/{ulid}/admin-portal/refunds', [\App\Http\Controllers\Api\AppController::class, 'processRefund'])
+    ->name('api.apps.admin-portal.refunds.direct');
+
 Route::post('/apps/{ulid}/complete', [\App\Http\Controllers\Api\AppController::class, 'complete'])
     ->name('api.apps.complete.direct');
 

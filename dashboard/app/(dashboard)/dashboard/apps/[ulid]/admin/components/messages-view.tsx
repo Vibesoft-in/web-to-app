@@ -52,7 +52,7 @@ export function MessagesView({
     },
     {
       title: "Grind changed",
-      text: "All sorted — I've changed it to whole bean before it goes in the roaster. Enjoy!",
+      text: "All sorted — I've changed it to whole bean before dispatch. Enjoy!",
     },
     {
       title: "Club box skipped",
@@ -60,7 +60,7 @@ export function MessagesView({
     },
     {
       title: "Wholesale run",
-      text: "Happy to add that to Tuesday's run. Tomás will roast it on Monday afternoon so it has a day to rest.",
+      text: "Happy to add that to Tuesday's run. Tomás will pack it this afternoon so it goes out immediately.",
     },
     {
       title: "Grinder care",
@@ -86,7 +86,7 @@ export function MessagesView({
         `Tracking inquiry for order #${orderNumber}`,
         `Grind preference on order #${orderNumber}`,
         `Delivery address confirmation`,
-        `Question about roast dates`,
+        `Question about delivery dates`,
         `Wholesale invoice request`,
       ];
       const subject = subjects[idx % subjects.length];
@@ -95,7 +95,7 @@ export function MessagesView({
         `Hi team, just checking when order #${orderNumber} is scheduled for courier dispatch? Thanks!`,
         `Hello! Could I get whole beans instead of filter grind for order #${orderNumber} if it hasn't been packed yet?`,
         `Hi, please note our front gate code is 4921 for the delivery of order #${orderNumber}.`,
-        `Loved our last batch! Are the beans in order #${orderNumber} roasted this week?`,
+        `Loved our last batch! Has order #${orderNumber} shipped yet?`,
         `Hi, could we get a VAT invoice with our business details for order #${orderNumber}?`,
       ];
 
@@ -589,7 +589,7 @@ export function MessagesView({
                 </div>
               )}
 
-              {/* Roastery Subscription / Club */}
+              {/* Store VIP Club / Membership */}
               <div className="bg-[#FAF8F5] dark:bg-[#1A1B1A] border border-[#E6E1D8] dark:border-[#2C2D2B] rounded-xl p-4 shadow-sm space-y-2">
                 <div className="flex items-center gap-2">
                   <Coffee className="w-4 h-4 text-[#525B44]" />
@@ -601,7 +601,7 @@ export function MessagesView({
                   <b>Active</b> · 2 bags a month
                 </p>
                 <p className="text-[11px] text-[#8A857D]">
-                  Next roast scheduled for courier dispatch on the 1st
+                  Next delivery scheduled for courier dispatch on the 1st
                 </p>
               </div>
             </>

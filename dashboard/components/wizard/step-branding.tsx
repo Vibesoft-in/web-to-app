@@ -592,11 +592,16 @@ export function StepBranding({ ulid, app, setupState, onNext }: StepBrandingProp
         </div>
       </div>
 
-      <div className="flex justify-end pt-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-200 mt-6">
+        <div className="text-xs text-slate-500">
+          App Name and Visual Identity configured. Next, interact with your live mobile app preview.
+        </div>
+
         <button
+          type="button"
           onClick={handleSave}
           disabled={isSaving}
-          className="w-full sm:w-auto justify-center px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-70"
+          className="w-full sm:w-auto justify-center px-7 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-70 cursor-pointer active:scale-98"
         >
           {isSaving ? (
             <>
@@ -605,7 +610,7 @@ export function StepBranding({ ulid, app, setupState, onNext }: StepBrandingProp
             </>
           ) : (
             <>
-              <span>Save &amp; Continue to Preview</span>
+              <span>Next: Live App Preview</span>
               <ArrowRight className="w-4 h-4" />
             </>
           )}

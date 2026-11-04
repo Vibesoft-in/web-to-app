@@ -85,6 +85,8 @@ class SetupStateController extends Controller
                 'status'       => $app->status,
                 'site_url'     => $siteUrl,
                 'website_url'  => $siteUrl,
+                'has_admin_panel'  => $hasAdminPanel,
+                'can_download_ipa' => $canDownloadIpa,
             ],
             'website_data'    => $cachedWebsiteData,
             'current_step'    => $currentStep->value,
@@ -134,10 +136,11 @@ class SetupStateController extends Controller
         $app = $this->resolveApp($request, $ulid);
 
         $validated = $request->validate([
-            'platform' => ['required', 'string', 'in:woo,shopify'],
+            'platform' => ['required', 'string', 'in:woo,shopify,wordpress,wp'],
         ]);
 
-        $newPlatform = Platform::from($validated['platform']);
+        $platStr = ($validated['platform'] === 'wp') ? 'wordpress' : $validated['platform'];
+        $newPlatform = Platform::from($platStr);
 
         DB::transaction(function () use ($app, $newPlatform, $request) {
             $isPlatformChanged = $app->platform !== $newPlatform;

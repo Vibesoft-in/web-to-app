@@ -58,8 +58,8 @@ export function ProductsView({
 
   // Collections state
   const [collections, setCollections] = useState<Array<{ id: string; name: string; text: string; featured: boolean; tone: string }>>([
-    { id: "single-origin", name: "Single origins", text: "Seasonal microlots roasted light for pour-over and filter.", featured: true, tone: "amber" },
-    { id: "house-espresso", name: "House espresso", text: "Rich, forgiving roasts built for milk drinks and daily pots.", featured: true, tone: "coral" },
+    { id: "single-origin", name: "Single origins", text: "Curated seasonal apparel, tops, shirts, and casual wear.", featured: true, tone: "amber" },
+    { id: "house-espresso", name: "House espresso", text: "Top-selling store merchandise and bestselling inventory.", featured: true, tone: "coral" },
     { id: "brew-gear", name: "Brew gear", text: "Hand grinders, scales, drippers and paper filters.", featured: false, tone: "olive" },
     { id: "gift-boxes", name: "Tasting sets & gifts", text: "Curated duos and seasonal gift boxes.", featured: false, tone: "sky" },
   ]);
@@ -109,7 +109,7 @@ export function ProductsView({
         status,
         kind,
         image,
-        tagline: p.short_description?.replace(/<[^>]*>/g, "")?.slice(0, 70) || (kind === "beans" ? "Washed microlot · notes of citrus & stone fruit" : "Specialty roastery release"),
+        tagline: p.short_description?.replace(/<[^>]*>/g, "")?.slice(0, 70) || (kind === "beans" ? "Curated store collection · Premium quality" : "Specialty store release"),
         notes: kind === "beans" ? ["Peach", "Bergamot", "Honey"] : ["Precision", "Specialty", "Durable"],
         unit: kind === "beans" ? "250g bag" : "unit",
         collections: idx % 2 === 0 ? ["single-origin"] : ["house-espresso"],
@@ -590,7 +590,7 @@ export function ProductsView({
             </div>
 
             <div className="bg-[#FAF8F5] dark:bg-[#1A1B1A] border border-[#E6E1D8] dark:border-[#2C2D2B] p-4 rounded-xl shadow-sm">
-              <span className="text-xs text-[#8A857D] dark:text-[#9A958D] block mb-1">Roasted coffee on shelf</span>
+              <span className="text-xs text-[#8A857D] dark:text-[#9A958D] block mb-1">Active inventory on shelf</span>
               <p className="text-xl font-mono font-semibold text-[#525B44] dark:text-[#949F83]">
                 {stockMetrics.coffeeCount} coffees
               </p>
@@ -709,7 +709,7 @@ export function ProductsView({
                                 : "bg-white dark:bg-[#252625] border border-[#E6E1D8] dark:border-[#2C2D2B] text-[#4A4742] dark:text-[#C5C0B6] hover:border-[#8A857D]"
                             }`}
                           >
-                            {product.kind === "beans" ? "Roast batch" : "Restock"}
+                            {"Restock"}
                           </button>
                         </td>
                       </tr>
@@ -949,7 +949,7 @@ export function ProductsView({
                 className="flex-1 flex items-center justify-center gap-2 py-2 text-xs font-medium bg-[#525B44] text-white rounded-lg hover:bg-[#434B37] transition-colors"
               >
                 <Flame className="w-3.5 h-3.5" />
-                <span>{selectedProduct.kind === "beans" ? "Roast a batch (+12)" : "Book stock (+12)"}</span>
+                <span>{"Book stock (+12)"}</span>
               </button>
               <button
                 onClick={() => handleCopySku(selectedProduct.sku)}

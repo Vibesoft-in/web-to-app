@@ -51,6 +51,7 @@ import {
   Radio,
   Receipt,
   RefreshCw,
+  RotateCcw,
   Search,
   Send,
   Settings,
@@ -70,6 +71,7 @@ import {
   User,
   UserPlus,
   Users,
+  Wallet,
   X,
 } from "lucide-react";
 
@@ -120,10 +122,12 @@ export default function AppAdminPortalPage() {
 
   useEffect(() => {
     try {
-      // Strictly default to pure light theme matching Mavora light design
-      localStorage.setItem("mavora:theme", "light");
-      setTheme("light");
-      document.documentElement.dataset.theme = "light";
+      const saved = localStorage.getItem("mavora:theme") as "light" | "dark" | null;
+      const initial = saved === "dark" ? "dark" : "light";
+      setTheme(initial);
+      document.documentElement.dataset.theme = initial;
+      document.documentElement.setAttribute("data-theme", initial);
+      document.documentElement.classList.toggle("dark", initial === "dark");
     } catch { }
   }, []);
 
@@ -133,6 +137,8 @@ export default function AppAdminPortalPage() {
     try {
       localStorage.setItem("mavora:theme", next);
       document.documentElement.dataset.theme = next;
+      document.documentElement.setAttribute("data-theme", next);
+      document.documentElement.classList.toggle("dark", next === "dark");
     } catch { }
   };
 
@@ -156,10 +162,10 @@ export default function AppAdminPortalPage() {
 
   // ── Highlighted stage for cross-navigation from Fulfilment overview to Orders board ──
   const [highlightedOrderStage, setHighlightedOrderStage] = useState<
-    "paid" | "processing" | "packed" | "shipped" | null
+    "paid" | "unpaid" | "processing" | "complete" | "cancelled" | null
   >(null);
 
-  const handleNavigateToOrdersStage = (stage: "paid" | "processing" | "packed" | "shipped" | null) => {
+  const handleNavigateToOrdersStage = (stage: "paid" | "unpaid" | "processing" | "complete" | "cancelled" | null) => {
     setHighlightedOrderStage(stage);
     setActiveTab("orders");
   };
@@ -224,7 +230,7 @@ export default function AppAdminPortalPage() {
 
   const handleUpdateOrderStatus = (
     orderId: string | number,
-    newStatus: "paid" | "processing" | "packed" | "shipped" | "delivered"
+    newStatus: "paid" | "unpaid" | "processing" | "complete" | "cancelled"
   ) => {
     const idStr = String(orderId);
     setOrderStatusOverrides((prev) => {
@@ -578,6 +584,51 @@ export default function AppAdminPortalPage() {
     },
   });
 
+  // ── External Refund Order State ──────────────────────────────────────────
+  const [externalRefundOrder, setExternalRefundOrder] = useState<any | null>(null);
+
+  // ── 14. Verify TeraWallet Mutation ─────────────────────────────────────────
+  const verifyTeraWalletMutation = useMutation({
+    mutationFn: (forceVerify?: boolean) =>
+      apiClient(`/api/apps/${ulid}/admin-portal/terawallet-verify`, {
+        method: "POST",
+        body: JSON.stringify({ force_verify: forceVerify }),
+      }),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["app-admin-portal", ulid] });
+    },
+    onError: (err: any) => {
+      showToast(err.message || "Failed to verify TeraWallet plugin.", "error");
+    },
+  });
+
+  // ── 15. Process TeraWallet Refund Mutation ──────────────────────────────────
+  const processRefundMutation = useMutation({
+    mutationFn: (data: {
+      orderId: string;
+      amount: number;
+      reason?: string;
+      customerName?: string;
+      customerEmail?: string;
+      restock?: boolean;
+    }) =>
+      apiClient(`/api/apps/${ulid}/admin-portal/refunds`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["app-admin-portal", ulid] });
+    },
+  });
+
+  const handleVerifyTeraWallet = async (forceVerify?: boolean) => {
+    return await verifyTeraWalletMutation.mutateAsync(forceVerify);
+  };
+
+  const handleProcessRefund = async (data: any) => {
+    return await processRefundMutation.mutateAsync(data);
+  };
+
   // ── Derived Data from Connected Store (NO MOCK COFFEE DATA!) ──────────────
   const app = portalData?.app;
   const storeUrl = app?.connection?.site_url || portalData?.catalog_stats?.store_url || "";
@@ -692,10 +743,11 @@ export default function AppAdminPortalPage() {
   }, [totalTakings, rawOrders]);
 
   const orderPipeline = useMemo(() => {
-    let pending = 0;
+    let paid = 0;
+    let unpaid = 0;
     let processing = 0;
-    let packed = 0;
-    let shipped = 0;
+    let complete = 0;
+    let cancelled = 0;
 
     rawOrders.forEach((o) => {
       const id = String(o.id);
@@ -703,30 +755,33 @@ export default function AppAdminPortalPage() {
       const override = orderStatusOverrides[id] || (num ? orderStatusOverrides[num] : null) || o._statusOverride;
       let st = override;
       if (!st) {
-        const rawSt = String(o.status || "").toLowerCase();
-        if (rawSt === "pending" || rawSt === "on-hold" || rawSt === "paid") st = "paid";
-        else if (rawSt === "processing") st = "processing";
-        else if (rawSt === "packed") st = "packed";
-        else if (rawSt === "completed" || rawSt === "shipped" || rawSt === "delivered") st = "shipped";
+        const rawSt = String(o.status || "").toLowerCase().trim();
+        if (rawSt === "cancelled" || rawSt === "canceled" || rawSt === "refunded" || rawSt === "trash") st = "cancelled";
+        else if (rawSt === "completed" || rawSt === "complete" || rawSt === "shipped" || rawSt === "delivered") st = "complete";
+        else if (rawSt === "processing" || rawSt === "prep" || rawSt === "in-progress" || rawSt === "packed") st = "processing";
+        else if (rawSt === "pending" || rawSt === "unpaid" || rawSt === "failed" || rawSt === "checkout-draft") st = "unpaid";
+        else if (rawSt === "paid" || rawSt === "on-hold") st = "paid";
         else st = "paid";
       }
 
-      if (st === "paid") pending++;
+      if (st === "paid") paid++;
+      else if (st === "unpaid") unpaid++;
       else if (st === "processing") processing++;
-      else if (st === "packed") packed++;
-      else if (st === "shipped" || st === "delivered" || st === "completed") shipped++;
-      else pending++;
+      else if (st === "complete") complete++;
+      else if (st === "cancelled") cancelled++;
+      else paid++;
     });
 
     if (rawOrders.length === 0) {
-      return { pending: 0, processing: 0, packed: 0, shipped: 0, all: 0 };
+      return { paid: 0, unpaid: 0, processing: 0, complete: 0, cancelled: 0, all: 0 };
     }
 
     return {
-      pending,
+      paid,
+      unpaid,
       processing,
-      packed,
-      shipped,
+      complete,
+      cancelled,
       all: rawOrders.length,
     };
   }, [rawOrders, orderStatusOverrides]);
@@ -915,7 +970,7 @@ export default function AppAdminPortalPage() {
         {
           rank: 1,
           name: "Undertow",
-          sub: "House espresso · Medium roast",
+          sub: "Standard Fit · Cotton",
           sold: 142,
           spark: sparklines[0],
           barColor: colors[0].bar,
@@ -925,7 +980,7 @@ export default function AppAdminPortalPage() {
             id: "undertow-250",
             name: "Undertow",
             category: "Coffee",
-            sub_category: "House espresso · Medium roast",
+            sub_category: "Standard Fit · Cotton",
             sku: "LT-ESP-250",
             stock_quantity: 78,
             price: 17,
@@ -935,7 +990,7 @@ export default function AppAdminPortalPage() {
         {
           rank: 2,
           name: "Ghost Town Decaf",
-          sub: "Swiss water · Dark roast",
+          sub: "Casual Style · Denim",
           sold: 98,
           spark: sparklines[1],
           barColor: colors[1].bar,
@@ -945,7 +1000,7 @@ export default function AppAdminPortalPage() {
             id: "ghost-town-250",
             name: "Ghost Town Decaf",
             category: "Coffee",
-            sub_category: "Swiss water · Dark roast",
+            sub_category: "Casual Style · Denim",
             sku: "LT-DEC-250",
             stock_quantity: 45,
             price: 18,
@@ -955,7 +1010,7 @@ export default function AppAdminPortalPage() {
         {
           rank: 3,
           name: "Sunburst Blend",
-          sub: "Single origin · Light roast",
+          sub: "Premium Collection",
           sold: 84,
           spark: sparklines[2],
           barColor: colors[2].bar,
@@ -965,7 +1020,7 @@ export default function AppAdminPortalPage() {
             id: "sunburst-250",
             name: "Sunburst Blend",
             category: "Coffee",
-            sub_category: "Single origin · Light roast",
+            sub_category: "Premium Collection",
             sku: "LT-SUN-250",
             stock_quantity: 62,
             price: 19,
@@ -1041,7 +1096,7 @@ export default function AppAdminPortalPage() {
         image: img,
         sku: p.sku || (isUndertow ? "LT-ESP-250" : `LT-${(p.category || "PRD").substring(0, 3).toUpperCase()}-${p.id || 100 + idx}`),
         category: p.category || "Coffee",
-        sub_category: p.sub_category || (isUndertow ? "House espresso · Medium roast" : `${p.category || "Specialty"} · Medium roast`),
+        sub_category: p.sub_category || (isUndertow ? "Standard Fit · Cotton" : `${p.category || "General"} · Standard`),
         stock_quantity: p.stock_quantity ?? (isUndertow ? 78 : Math.max(12, 85 - idx * 14)),
         price: p.price ?? (isUndertow ? 17 : 20),
         status: p.status || "live",
@@ -1926,7 +1981,7 @@ export default function AppAdminPortalPage() {
                     className="font-extrabold text-[#1a1c15] dark:text-[#f2f4ed] hover:underline cursor-pointer bg-transparent border-none p-0 inline font-inherit"
                     title="Click to view orders awaiting fulfillment"
                   >
-                    <strong>{orderPipeline.pending + orderPipeline.processing}</strong> awaiting fulfillment.
+                    <strong>{orderPipeline.paid + orderPipeline.processing}</strong> awaiting fulfillment.
                   </button>
                 </p>
               </div>
@@ -1964,15 +2019,15 @@ export default function AppAdminPortalPage() {
             {/* ── ROW 1: TAKINGS BY CHANNEL (LEFT 2/3) & TODAY LIVE (RIGHT 1/3) ── */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
               {/* 1. TAKINGS BY CHANNEL CARD (LG: 8 COLS, ~67%) */}
-              <div className="lg:col-span-8 min-w-0 rounded-[28px] bg-[#FFFCF9] border border-[#E6E3DC] p-6 shadow-sm flex flex-col justify-between overflow-hidden">
+              <div className="lg:col-span-8 min-w-0 rounded-[28px] bg-[var(--mav-surface)] border border-[var(--mav-line)] p-6 shadow-sm flex flex-col justify-between overflow-hidden">
                 <div>
                   {/* Header */}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-xl font-extrabold tracking-tight text-[#23241B]">
+                      <h3 className="text-xl font-extrabold tracking-tight text-[var(--mav-text)]">
                         Takings by channel
                       </h3>
-                      <p className="text-xs text-[#6f7060] font-medium mt-1">
+                      <p className="text-xs text-[var(--mav-muted)] font-medium mt-1">
                         {channelTimeframe === "week"
                           ? "Oct 18 – Oct 24, 2026 · day by day"
                           : channelTimeframe === "month"
@@ -1983,7 +2038,7 @@ export default function AppAdminPortalPage() {
 
                     <div className="flex items-center gap-2">
                       {/* Timeframe Segment Toggle (Week / Month / Year) */}
-                      <div className="p-1 rounded-xl bg-[#F4F1ED] border border-[#E6E3DC] flex items-center text-xs font-bold">
+                      <div className="p-1 rounded-xl bg-[var(--mav-surface-2)] border border-[var(--mav-line)] flex items-center text-xs font-bold">
                         {(["week", "month", "year"] as const).map((t) => (
                           <button
                             key={t}
@@ -1993,8 +2048,8 @@ export default function AppAdminPortalPage() {
                               setSelectedPeriod(null);
                             }}
                             className={`px-3.5 py-1 rounded-lg capitalize transition ${channelTimeframe === t
-                                ? "bg-white text-[#23241B] shadow-xs font-bold"
-                                : "text-[#6f7060] hover:text-[#23241B] font-medium"
+                                ? "bg-[var(--mav-surface)] text-[var(--mav-text)] shadow-xs font-bold"
+                                : "text-[var(--mav-muted)] hover:text-[var(--mav-text)] font-medium"
                               }`}
                           >
                             {t}
@@ -2006,14 +2061,14 @@ export default function AppAdminPortalPage() {
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          className="w-8 h-8 rounded-xl border border-[#E6E3DC] bg-white text-[#23241B] hover:bg-[#F4F1ED] flex items-center justify-center transition shadow-xs"
+                          className="w-8 h-8 rounded-xl border border-[var(--mav-line)] bg-[var(--mav-surface-2)] text-[var(--mav-text)] hover:bg-[var(--mav-raised)] flex items-center justify-center transition shadow-xs"
                           title="Previous period"
                         >
                           <ChevronLeft className="w-4 h-4" />
                         </button>
                         <button
                           type="button"
-                          className="w-8 h-8 rounded-xl border border-[#E6E3DC] bg-white text-[#23241B] hover:bg-[#F4F1ED] flex items-center justify-center transition shadow-xs"
+                          className="w-8 h-8 rounded-xl border border-[var(--mav-line)] bg-[var(--mav-surface-2)] text-[var(--mav-text)] hover:bg-[var(--mav-raised)] flex items-center justify-center transition shadow-xs"
                           title="Next period"
                         >
                           <ChevronRight className="w-4 h-4" />
@@ -2021,7 +2076,7 @@ export default function AppAdminPortalPage() {
                         <button
                           type="button"
                           onClick={() => setActiveTab("orders")}
-                          className="w-8 h-8 rounded-xl border border-[#E6E3DC] bg-white text-[#23241B] hover:bg-[#F4F1ED] flex items-center justify-center transition shadow-xs"
+                          className="w-8 h-8 rounded-xl border border-[var(--mav-line)] bg-[var(--mav-surface-2)] text-[var(--mav-text)] hover:bg-[var(--mav-raised)] flex items-center justify-center transition shadow-xs"
                           title="Expand orders"
                         >
                           <ArrowUpRight className="w-4 h-4" />
@@ -2031,17 +2086,17 @@ export default function AppAdminPortalPage() {
                   </div>
 
                   {/* KPI Summary (Single horizontal panel with 4 equal columns matching reference image) */}
-                  <div className="mt-5 rounded-[22px] border border-[#ECE9E2] bg-[#F8F5EE] grid grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 divide-x divide-[#ECE9E2] overflow-hidden shadow-xs">
+                  <div className="mt-5 rounded-[22px] border border-[var(--mav-line)] bg-[var(--mav-surface-2)] grid grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 divide-x divide-[var(--mav-line)] overflow-hidden shadow-xs">
                     {/* Takings */}
                     <div className="p-4 sm:p-5">
-                      <span className="text-xs sm:text-sm font-medium text-[#6f7060] block">
+                      <span className="text-xs sm:text-sm font-medium text-[var(--mav-muted)] block">
                         Takings
                       </span>
-                      <div className="text-2xl sm:text-3xl font-black tracking-tight text-[#23241B] mt-1 sm:mt-1.5 truncate">
+                      <div className="text-2xl sm:text-3xl font-black tracking-tight text-[var(--mav-text)] mt-1 sm:mt-1.5 truncate">
                         {currencySymbol}{Math.round(totalTakings).toLocaleString()}
                       </div>
                       <div className="mt-2 sm:mt-2.5">
-                        <span className="inline-flex items-center gap-1 text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-[#DBE5D7] text-[#296D43]">
+                        <span className="inline-flex items-center gap-1 text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-[#DBE5D7] dark:bg-[#1a3826] text-[#296D43] dark:text-[#66cf8c]">
                           <span className="text-[10px]">▲</span>
                           <span>12%</span>
                         </span>
@@ -2050,14 +2105,14 @@ export default function AppAdminPortalPage() {
 
                     {/* Orders */}
                     <div className="p-4 sm:p-5">
-                      <span className="text-xs sm:text-sm font-medium text-[#6f7060] block">
+                      <span className="text-xs sm:text-sm font-medium text-[var(--mav-muted)] block">
                         Orders
                       </span>
-                      <div className="text-2xl sm:text-3xl font-black tracking-tight text-[#23241B] mt-1 sm:mt-1.5">
+                      <div className="text-2xl sm:text-3xl font-black tracking-tight text-[var(--mav-text)] mt-1 sm:mt-1.5">
                         {totalOrdersCount}
                       </div>
                       <div className="mt-2 sm:mt-2.5">
-                        <span className="inline-flex items-center gap-1 text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-[#DBE5D7] text-[#296D43]">
+                        <span className="inline-flex items-center gap-1 text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-[#DBE5D7] dark:bg-[#1a3826] text-[#296D43] dark:text-[#66cf8c]">
                           <span className="text-[10px]">▲</span>
                           <span>6%</span>
                         </span>
@@ -2066,14 +2121,14 @@ export default function AppAdminPortalPage() {
 
                     {/* Average order */}
                     <div className="p-4 sm:p-5">
-                      <span className="text-xs sm:text-sm font-medium text-[#6f7060] block">
+                      <span className="text-xs sm:text-sm font-medium text-[var(--mav-muted)] block">
                         Average order
                       </span>
-                      <div className="text-2xl sm:text-3xl font-black tracking-tight text-[#23241B] mt-1 sm:mt-1.5 truncate">
+                      <div className="text-2xl sm:text-3xl font-black tracking-tight text-[var(--mav-text)] mt-1 sm:mt-1.5 truncate">
                         {currencySymbol}{averageOrderValue.toFixed(2)}
                       </div>
                       <div className="mt-2 sm:mt-2.5">
-                        <span className="inline-flex items-center gap-1 text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-[#DBE5D7] text-[#296D43]">
+                        <span className="inline-flex items-center gap-1 text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-[#DBE5D7] dark:bg-[#1a3826] text-[#296D43] dark:text-[#66cf8c]">
                           <span className="text-[10px]">▲</span>
                           <span>4%</span>
                         </span>
@@ -2082,14 +2137,14 @@ export default function AppAdminPortalPage() {
 
                     {/* Over the goal */}
                     <div className="p-4 sm:p-5">
-                      <span className="text-xs sm:text-sm font-medium text-[#6f7060] block">
+                      <span className="text-xs sm:text-sm font-medium text-[var(--mav-muted)] block">
                         Fulfillment
                       </span>
-                      <div className="text-2xl sm:text-3xl font-black tracking-tight text-[#23241B] mt-1 sm:mt-1.5">
-                        {orderPipeline.shipped}
+                      <div className="text-2xl sm:text-3xl font-black tracking-tight text-[var(--mav-text)] mt-1 sm:mt-1.5">
+                        {orderPipeline.complete}
                       </div>
-                      <span className="text-xs font-medium text-[#6f7060] mt-2 sm:mt-2.5 block truncate">
-                        of {orderPipeline.all} shipped
+                      <span className="text-xs font-medium text-[var(--mav-muted)] mt-2 sm:mt-2.5 block truncate">
+                        of {orderPipeline.all} completed
                       </span>
                     </div>
                   </div>
@@ -2098,7 +2153,7 @@ export default function AppAdminPortalPage() {
                   <div className="mt-6 pt-2">
                     <div className="relative h-64 sm:h-72 w-full flex items-end">
                       {/* Y-Axis scale labels */}
-                      <div className="absolute left-0 top-0 bottom-7 w-10 flex flex-col justify-between text-[11px] text-[#6f7060] font-mono font-medium select-none pointer-events-none">
+                      <div className="absolute left-0 top-0 bottom-7 w-10 flex flex-col justify-between text-[11px] text-[var(--mav-muted)] font-mono font-medium select-none pointer-events-none">
                         <span>{currencySymbol}{Math.round(dailyTakingsChart.maxVal / 1000 * 10) / 10}k</span>
                         <span>{currencySymbol}{Math.round(dailyTakingsChart.maxVal * 0.75 / 1000 * 10) / 10}k</span>
                         <span>{currencySymbol}{Math.round(dailyTakingsChart.maxVal * 0.5 / 1000 * 10) / 10}k</span>
@@ -2108,11 +2163,11 @@ export default function AppAdminPortalPage() {
 
                       {/* Horizontal Reference Grid Lines */}
                       <div className="absolute left-10 right-0 top-0 bottom-7 flex flex-col justify-between pointer-events-none opacity-40">
-                        <div className="w-full border-b border-[#ECE9E2]" />
-                        <div className="w-full border-b border-[#ECE9E2]" />
-                        <div className="w-full border-b border-[#ECE9E2]" />
-                        <div className="w-full border-b border-[#ECE9E2]" />
-                        <div className="w-full border-b border-[#ECE9E2]" />
+                        <div className="w-full border-b border-[var(--mav-line)]" />
+                        <div className="w-full border-b border-[var(--mav-line)]" />
+                        <div className="w-full border-b border-[var(--mav-line)]" />
+                        <div className="w-full border-b border-[var(--mav-line)]" />
+                        <div className="w-full border-b border-[var(--mav-line)]" />
                       </div>
 
                       {/* Horizontal Red Dashed Goal Line at 60% of maxVal */}
@@ -2181,7 +2236,7 @@ export default function AppAdminPortalPage() {
 
                                     {/* Benchmark Horizontal Marker Line */}
                                     <div
-                                      className={`absolute ${barWidthClass} h-[2px] bg-[#23241B] rounded-full z-20`}
+                                      className={`absolute ${barWidthClass} h-[2px] bg-[#23241B] dark:bg-[var(--mav-text)] rounded-full z-20`}
                                       style={{ bottom: `${benchmarkHeightPct}%` }}
                                     />
 
@@ -2256,33 +2311,33 @@ export default function AppAdminPortalPage() {
                   </div>
                 </div>
 
-                {/* Channel Legend Pills (Matching exact pale green style from screenshot) */}
+                {/* Channel Legend Pills */}
                 <div className="flex flex-wrap items-center gap-2 mt-5 pt-3">
-                  <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-[#e5ede0] border border-[#d2dfcb] text-[#292920]">
+                  <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-[var(--mav-surface-2)] border border-[var(--mav-line)] text-[var(--mav-text)]">
                     <span className="w-2 h-2 rounded-full bg-[#718D32]" />
-                    <span>Online Store <span className="font-normal text-[#6f7060]">55%</span></span>
+                    <span>Online Store <span className="font-normal text-[var(--mav-muted)]">55%</span></span>
                   </span>
-                  <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-[#e5ede0] border border-[#d2dfcb] text-[#292920]">
+                  <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-[var(--mav-surface-2)] border border-[var(--mav-line)] text-[var(--mav-text)]">
                     <span className="w-2 h-2 rounded-full bg-[#EF8A45]" />
-                    <span>Mobile App <span className="font-normal text-[#6f7060]">25%</span></span>
+                    <span>Mobile App <span className="font-normal text-[var(--mav-muted)]">25%</span></span>
                   </span>
-                  <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-[#e5ede0] border border-[#d2dfcb] text-[#292920]">
+                  <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-[var(--mav-surface-2)] border border-[var(--mav-line)] text-[var(--mav-text)]">
                     <span className="w-2 h-2 rounded-full bg-[#4D86D8]" />
-                    <span>Direct / POS <span className="font-normal text-[#6f7060]">20%</span></span>
+                    <span>Direct / POS <span className="font-normal text-[var(--mav-muted)]">20%</span></span>
                   </span>
                 </div>
               </div>
 
               {/* 2. TODAY, LIVE CARD (LG: 4 COLS, ~33%) */}
-              <div className="lg:col-span-4 min-w-0 rounded-[28px] bg-[#FFFCF9] border border-[#E6E3DC] p-6 shadow-sm flex flex-col justify-between">
+              <div className="lg:col-span-4 min-w-0 rounded-[28px] bg-[var(--mav-surface)] border border-[var(--mav-line)] p-6 shadow-sm flex flex-col justify-between">
                 <div>
                   {/* Card Header with Orange Indicator Dot */}
                   <div>
-                    <h3 className="text-xl font-extrabold tracking-tight text-[#23241B] flex items-center gap-2.5">
+                    <h3 className="text-xl font-extrabold tracking-tight text-[var(--mav-text)] flex items-center gap-2.5">
                       <span className="w-2.5 h-2.5 rounded-full bg-[#EF8A45] flex-shrink-0" />
                       <span>Today, live</span>
                     </h3>
-                    <p className="text-xs text-[#6f7060] font-medium mt-1">
+                    <p className="text-xs text-[var(--mav-muted)] font-medium mt-1">
                       {todayStats.count} {todayStats.count === 1 ? "order" : "orders"} · {currencySymbol}{todayStats.avg.toFixed(2)} average
                     </p>
                   </div>
@@ -2291,11 +2346,11 @@ export default function AppAdminPortalPage() {
                   <div className="relative my-4 flex items-center justify-center">
                     <div className="relative w-52 h-52 flex items-center justify-center">
                       <svg viewBox="0 0 200 200" className="w-full h-full transform">
-                        {/* Background Light Gray Horseshoe Track */}
+                        {/* Background Horseshoe Track */}
                         <path
                           d={describeArc(100, 100, 72, 215, 505)}
                           fill="none"
-                          stroke="#F4F1ED"
+                          stroke={theme === "dark" ? "#242920" : "#F4F1ED"}
                           strokeWidth="15"
                           strokeLinecap="round"
                         />
@@ -2307,13 +2362,13 @@ export default function AppAdminPortalPage() {
                           strokeWidth="15"
                           strokeLinecap="round"
                         />
-                        {/* Dark Angled Benchmark Marker Line near Upper-Right (~40°) */}
+                        {/* Benchmark Marker Line */}
                         <line
                           x1="140"
                           y1="48"
                           x2="160"
                           y2="66"
-                          stroke="#23241B"
+                          stroke={theme === "dark" ? "#eef0e6" : "#23241B"}
                           strokeWidth="3"
                           strokeLinecap="round"
                         />
@@ -2328,13 +2383,13 @@ export default function AppAdminPortalPage() {
 
                       {/* Center Gauge Text Content */}
                       <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none pt-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-[#6f7060]">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-[var(--mav-muted)]">
                           TAKEN SO FAR
                         </span>
-                        <span className="text-3xl sm:text-[34px] font-black tracking-tight text-[#23241B] mt-0.5 leading-none truncate max-w-[170px]">
+                        <span className="text-3xl sm:text-[34px] font-black tracking-tight text-[var(--mav-text)] mt-0.5 leading-none truncate max-w-[170px]">
                           {currencySymbol}{Math.round(todayStats.taken).toLocaleString()}
                         </span>
-                        <span className="text-xs text-[#6f7060] font-medium mt-1 truncate max-w-[170px]">
+                        <span className="text-xs text-[var(--mav-muted)] font-medium mt-1 truncate max-w-[170px]">
                           of the {currencySymbol}{Math.round(todayStats.goal).toLocaleString()} goal
                         </span>
                       </div>
@@ -2342,42 +2397,42 @@ export default function AppAdminPortalPage() {
                   </div>
 
                   {/* Midnight Pace Indicator */}
-                  <div className="text-center text-xs font-semibold text-[#6f7060] mt-1">
-                    <span className="inline-flex items-center gap-1.5 text-[#23241B]">
+                  <div className="text-center text-xs font-semibold text-[var(--mav-muted)] mt-1">
+                    <span className="inline-flex items-center gap-1.5 text-[var(--mav-text)]">
                       <TrendingUp className="w-3.5 h-3.5 text-[#718D32]" />
-                      <span>On pace for <strong className="font-extrabold text-[#23241B]">{currencySymbol}{Math.round(todayStats.pace).toLocaleString()}</strong> by midnight —</span>
-                      <strong className="font-extrabold text-[#296D43]">over the goal</strong>
+                      <span>On pace for <strong className="font-extrabold text-[var(--mav-text)]">{currencySymbol}{Math.round(todayStats.pace).toLocaleString()}</strong> by midnight —</span>
+                      <strong className="font-extrabold text-[#296D43] dark:text-[#66cf8c]">over the goal</strong>
                     </span>
                   </div>
 
                   {/* Channel Revenue Mini-Cards (3 in a single row) */}
                   <div className="grid grid-cols-3 gap-2.5 mt-5">
-                    <div className="p-2.5 sm:p-3 rounded-2xl bg-[#F8F5EE] text-center border border-[#ECE9E2] shadow-xs">
-                      <span className="text-[11px] font-bold text-[#6f7060] flex items-center justify-center gap-1.5">
+                    <div className="p-2.5 sm:p-3 rounded-2xl bg-[var(--mav-surface-2)] text-center border border-[var(--mav-line)] shadow-xs">
+                      <span className="text-[11px] font-bold text-[var(--mav-muted)] flex items-center justify-center gap-1.5">
                         <span className="w-2 h-2 rounded-full bg-[#718D32]" />
                         <span>Web</span>
                       </span>
-                      <span className="text-sm sm:text-base font-black text-[#23241B] block mt-1 truncate">
+                      <span className="text-sm sm:text-base font-black text-[var(--mav-text)] block mt-1 truncate">
                         {currencySymbol}{Math.round(todayStats.web).toLocaleString()}
                       </span>
                     </div>
 
-                    <div className="p-2.5 sm:p-3 rounded-2xl bg-[#F8F5EE] text-center border border-[#ECE9E2] shadow-xs">
-                      <span className="text-[11px] font-bold text-[#6f7060] flex items-center justify-center gap-1.5">
+                    <div className="p-2.5 sm:p-3 rounded-2xl bg-[var(--mav-surface-2)] text-center border border-[var(--mav-line)] shadow-xs">
+                      <span className="text-[11px] font-bold text-[var(--mav-muted)] flex items-center justify-center gap-1.5">
                         <span className="w-2 h-2 rounded-full bg-[#EF8A45]" />
                         <span>App</span>
                       </span>
-                      <span className="text-sm sm:text-base font-black text-[#23241B] block mt-1 truncate">
+                      <span className="text-sm sm:text-base font-black text-[var(--mav-text)] block mt-1 truncate">
                         {currencySymbol}{Math.round(todayStats.club).toLocaleString()}
                       </span>
                     </div>
 
-                    <div className="p-2.5 sm:p-3 rounded-2xl bg-[#F8F5EE] text-center border border-[#ECE9E2] shadow-xs">
-                      <span className="text-[11px] font-bold text-[#6f7060] flex items-center justify-center gap-1.5">
+                    <div className="p-2.5 sm:p-3 rounded-2xl bg-[var(--mav-surface-2)] text-center border border-[var(--mav-line)] shadow-xs">
+                      <span className="text-[11px] font-bold text-[var(--mav-muted)] flex items-center justify-center gap-1.5">
                         <span className="w-2 h-2 rounded-full bg-[#4D86D8]" />
                         <span>Direct</span>
                       </span>
-                      <span className="text-sm sm:text-base font-black text-[#23241B] block mt-1 truncate">
+                      <span className="text-sm sm:text-base font-black text-[var(--mav-text)] block mt-1 truncate">
                         {currencySymbol}{Math.round(todayStats.cafes).toLocaleString()}
                       </span>
                     </div>
@@ -2386,12 +2441,12 @@ export default function AppAdminPortalPage() {
 
                 {/* JUST IN Feed (Screenshot matches real customer orders) */}
                 <div className="mt-6 pt-3">
-                  <span className="text-[10px] font-black tracking-widest uppercase text-[#6f7060] block mb-2.5">
+                  <span className="text-[10px] font-black tracking-widest uppercase text-[var(--mav-muted)] block mb-2.5">
                     JUST IN
                   </span>
                   <div className="space-y-2">
                     {justInFeed.length === 0 ? (
-                      <p className="text-xs text-[#6f7060] italic py-2">No incoming orders yet today.</p>
+                      <p className="text-xs text-[var(--mav-muted)] italic py-2">No incoming orders yet today.</p>
                     ) : (
                       justInFeed.map((order, idx) => (
                         <div
@@ -2400,7 +2455,7 @@ export default function AppAdminPortalPage() {
                             if (order.order) setSelectedOrder(order.order);
                             else if (rawOrders[idx]) setSelectedOrder(rawOrders[idx]);
                           }}
-                          className="flex items-center justify-between p-2 rounded-xl hover:bg-[#F4F1ED] transition cursor-pointer"
+                          className="flex items-center justify-between p-2 rounded-xl hover:bg-[var(--mav-surface-2)] transition cursor-pointer"
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div
@@ -2409,15 +2464,15 @@ export default function AppAdminPortalPage() {
                               {order.initials}
                             </div>
                             <div className="min-w-0">
-                              <span className="text-xs font-bold block truncate text-[#23241B]">
+                              <span className="text-xs font-bold block truncate text-[var(--mav-text)]">
                                 {order.name}
                               </span>
-                              <span className="text-[11px] text-[#6f7060] block truncate">
+                              <span className="text-[11px] text-[var(--mav-muted)] block truncate">
                                 {order.product} · {order.time}
                               </span>
                             </div>
                           </div>
-                          <span className="text-xs font-black font-mono text-[#23241B] flex-shrink-0 ml-2">
+                          <span className="text-xs font-black font-mono text-[var(--mav-text)] flex-shrink-0 ml-2">
                             {order.price}
                           </span>
                         </div>
@@ -2431,17 +2486,17 @@ export default function AppAdminPortalPage() {
             {/* ── ROW 2: ORDER QUEUE, FULFILMENT (PIPELINE TUBES), BEST SELLERS ── */}
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.25fr_1fr] gap-5 items-stretch w-full max-w-full">
               {/* CARD 1: ORDER QUEUE & INVENTORY */}
-              <div className="min-w-0 rounded-[28px] bg-[#FFFCF9] border border-[#E6E3DC] p-6 shadow-sm flex flex-col justify-between h-full">
+              <div className="min-w-0 rounded-[28px] bg-[var(--mav-surface)] border border-[var(--mav-line)] p-6 shadow-sm flex flex-col justify-between h-full">
                 <div>
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-[#edf4e6] border border-[#dbe6cf] text-[#557e2a] flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-2xl bg-[#edf4e6] dark:bg-[#20281b] border border-[#dbe6cf] dark:border-[#34402a] text-[#557e2a] dark:text-[#b8d07c] flex items-center justify-center flex-shrink-0">
                       <Package className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="text-lg font-extrabold tracking-tight text-[#23241B]">
+                      <h4 className="text-lg font-extrabold tracking-tight text-[var(--mav-text)]">
                         Order queue
                       </h4>
-                      <p className="text-xs text-[#6f7060] font-medium mt-0.5">
+                      <p className="text-xs text-[var(--mav-muted)] font-medium mt-0.5">
                         Live catalog &amp; dispatch
                       </p>
                     </div>
@@ -2449,10 +2504,10 @@ export default function AppAdminPortalPage() {
 
                   {/* Weight Metric & Subtitle Side-by-Side (Exact Reference Screenshot) */}
                   <div className="mt-4 flex items-baseline gap-2.5">
-                    <span className="text-3xl sm:text-[34px] font-black text-[#855325] tracking-tight leading-none flex-shrink-0">
+                    <span className="text-3xl sm:text-[34px] font-black text-[#855325] dark:text-[#ffad73] tracking-tight leading-none flex-shrink-0">
                       {portalData?.catalog_stats?.products_count || rawProducts.length} items
                     </span>
-                    <p className="text-xs text-[#6f7060] font-medium leading-tight max-w-[175px]">
+                    <p className="text-xs text-[var(--mav-muted)] font-medium leading-tight max-w-[175px]">
                       in catalog across {rawCategories.length || 6} categories, for {rawOrders.length} orders
                     </p>
                   </div>
@@ -2460,7 +2515,7 @@ export default function AppAdminPortalPage() {
                   {/* Catalog Queue Breakdown (6 Items Matching Screenshot) */}
                   <div className="mt-4 space-y-2.5">
                     {dispatchQueue.length === 0 ? (
-                      <p className="text-xs text-[#6f7060] italic py-3">No products found in connected store catalog.</p>
+                      <p className="text-xs text-[var(--mav-muted)] italic py-3">No products found in connected store catalog.</p>
                     ) : (
                       dispatchQueue.slice(0, showAllQueueItems ? 9 : 6).map((item, idx) => (
                         <div key={idx} className="flex items-center justify-between gap-2.5">
@@ -2487,11 +2542,11 @@ export default function AppAdminPortalPage() {
                               </div>
                             </div>
                             <div className="min-w-0 flex-1">
-                              <span className="text-xs font-extrabold text-[#23241B] block truncate">
+                              <span className="text-xs font-extrabold text-[var(--mav-text)] block truncate">
                                 {item.name}
                               </span>
                               {/* Horizontal Progress Bar */}
-                              <div className="w-full max-w-[105px] sm:max-w-[125px] h-1.5 rounded-full bg-[#ede7df] mt-1 overflow-hidden">
+                              <div className="w-full max-w-[105px] sm:max-w-[125px] h-1.5 rounded-full bg-[#ede7df] dark:bg-[#2a2f26] mt-1 overflow-hidden">
                                 <div
                                   className={`h-full ${item.barColor} rounded-full`}
                                   style={{ width: `${item.progress}%` }}
@@ -2499,7 +2554,7 @@ export default function AppAdminPortalPage() {
                               </div>
                             </div>
                           </div>
-                          <span className="font-mono font-bold text-[#23241B] text-xs flex-shrink-0 truncate max-w-[90px] text-right">
+                          <span className="font-mono font-bold text-[var(--mav-text)] text-xs flex-shrink-0 truncate max-w-[90px] text-right">
                             {item.weight}
                           </span>
                         </div>
@@ -2510,7 +2565,7 @@ export default function AppAdminPortalPage() {
                       <button
                         type="button"
                         onClick={() => setShowAllQueueItems(!showAllQueueItems)}
-                        className="text-xs font-medium text-[#6f7060] hover:text-[#23241B] transition mt-1.5 block"
+                        className="text-xs font-medium text-[var(--mav-muted)] hover:text-[var(--mav-text)] transition mt-1.5 block"
                       >
                         {showAllQueueItems ? "Show fewer products" : "+ more store items"}
                       </button>
@@ -2518,7 +2573,7 @@ export default function AppAdminPortalPage() {
                   </div>
                 </div>
 
-                {/* Orange CTA Button (Matching Screenshot: Warm Orange with Dark Text) */}
+                {/* CTA Button */}
                 <div className="mt-4 pt-1">
                   <button
                     type="button"
@@ -2530,27 +2585,27 @@ export default function AppAdminPortalPage() {
                       }, 1200);
                     }}
                     disabled={isFulfillingBatch}
-                    className="w-full py-3.5 px-4 rounded-2xl bg-[#ef8b48] hover:bg-[#e47e3a] text-[#23241B] font-extrabold text-sm flex items-center justify-center gap-2 shadow-xs transition active:scale-[0.99] disabled:opacity-60"
+                    className="w-full py-3.5 px-4 rounded-2xl bg-[#ef8b48] hover:bg-[#e47e3a] text-[#121410] font-black text-sm flex items-center justify-center gap-2 shadow-xs transition active:scale-[0.99] disabled:opacity-60"
                   >
-                    <Truck className={`w-4 h-4 text-[#23241B] ${isFulfillingBatch ? "animate-bounce" : ""}`} />
+                    <Truck className={`w-4 h-4 text-[#121410] ${isFulfillingBatch ? "animate-bounce" : ""}`} />
                     <span>{isFulfillingBatch ? "Processing dispatch..." : "Start order fulfillment"}</span>
                   </button>
                 </div>
               </div>
 
-              {/* CARD 2: FULFILMENT (4 PIPELINE TUBES) */}
-              <div className="min-w-0 rounded-[28px] bg-[#FFFCF9] border border-[#E6E3DC] p-5 sm:p-6 shadow-sm flex flex-col justify-between h-full">
+              {/* CARD 2: FULFILMENT (5 PIPELINE TUBES) */}
+              <div className="min-w-0 rounded-[28px] bg-[var(--mav-surface)] border border-[var(--mav-line)] p-5 sm:p-6 shadow-sm flex flex-col justify-between h-full">
                 <div>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-start gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-2xl bg-[#edf4e6] border border-[#dbe6cf] text-[#557e2a] flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-2xl bg-[#edf4e6] dark:bg-[#20281b] border border-[#dbe6cf] dark:border-[#34402a] text-[#557e2a] dark:text-[#b8d07c] flex items-center justify-center flex-shrink-0">
                         <Truck className="w-5 h-5" />
                       </div>
                       <div className="min-w-0">
-                        <h4 className="text-lg font-extrabold tracking-tight text-[#23241B] truncate">
+                        <h4 className="text-lg font-extrabold tracking-tight text-[var(--mav-text)] truncate">
                           Fulfilment
                         </h4>
-                        <p className="text-xs text-[#6f7060] font-medium mt-0.5 leading-tight truncate">
+                        <p className="text-xs text-[var(--mav-muted)] font-medium mt-0.5 leading-tight truncate">
                           Every order between the card and the doorstep
                         </p>
                       </div>
@@ -2559,7 +2614,7 @@ export default function AppAdminPortalPage() {
                     <button
                       type="button"
                       onClick={() => handleNavigateToOrdersStage(null)}
-                      className="px-3.5 py-1.5 rounded-xl border border-[#ded8ce] bg-white text-xs font-extrabold text-[#23241B] hover:bg-[#f6f2ea] transition shadow-xs flex items-center gap-1 flex-shrink-0 cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-xl border border-[#ded8ce] dark:border-[var(--mav-line)] bg-white dark:bg-[var(--mav-surface-2)] text-xs font-extrabold text-[#23241B] dark:text-[var(--mav-text)] hover:bg-[#f6f2ea] dark:hover:bg-[var(--mav-raised)] transition shadow-xs flex items-center gap-1 flex-shrink-0 cursor-pointer"
                       title="Open full orders board"
                     >
                       <span>Board</span>
@@ -2567,151 +2622,188 @@ export default function AppAdminPortalPage() {
                     </button>
                   </div>
 
-                  {/* 4 Continuous Pipeline Columns with Chevron Dividers */}
-                  <div className="mt-4 grid grid-cols-4 gap-1.5 sm:gap-2.5 items-stretch relative">
-                    {/* Column 1: Paid */}
+                  {/* 5 Continuous Pipeline Columns (1. Paid 2. Unpaid 3. Processing 4. Complete 5. Cancelled) */}
+                  <div className="mt-4 grid grid-cols-5 gap-1.5 sm:gap-2 items-stretch relative">
+                    {/* Column 1: Paid Orders */}
                     <div
                       role="button"
                       tabIndex={0}
                       onClick={() => handleNavigateToOrdersStage("paid")}
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleNavigateToOrdersStage("paid"); }}
-                      className="relative rounded-[18px] sm:rounded-[22px] bg-[#eff5fc] border border-[#d8e6f7] hover:border-[#4b84d4] p-2 sm:p-2.5 flex flex-col justify-between h-[300px] min-w-0 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md group focus:outline-none focus:ring-2 focus:ring-[#4b84d4]"
-                      title="Click to view Paid orders on Board"
+                      className="relative rounded-[16px] sm:rounded-[20px] bg-[#eff5fc] dark:bg-[#132238] border border-[#d8e6f7] dark:border-[#1e3a61] hover:border-[#2563EB] dark:hover:border-[#3b82f6] p-2 flex flex-col justify-between h-[300px] min-w-0 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md group focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+                      title="Click to view Paid Orders on Board"
                     >
                       <span className="text-xs font-bold text-[#b5b3ab] absolute -right-2 top-3.5 z-10 hidden sm:block pointer-events-none">›</span>
                       <div>
                         <div className="flex items-center justify-between">
-                          <span className="text-2xl sm:text-3xl font-black text-[#23241B] tracking-tight block">
-                            {orderPipeline.pending}
+                          <span className="text-xl sm:text-2xl font-black text-[#23241B] dark:text-[#eef0e6] tracking-tight block">
+                            {orderPipeline.paid}
                           </span>
-                          <span className="text-[10px] text-[#4b84d4] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="text-[9px] text-[#2563EB] dark:text-[#60a5fa] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
                             View ➔
                           </span>
                         </div>
-                        <span className="font-extrabold text-[11px] sm:text-xs text-[#23241B] block mt-0.5 tracking-tight whitespace-nowrap">
+                        <span className="font-extrabold text-[11px] sm:text-xs text-[#23241B] dark:text-[#eef0e6] block mt-0.5 tracking-tight truncate">
                           Paid
                         </span>
-                        <span className="text-[9.5px] sm:text-[10px] text-[#53657f] font-medium leading-tight block mt-1">
-                          awaiting packing
+                        <span className="text-[9px] sm:text-[9.5px] text-[#53657f] dark:text-[#8ba3c7] font-medium leading-tight block mt-0.5 truncate">
+                          awaiting fulfillment
                         </span>
                       </div>
 
                       {/* Liquid Tube 1 */}
-                      <div className="w-full h-44 rounded-2xl bg-[#d3e3f7] p-1 flex flex-col justify-end overflow-hidden group-hover:ring-2 group-hover:ring-[#4b84d4]/40 transition">
+                      <div className="w-full h-44 rounded-2xl bg-[#d3e3f7] dark:bg-[#0c1626] p-1 flex flex-col justify-end overflow-hidden group-hover:ring-2 group-hover:ring-[#2563EB]/40 transition">
                         <div
-                          className="w-full rounded-xl bg-[#4b84d4] transition-all duration-700"
-                          style={{ height: `${Math.max(20, Math.min(90, (orderPipeline.pending / Math.max(1, orderPipeline.all)) * 100))}%` }}
-                          title={`Paid: ${orderPipeline.pending} orders`}
+                          className="w-full rounded-xl bg-[#2563EB] dark:bg-[#3b82f6] transition-all duration-700"
+                          style={{ height: `${Math.max(15, Math.min(90, (orderPipeline.paid / Math.max(1, orderPipeline.all)) * 100))}%` }}
+                          title={`Paid: ${orderPipeline.paid} orders`}
                         />
                       </div>
                     </div>
 
-                    {/* Column 2: Processing */}
+                    {/* Column 2: Unpaid */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleNavigateToOrdersStage("unpaid")}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleNavigateToOrdersStage("unpaid"); }}
+                      className="relative rounded-[16px] sm:rounded-[20px] bg-[#fffbeb] dark:bg-[#2e2311] border border-[#fef3c7] dark:border-[#4d3817] hover:border-[#D97706] dark:hover:border-[#f59e0b] p-2 flex flex-col justify-between h-[300px] min-w-0 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md group focus:outline-none focus:ring-2 focus:ring-[#D97706]"
+                      title="Click to view Unpaid orders on Board"
+                    >
+                      <span className="text-xs font-bold text-[#b5b3ab] absolute -right-2 top-3.5 z-10 hidden sm:block pointer-events-none">›</span>
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xl sm:text-2xl font-black text-[#23241B] dark:text-[#eef0e6] tracking-tight block">
+                            {orderPipeline.unpaid}
+                          </span>
+                          <span className="text-[9px] text-[#D97706] dark:text-[#fbbf24] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                            View ➔
+                          </span>
+                        </div>
+                        <span className="font-extrabold text-[11px] sm:text-xs text-[#23241B] dark:text-[#eef0e6] block mt-0.5 tracking-tight truncate">
+                          Unpaid
+                        </span>
+                        <span className="text-[9px] sm:text-[9.5px] text-[#92400e] dark:text-[#e2b774] font-medium leading-tight block mt-0.5 truncate">
+                          pending payment
+                        </span>
+                      </div>
+
+                      {/* Liquid Tube 2 */}
+                      <div className="w-full h-44 rounded-2xl bg-[#fef3c7] dark:bg-[#191307] p-1 flex flex-col justify-end overflow-hidden group-hover:ring-2 group-hover:ring-[#D97706]/40 transition">
+                        <div
+                          className="w-full rounded-xl bg-[#D97706] dark:bg-[#f59e0b] transition-all duration-700"
+                          style={{ height: `${Math.max(15, Math.min(90, (orderPipeline.unpaid / Math.max(1, orderPipeline.all)) * 100))}%` }}
+                          title={`Unpaid: ${orderPipeline.unpaid} orders`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Column 3: Processing */}
                     <div
                       role="button"
                       tabIndex={0}
                       onClick={() => handleNavigateToOrdersStage("processing")}
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleNavigateToOrdersStage("processing"); }}
-                      className="relative rounded-[18px] sm:rounded-[22px] bg-[#fef3ec] border border-[#fae0cf] hover:border-[#ef8b48] p-2 sm:p-2.5 flex flex-col justify-between h-[300px] min-w-0 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md group focus:outline-none focus:ring-2 focus:ring-[#ef8b48]"
+                      className="relative rounded-[16px] sm:rounded-[20px] bg-[#f5f3ff] dark:bg-[#25153a] border border-[#ede9fe] dark:border-[#3e2261] hover:border-[#8B5CF6] dark:hover:border-[#a855f7] p-2 flex flex-col justify-between h-[300px] min-w-0 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md group focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]"
                       title="Click to view Processing orders on Board"
                     >
                       <span className="text-xs font-bold text-[#b5b3ab] absolute -right-2 top-3.5 z-10 hidden sm:block pointer-events-none">›</span>
                       <div>
                         <div className="flex items-center justify-between">
-                          <span className="text-2xl sm:text-3xl font-black text-[#23241B] tracking-tight block">
+                          <span className="text-xl sm:text-2xl font-black text-[#23241B] dark:text-[#eef0e6] tracking-tight block">
                             {orderPipeline.processing}
                           </span>
-                          <span className="text-[10px] text-[#ef8b48] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="text-[9px] text-[#8B5CF6] dark:text-[#c084fc] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
                             View ➔
                           </span>
                         </div>
-                        <span className="font-extrabold text-[11px] sm:text-xs text-[#23241B] block mt-0.5 tracking-tight whitespace-nowrap">
+                        <span className="font-extrabold text-[11px] sm:text-xs text-[#23241B] dark:text-[#eef0e6] block mt-0.5 tracking-tight truncate">
                           Processing
                         </span>
-                        <span className="text-[9.5px] sm:text-[10px] text-[#825b46] font-medium leading-tight block mt-1">
-                          in preparation &amp; packing
+                        <span className="text-[9px] sm:text-[9.5px] text-[#6d28d9] dark:text-[#b498f3] font-medium leading-tight block mt-0.5 truncate">
+                          packing &amp; prep
                         </span>
                       </div>
 
-                      {/* Liquid Tube 2 */}
-                      <div className="w-full h-44 rounded-2xl bg-[#fae0cf] p-1 flex flex-col justify-end overflow-hidden group-hover:ring-2 group-hover:ring-[#ef8b48]/40 transition">
+                      {/* Liquid Tube 3 */}
+                      <div className="w-full h-44 rounded-2xl bg-[#ede9fe] dark:bg-[#150a24] p-1 flex flex-col justify-end overflow-hidden group-hover:ring-2 group-hover:ring-[#8B5CF6]/40 transition">
                         <div
-                          className="w-full rounded-xl bg-[#ef8b48] transition-all duration-700"
-                          style={{ height: `${Math.max(25, Math.min(90, (orderPipeline.processing / Math.max(1, orderPipeline.all)) * 100))}%` }}
+                          className="w-full rounded-xl bg-[#8B5CF6] dark:bg-[#a855f7] transition-all duration-700"
+                          style={{ height: `${Math.max(15, Math.min(90, (orderPipeline.processing / Math.max(1, orderPipeline.all)) * 100))}%` }}
                           title={`Processing: ${orderPipeline.processing} orders`}
                         />
                       </div>
                     </div>
 
-                    {/* Column 3: Packed */}
+                    {/* Column 4: Complete */}
                     <div
                       role="button"
                       tabIndex={0}
-                      onClick={() => handleNavigateToOrdersStage("packed")}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleNavigateToOrdersStage("packed"); }}
-                      className="relative rounded-[18px] sm:rounded-[22px] bg-[#fcf7e9] border border-[#f6ebcb] hover:border-[#caa227] p-2 sm:p-2.5 flex flex-col justify-between h-[300px] min-w-0 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md group focus:outline-none focus:ring-2 focus:ring-[#caa227]"
-                      title="Click to view Packed orders on Board"
+                      onClick={() => handleNavigateToOrdersStage("complete")}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleNavigateToOrdersStage("complete"); }}
+                      className="relative rounded-[16px] sm:rounded-[20px] bg-[#f0fdf4] dark:bg-[#132817] border border-[#dcfce7] dark:border-[#1d4425] hover:border-[#16A34A] dark:hover:border-[#22c55e] p-2 flex flex-col justify-between h-[300px] min-w-0 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md group focus:outline-none focus:ring-2 focus:ring-[#16A34A]"
+                      title="Click to view Complete orders on Board"
                     >
                       <span className="text-xs font-bold text-[#b5b3ab] absolute -right-2 top-3.5 z-10 hidden sm:block pointer-events-none">›</span>
                       <div>
                         <div className="flex items-center justify-between">
-                          <span className="text-2xl sm:text-3xl font-black text-[#23241B] tracking-tight block">
-                            {orderPipeline.packed}
+                          <span className="text-xl sm:text-2xl font-black text-[#23241B] dark:text-[#eef0e6] tracking-tight block">
+                            {orderPipeline.complete}
                           </span>
-                          <span className="text-[10px] text-[#caa227] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="text-[9px] text-[#16A34A] dark:text-[#4ade80] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
                             View ➔
                           </span>
                         </div>
-                        <span className="font-extrabold text-[11px] sm:text-xs text-[#23241B] block mt-0.5 tracking-tight whitespace-nowrap">
-                          Packed
+                        <span className="font-extrabold text-[11px] sm:text-xs text-[#23241B] dark:text-[#eef0e6] block mt-0.5 tracking-tight truncate">
+                          Complete
                         </span>
-                        <span className="text-[9.5px] sm:text-[10px] text-[#7d6b3a] font-medium leading-tight block mt-1">
-                          ready for courier
-                        </span>
-                      </div>
-
-                      {/* Liquid Tube 3 */}
-                      <div className="w-full h-44 rounded-2xl bg-[#f6ebcb] p-1 flex flex-col justify-end overflow-hidden group-hover:ring-2 group-hover:ring-[#caa227]/40 transition">
-                        <div
-                          className="w-full rounded-xl bg-[#caa227] transition-all duration-700"
-                          style={{ height: `${Math.max(20, Math.min(90, (orderPipeline.packed / Math.max(1, orderPipeline.all)) * 100))}%` }}
-                          title={`Packed: ${orderPipeline.packed} orders`}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Column 4: Shipped */}
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => handleNavigateToOrdersStage("shipped")}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleNavigateToOrdersStage("shipped"); }}
-                      className="relative rounded-[18px] sm:rounded-[22px] bg-[#f8f3fc] border border-[#eddff7] hover:border-[#9b72cf] p-2 sm:p-2.5 flex flex-col justify-between h-[300px] min-w-0 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md group focus:outline-none focus:ring-2 focus:ring-[#9b72cf]"
-                      title="Click to view Shipped orders on Board"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-2xl sm:text-3xl font-black text-[#23241B] tracking-tight block">
-                            {orderPipeline.shipped}
-                          </span>
-                          <span className="text-[10px] text-[#9b72cf] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                            View ➔
-                          </span>
-                        </div>
-                        <span className="font-extrabold text-[11px] sm:text-xs text-[#23241B] block mt-0.5 tracking-tight whitespace-nowrap">
-                          Shipped
-                        </span>
-                        <span className="text-[9.5px] sm:text-[10px] text-[#6e5683] font-medium leading-tight block mt-1">
-                          handed to courier
+                        <span className="text-[9px] sm:text-[9.5px] text-[#15803d] dark:text-[#86efac] font-medium leading-tight block mt-0.5 truncate">
+                          delivered &amp; done
                         </span>
                       </div>
 
                       {/* Liquid Tube 4 */}
-                      <div className="w-full h-44 rounded-2xl bg-[#eddff7] p-1 flex flex-col justify-end overflow-hidden group-hover:ring-2 group-hover:ring-[#9b72cf]/40 transition">
+                      <div className="w-full h-44 rounded-2xl bg-[#dcfce7] dark:bg-[#09170e] p-1 flex flex-col justify-end overflow-hidden group-hover:ring-2 group-hover:ring-[#16A34A]/40 transition">
                         <div
-                          className="w-full rounded-xl bg-[#9b72cf] transition-all duration-700"
-                          style={{ height: `${Math.max(15, Math.min(90, (orderPipeline.shipped / Math.max(1, orderPipeline.all)) * 100))}%` }}
-                          title={`Shipped: ${orderPipeline.shipped} orders`}
+                          className="w-full rounded-xl bg-[#16A34A] dark:bg-[#22c55e] transition-all duration-700"
+                          style={{ height: `${Math.max(15, Math.min(90, (orderPipeline.complete / Math.max(1, orderPipeline.all)) * 100))}%` }}
+                          title={`Complete: ${orderPipeline.complete} orders`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Column 5: Cancelled */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleNavigateToOrdersStage("cancelled")}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleNavigateToOrdersStage("cancelled"); }}
+                      className="relative rounded-[16px] sm:rounded-[20px] bg-[#fef2f2] dark:bg-[#381a1a] border border-[#fee2e2] dark:border-[#572424] hover:border-[#DC2626] dark:hover:border-[#ef4444] p-2 flex flex-col justify-between h-[300px] min-w-0 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md group focus:outline-none focus:ring-2 focus:ring-[#DC2626]"
+                      title="Click to view Cancelled orders on Board"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xl sm:text-2xl font-black text-[#23241B] dark:text-[#eef0e6] tracking-tight block">
+                            {orderPipeline.cancelled}
+                          </span>
+                          <span className="text-[9px] text-[#DC2626] dark:text-[#f87171] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                            View ➔
+                          </span>
+                        </div>
+                        <span className="font-extrabold text-[11px] sm:text-xs text-[#23241B] dark:text-[#eef0e6] block mt-0.5 tracking-tight truncate">
+                          Cancelled
+                        </span>
+                        <span className="text-[9px] sm:text-[9.5px] text-[#b91c1c] dark:text-[#fca5a5] font-medium leading-tight block mt-0.5 truncate">
+                          voided / refund
+                        </span>
+                      </div>
+
+                      {/* Liquid Tube 5 */}
+                      <div className="w-full h-44 rounded-2xl bg-[#fee2e2] dark:bg-[#210c0c] p-1 flex flex-col justify-end overflow-hidden group-hover:ring-2 group-hover:ring-[#DC2626]/40 transition">
+                        <div
+                          className="w-full rounded-xl bg-[#DC2626] dark:bg-[#ef4444] transition-all duration-700"
+                          style={{ height: `${Math.max(15, Math.min(90, (orderPipeline.cancelled / Math.max(1, orderPipeline.all)) * 100))}%` }}
+                          title={`Cancelled: ${orderPipeline.cancelled} orders`}
                         />
                       </div>
                     </div>
@@ -2719,25 +2811,25 @@ export default function AppAdminPortalPage() {
                 </div>
 
                 {/* Footnote matching screenshot */}
-                <div className="mt-4 flex items-center gap-2 text-xs font-medium text-[#6f7060]">
+                <div className="mt-4 flex items-center gap-2 text-xs font-medium text-[var(--mav-muted)]">
                   <Clock className="w-4 h-4 text-[#557e2a] flex-shrink-0" />
-                  <span>Next courier pickup scheduled at <strong className="text-[#23241B] font-bold">4:00 PM</strong> — {rawOrders.length} orders tracked from {storeDomain}.</span>
+                  <span>Next courier pickup scheduled at <strong className="text-[var(--mav-text)] font-bold">4:00 PM</strong> — {rawOrders.length} orders tracked from {storeDomain}.</span>
                 </div>
               </div>
 
               {/* CARD 3: BEST SELLERS */}
-              <div className="min-w-0 rounded-[28px] bg-[#FFFCF9] border border-[#E6E3DC] p-6 shadow-sm flex flex-col justify-between h-full">
+              <div className="min-w-0 rounded-[28px] bg-[var(--mav-surface)] border border-[var(--mav-line)] p-6 shadow-sm flex flex-col justify-between h-full">
                 <div>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-10 h-10 rounded-2xl bg-[#edf4e6] border border-[#dbe6cf] text-[#557e2a] flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-2xl bg-[#edf4e6] dark:bg-[#20281b] border border-[#dbe6cf] dark:border-[#34402a] text-[#557e2a] dark:text-[#b8d07c] flex items-center justify-center flex-shrink-0">
                         <Star className="w-5 h-5" />
                       </div>
                       <div className="min-w-0">
-                        <h4 className="text-lg font-extrabold tracking-tight text-[#23241B] truncate">
+                        <h4 className="text-lg font-extrabold tracking-tight text-[var(--mav-text)] truncate">
                           Best sellers
                         </h4>
-                        <p className="text-xs text-[#6f7060] font-medium truncate mt-0.5">
+                        <p className="text-xs text-[var(--mav-muted)] font-medium truncate mt-0.5">
                           Top store products by sales
                         </p>
                       </div>
@@ -2746,27 +2838,27 @@ export default function AppAdminPortalPage() {
                     <button
                       type="button"
                       onClick={() => setActiveTab("products")}
-                      className="px-3.5 py-1.5 rounded-xl border border-[#ded8ce] bg-white text-xs font-extrabold text-[#23241B] hover:bg-[#f6f2ea] transition shadow-xs flex items-center gap-1 flex-shrink-0"
+                      className="px-3.5 py-1.5 rounded-xl border border-[#ded8ce] dark:border-[var(--mav-line)] bg-white dark:bg-[var(--mav-surface-2)] text-xs font-extrabold text-[#23241B] dark:text-[var(--mav-text)] hover:bg-[#f6f2ea] dark:hover:bg-[var(--mav-raised)] transition shadow-xs flex items-center gap-1 flex-shrink-0"
                     >
                       <span>All</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  {/* 5 Ranked Items with Green SVG Sparklines (Exact Reference Screenshot) */}
+                  {/* 5 Ranked Items with Green SVG Sparklines */}
                   <div className="mt-4 space-y-2.5">
                     {bestSellersList.length === 0 ? (
-                      <p className="text-xs text-[#6f7060] italic py-3">No best selling products yet in store catalog.</p>
+                      <p className="text-xs text-[var(--mav-muted)] italic py-3">No best selling products yet in store catalog.</p>
                     ) : (
                       bestSellersList.map((item, idx) => (
                         <div
                           key={idx}
                           onClick={() => setSelectedBestSellerProduct(item.product || item)}
-                          className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-2xl hover:bg-[#f6f2ea] dark:hover:bg-[#252820] cursor-pointer transition group min-w-0"
+                          className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-2xl hover:bg-[#f6f2ea] dark:hover:bg-[var(--mav-surface-2)] cursor-pointer transition group min-w-0"
                           title={`Click to view ${item.name} product details`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <span className="text-xs font-bold text-[#6f7060] w-3 text-center flex-shrink-0">
+                            <span className="text-xs font-bold text-[var(--mav-muted)] w-3 text-center flex-shrink-0">
                               {item.rank}
                             </span>
                             <div
@@ -2791,10 +2883,10 @@ export default function AppAdminPortalPage() {
                               </div>
                             </div>
                             <div className="min-w-0 flex-1">
-                              <span className="font-extrabold text-xs text-[#23241B] dark:text-[#f3f0e8] block truncate group-hover:text-[#557e2a] transition">
+                              <span className="font-extrabold text-xs text-[var(--mav-text)] block truncate group-hover:text-[#557e2a] transition">
                                 {item.name}
                               </span>
-                              <span className="text-[11px] text-[#6f7060] font-medium block truncate mt-0.5">
+                              <span className="text-[11px] text-[var(--mav-muted)] font-medium block truncate mt-0.5">
                                 {item.sub}
                               </span>
                               <div className={`w-7 h-[2.5px] ${item.barColor} rounded-full mt-1.5`} />
@@ -2810,8 +2902,8 @@ export default function AppAdminPortalPage() {
                             >
                               <path d={item.spark} />
                             </svg>
-                            {/* Product sold count - clearly visible with distinct spacing */}
-                            <span className="text-sm font-black font-mono text-[#23241B] dark:text-[#f3f0e8] w-6 text-right flex-shrink-0">
+                            {/* Product sold count */}
+                            <span className="text-sm font-black font-mono text-[var(--mav-text)] w-6 text-right flex-shrink-0">
                               {item.sold}
                             </span>
                           </div>
@@ -2846,7 +2938,7 @@ export default function AppAdminPortalPage() {
                     <button
                       type="button"
                       onClick={() => setActiveTab("orders")}
-                      className="px-3.5 py-1.5 rounded-xl border border-[#ded8ce] bg-white text-xs font-extrabold text-[#1a1c15] hover:bg-[#f6f2ea] transition shadow-xs flex items-center gap-1"
+                      className="px-3.5 py-1.5 rounded-xl border border-[#ded8ce] dark:border-[var(--mav-line)] bg-white dark:bg-[var(--mav-surface-2)] text-xs font-extrabold text-[#1a1c15] dark:text-[var(--mav-text)] hover:bg-[#f6f2ea] dark:hover:bg-[var(--mav-raised)] transition shadow-xs flex items-center gap-1"
                     >
                       <span>See all</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -2854,7 +2946,7 @@ export default function AppAdminPortalPage() {
                     <button
                       type="button"
                       onClick={() => setActiveTab("orders")}
-                      className="w-8 h-8 rounded-xl border border-[#ded8ce] bg-white text-xs font-extrabold text-[#1a1c15] hover:bg-[#f6f2ea] transition shadow-xs flex items-center justify-center"
+                      className="w-8 h-8 rounded-xl border border-[#ded8ce] dark:border-[var(--mav-line)] bg-white dark:bg-[var(--mav-surface-2)] text-xs font-extrabold text-[#1a1c15] dark:text-[var(--mav-text)] hover:bg-[#f6f2ea] dark:hover:bg-[var(--mav-raised)] transition shadow-xs flex items-center justify-center"
                     >
                       <ArrowUpRight className="w-3.5 h-3.5" />
                     </button>
@@ -2944,7 +3036,7 @@ export default function AppAdminPortalPage() {
                     <button
                       type="button"
                       onClick={() => setActiveTab("products")}
-                      className="px-3.5 py-1.5 rounded-xl border border-[#ded8ce] bg-white text-xs font-extrabold text-[#1a1c15] hover:bg-[#f6f2ea] transition shadow-xs flex items-center gap-1"
+                      className="px-3.5 py-1.5 rounded-xl border border-[#ded8ce] dark:border-[var(--mav-line)] bg-white dark:bg-[var(--mav-surface-2)] text-xs font-extrabold text-[#1a1c15] dark:text-[var(--mav-text)] hover:bg-[#f6f2ea] dark:hover:bg-[var(--mav-raised)] transition shadow-xs flex items-center gap-1"
                     >
                       <span>Stock</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -3011,7 +3103,7 @@ export default function AppAdminPortalPage() {
                                 showToast(`Restock order submitted for ${item.name}!`, "success");
                               }
                             }}
-                            className="px-3.5 py-1.5 rounded-xl border border-[#ded8ce] bg-white text-xs font-extrabold text-[#1a1c15] hover:bg-[#f6f2ea] transition shadow-xs whitespace-nowrap flex-shrink-0"
+                            className="px-3.5 py-1.5 rounded-xl border border-[#ded8ce] dark:border-[var(--mav-line)] bg-white dark:bg-[var(--mav-surface-2)] text-xs font-extrabold text-[#1a1c15] dark:text-[var(--mav-text)] hover:bg-[#f6f2ea] dark:hover:bg-[var(--mav-raised)] transition shadow-xs whitespace-nowrap flex-shrink-0"
                           >
                             {item.action}
                           </button>
@@ -3078,6 +3170,12 @@ export default function AppAdminPortalPage() {
             orderStatusOverrides={orderStatusOverrides}
             onUpdateOrderStatus={handleUpdateOrderStatus}
             onResetOrderStatuses={handleResetOrderStatuses}
+            teraWallet={portalData?.tera_wallet}
+            refundsList={portalData?.refunds}
+            onVerifyTeraWallet={handleVerifyTeraWallet}
+            onProcessRefund={handleProcessRefund}
+            externalRefundOrder={externalRefundOrder}
+            onClearExternalRefundOrder={() => setExternalRefundOrder(null)}
           />
         )}
 
@@ -3735,20 +3833,20 @@ export default function AppAdminPortalPage() {
           onClick={() => setSelectedPeriod(null)}
         >
           <div
-            className="w-full max-w-[480px] bg-white border-l border-[#E6E3DC] shadow-2xl h-full flex flex-col justify-between overflow-hidden rounded-l-[32px] animate-in slide-in-from-right duration-300"
+            className="w-full max-w-[480px] bg-white dark:bg-[#191c16] border-l border-[#E6E3DC] dark:border-[var(--mav-line)] shadow-2xl h-full flex flex-col justify-between overflow-hidden rounded-l-[32px] animate-in slide-in-from-right duration-300"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drawer Header */}
-            <div className="p-6 sm:p-7 pb-4 flex items-start justify-between gap-4 border-b border-[#F0EEE8]">
+            <div className="p-6 sm:p-7 pb-4 flex items-start justify-between gap-4 border-b border-[#F0EEE8] dark:border-[var(--mav-line)]">
               <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-[#eff5ea] text-[#557e2a] flex items-center justify-center flex-shrink-0">
-                  <Calendar className="w-5 h-5 text-[#557e2a]" />
+                <div className="w-11 h-11 rounded-2xl bg-[#eff5ea] dark:bg-[#20281b] text-[#557e2a] dark:text-[#b8d07c] flex items-center justify-center flex-shrink-0">
+                  <Calendar className="w-5 h-5 text-[#557e2a] dark:text-[#b8d07c]" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-xl sm:text-2xl font-black text-[#23241B] tracking-tight leading-tight truncate">
+                  <h3 className="text-xl sm:text-2xl font-black text-[#23241B] dark:text-[#eef0e6] tracking-tight leading-tight truncate">
                     {selectedPeriod.title || `${selectedPeriod.day}, ${selectedPeriod.date}`}
                   </h3>
-                  <p className="text-xs text-[#6f7060] font-medium mt-0.5 truncate">
+                  <p className="text-xs text-[#6f7060] dark:text-[#b0b4a2] font-medium mt-0.5 truncate">
                     {currencySymbol}{selectedPeriod.total.toLocaleString()} taken · {selectedPeriod.ordersCount} orders
                   </p>
                 </div>
@@ -3757,7 +3855,7 @@ export default function AppAdminPortalPage() {
               <button
                 type="button"
                 onClick={() => setSelectedPeriod(null)}
-                className="w-9 h-9 rounded-full border border-[#ded8ce] bg-white text-[#6f7060] hover:text-[#23241B] hover:bg-[#f6f2ea] flex items-center justify-center transition shadow-xs flex-shrink-0"
+                className="w-9 h-9 rounded-full border border-[#ded8ce] dark:border-[var(--mav-line)] bg-white dark:bg-[#1e221b] text-[#6f7060] dark:text-[#b0b4a2] hover:text-[#23241B] dark:hover:text-[#eef0e6] hover:bg-[#f6f2ea] dark:hover:bg-[#242920] flex items-center justify-center transition shadow-xs flex-shrink-0"
                 title="Close"
               >
                 <X className="w-4 h-4" />
@@ -3769,27 +3867,27 @@ export default function AppAdminPortalPage() {
               {/* 2 KPI Cards */}
               <div className="grid grid-cols-2 gap-3">
                 {/* Against the goal */}
-                <div className="rounded-2xl bg-[#faf8f4] border border-[#eeebe3] p-4 flex flex-col justify-between">
-                  <span className="text-xs text-[#6f7060] font-medium leading-tight">Against the goal</span>
+                <div className="rounded-2xl bg-[#faf8f4] dark:bg-[#1e221b] border border-[#eeebe3] dark:border-[var(--mav-line)] p-4 flex flex-col justify-between">
+                  <span className="text-xs text-[#6f7060] dark:text-[#b0b4a2] font-medium leading-tight">Against the goal</span>
                   <div className="mt-2">
-                    <span className={`text-2xl font-black tracking-tight block ${selectedPeriod.diffGoal >= 0 ? "text-[#23241B]" : "text-[#c85a53]"}`}>
+                    <span className={`text-2xl font-black tracking-tight block ${selectedPeriod.diffGoal >= 0 ? "text-[#23241B] dark:text-[#eef0e6]" : "text-[#c85a53] dark:text-[#f87171]"}`}>
                       {selectedPeriod.diffGoal >= 0 ? "+" : "-"}{currencySymbol}{Math.abs(selectedPeriod.diffGoal).toLocaleString()}
                     </span>
-                    <span className="text-xs text-[#6f7060] font-medium mt-0.5 block">
+                    <span className="text-xs text-[#6f7060] dark:text-[#b0b4a2] font-medium mt-0.5 block">
                       {selectedPeriod.diffGoal >= 0 ? "over" : "under"} {currencySymbol}{selectedPeriod.goal.toLocaleString()}
                     </span>
                   </div>
                 </div>
 
                 {/* The period before */}
-                <div className="rounded-2xl bg-[#faf8f4] border border-[#eeebe3] p-4 flex flex-col justify-between">
-                  <span className="text-xs text-[#6f7060] font-medium leading-tight">The period before</span>
+                <div className="rounded-2xl bg-[#faf8f4] dark:bg-[#1e221b] border border-[#eeebe3] dark:border-[var(--mav-line)] p-4 flex flex-col justify-between">
+                  <span className="text-xs text-[#6f7060] dark:text-[#b0b4a2] font-medium leading-tight">The period before</span>
                   <div className="mt-2">
-                    <span className="text-2xl font-black text-[#23241B] tracking-tight block">
+                    <span className="text-2xl font-black text-[#23241B] dark:text-[#eef0e6] tracking-tight block">
                       {currencySymbol}{selectedPeriod.periodBefore.toLocaleString()}
                     </span>
                     <div className="mt-1">
-                      <span className={`inline-flex items-center gap-1 text-[11px] font-extrabold px-2 py-0.5 rounded-full ${selectedPeriod.growthPct >= 0 ? "bg-[#dbe5d7] text-[#296d43]" : "bg-[#fdeeed] text-[#d9534f]"
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-extrabold px-2 py-0.5 rounded-full ${selectedPeriod.growthPct >= 0 ? "bg-[#dbe5d7] dark:bg-[#1a3826] text-[#296d43] dark:text-[#66cf8c]" : "bg-[#fdeeed] dark:bg-[#381a1a] text-[#d9534f] dark:text-[#f87171]"
                         }`}>
                         <span>{selectedPeriod.growthPct >= 0 ? "▲" : "▼"}</span>
                         <span>{Math.abs(selectedPeriod.growthPct)}%</span>
@@ -3992,7 +4090,7 @@ export default function AppAdminPortalPage() {
             return {
               id: it.id || idx,
               name: it.name,
-              variant: it.variation || "250 g bag · Espresso",
+              variant: it.variation || "Standard",
               quantity: it.quantity || 1,
               price: parseFloat(it.price || (it.total / Math.max(1, it.quantity || 1)) || "0"),
               image: itemImg,
@@ -4000,77 +4098,75 @@ export default function AppAdminPortalPage() {
           })
           : [{
             id: 1,
-            name: selectedOrder.product_name || rawProducts[0]?.name || "Slack Water",
-            variant: "250 g bag · Espresso",
+            name: selectedOrder.product_name || rawProducts[0]?.name || "Store Item",
+            variant: "Standard",
             quantity: 1,
             price: rawSubtotal > 0 ? rawSubtotal : rawTotal,
             image: extractProductImage(rawProducts[0]) || null,
           }];
 
-        // Stepper state
-        // Steps: Paid -> Roasting / Prep -> Packed in Box -> Shipped Today -> Delivered
+        // Stepper state: 5 Universal eCommerce Sections: Unpaid -> Paid -> Processing -> Complete
         const steps = [
+          { key: "unpaid", label: "Unpaid", icon: Clock, time: "—" },
           { key: "paid", label: "Paid", icon: CreditCard, time: formattedTime },
-          { key: "processing", label: "Roasting", icon: Flame, time: "—" },
-          { key: "packed", label: "Packed", icon: Package, time: "—" },
-          { key: "shipped", label: "Shipped", icon: Truck, time: "—" },
-          { key: "delivered", label: "Delivered", icon: Check, time: "—" },
+          { key: "processing", label: "Processing", icon: Package, time: "—" },
+          { key: "complete", label: "Complete", icon: Check, time: "—" },
         ];
 
-        let activeStepIdx = 0;
-        if (status === "processing") activeStepIdx = 1;
-        else if (status === "packed") activeStepIdx = 2;
-        else if (status === "shipped") activeStepIdx = 3;
-        else if (status === "completed" || status === "delivered") activeStepIdx = 4;
+        let activeStepIdx = 1;
+        if (status === "unpaid") activeStepIdx = 0;
+        else if (status === "paid") activeStepIdx = 1;
+        else if (status === "processing") activeStepIdx = 2;
+        else if (status === "complete" || status === "completed" || status === "shipped" || status === "delivered") activeStepIdx = 3;
 
-        // Dynamic badge styles
-        let badgeBg = "bg-[#eff5fc] text-[#4b84d4]";
-        let statusBadgeText = "Paid";
-        if (status === "processing") {
-          badgeBg = "bg-[#fef3ec] text-[#ef8b48]";
-          statusBadgeText = "Roasting / Prep";
-        } else if (status === "packed") {
-          badgeBg = "bg-[#fdf6e6] text-[#caa227]";
-          statusBadgeText = "Packed in Box";
-        } else if (status === "shipped") {
-          badgeBg = "bg-[#eff5ea] text-[#557e2a]";
-          statusBadgeText = "Shipped Today";
-        } else if (status === "completed" || status === "delivered") {
-          badgeBg = "bg-[#edf5ee] text-[#296d43]";
-          statusBadgeText = "Delivered";
+        // Dynamic badge styles for all 5 sections
+        let badgeBg = "bg-[#eff5fc] text-[#2563EB]";
+        let statusBadgeText = "Paid Orders";
+        if (status === "unpaid") {
+          badgeBg = "bg-[#fffbeb] text-[#B45309]";
+          statusBadgeText = "Unpaid";
+        } else if (status === "processing") {
+          badgeBg = "bg-[#f5f3ff] text-[#7C3AED]";
+          statusBadgeText = "Processing";
+        } else if (status === "complete" || status === "completed" || status === "shipped" || status === "delivered") {
+          badgeBg = "bg-[#f0fdf4] text-[#16A34A]";
+          statusBadgeText = "Complete";
+        } else if (status === "cancelled" || status === "canceled" || status === "refunded") {
+          badgeBg = "bg-[#fef2f2] text-[#DC2626]";
+          statusBadgeText = "Cancelled";
         }
 
         // Action button dynamic progression
-        let nextStageKey: "paid" | "processing" | "packed" | "shipped" | "delivered" | null = null;
-        let nextStageLabel = "Send to roast";
-        let NextIcon = Flame;
-        let nextButtonBg = "bg-[#ef8a45] hover:bg-[#d87635] text-white";
+        let nextStageKey: "paid" | "unpaid" | "processing" | "complete" | "cancelled" | null = null;
+        let nextStageLabel = "To Processing";
+        let NextIcon = Package;
+        let nextButtonBg = "bg-[#7C3AED] hover:bg-[#6D28D9] text-white";
 
-        if (activeStepIdx === 0) {
+        if (status === "unpaid") {
+          nextStageKey = "paid";
+          nextStageLabel = "Mark as Paid";
+          NextIcon = CreditCard;
+          nextButtonBg = "bg-[#2563EB] hover:bg-[#1D4ED8] text-white";
+        } else if (status === "paid") {
           nextStageKey = "processing";
-          nextStageLabel = "Send to roast";
-          NextIcon = Flame;
-          nextButtonBg = "bg-[#ef8a45] hover:bg-[#d87635] text-white";
-        } else if (activeStepIdx === 1) {
-          nextStageKey = "packed";
-          nextStageLabel = "Mark as Packed";
+          nextStageLabel = "Send to Processing";
           NextIcon = Package;
-          nextButtonBg = "bg-[#caa227] hover:bg-[#b08b1b] text-white";
-        } else if (activeStepIdx === 2) {
-          nextStageKey = "shipped";
-          nextStageLabel = "Hand to Courier";
-          NextIcon = Truck;
-          nextButtonBg = "bg-[#557e2a] hover:bg-[#466922] text-white";
-        } else if (activeStepIdx === 3) {
-          nextStageKey = "delivered";
-          nextStageLabel = "Mark as Delivered";
+          nextButtonBg = "bg-[#7C3AED] hover:bg-[#6D28D9] text-white";
+        } else if (status === "processing") {
+          nextStageKey = "complete";
+          nextStageLabel = "Mark as Complete";
           NextIcon = Check;
-          nextButtonBg = "bg-[#296d43] hover:bg-[#1f5433] text-white";
-        } else {
+          nextButtonBg = "bg-[#16A34A] hover:bg-[#15803D] text-white";
+        } else if (status === "complete" || status === "completed" || status === "shipped" || status === "delivered") {
           nextStageKey = null;
-          nextStageLabel = "Delivered ✓";
+          nextStageLabel = "Completed ✓";
           NextIcon = Check;
-          nextButtonBg = "bg-[#edf5ee] text-[#296d43] cursor-default";
+          nextButtonBg = "bg-[#f0fdf4] text-[#16A34A] cursor-default";
+        } else if (status === "cancelled" || status === "canceled" || status === "refunded") {
+          nextStageKey = "paid";
+          nextStageLabel = "Reopen to Paid";
+          NextIcon = RotateCcw;
+          nextButtonBg = "bg-[#2563EB] hover:bg-[#1D4ED8] text-white";
         }
 
         return (
@@ -4079,21 +4175,21 @@ export default function AppAdminPortalPage() {
             onClick={() => setSelectedOrder(null)}
           >
             <div
-              className="w-full max-w-[480px] bg-white border-l border-[#E6E3DC] shadow-2xl h-full flex flex-col justify-between overflow-hidden rounded-l-[32px] animate-in slide-in-from-right duration-300"
+              className="w-full max-w-[480px] bg-white dark:bg-[#191c16] border-l border-[#E6E3DC] dark:border-[var(--mav-line)] shadow-2xl h-full flex flex-col justify-between overflow-hidden rounded-l-[32px] animate-in slide-in-from-right duration-300"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Drawer Top Header */}
-              <div className="p-6 sm:p-7 pb-4 border-b border-[#F0EEE8]">
+              <div className="p-6 sm:p-7 pb-4 border-b border-[#F0EEE8] dark:border-[var(--mav-line)]">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-11 h-11 rounded-2xl bg-[#eff5ea] text-[#557e2a] flex items-center justify-center flex-shrink-0">
-                      <ShoppingBag className="w-5 h-5 text-[#557e2a]" />
+                    <div className="w-11 h-11 rounded-2xl bg-[#eff5ea] dark:bg-[#20281b] text-[#557e2a] dark:text-[#b8d07c] flex items-center justify-center flex-shrink-0">
+                      <ShoppingBag className="w-5 h-5 text-[#557e2a] dark:text-[#b8d07c]" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-xl sm:text-2xl font-black text-[#23241B] tracking-tight leading-tight truncate">
+                      <h3 className="text-xl sm:text-2xl font-black text-[#23241B] dark:text-[#eef0e6] tracking-tight leading-tight truncate">
                         Order #{orderNum}
                       </h3>
-                      <p className="text-xs text-[#6f7060] font-medium mt-0.5 truncate">
+                      <p className="text-xs text-[#6f7060] dark:text-[#b0b4a2] font-medium mt-0.5 truncate">
                         {formattedDate}, {formattedTime} · {channel}
                       </p>
                     </div>
@@ -4102,7 +4198,7 @@ export default function AppAdminPortalPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedOrder(null)}
-                    className="w-9 h-9 rounded-full border border-[#ded8ce] bg-white text-[#6f7060] hover:text-[#23241B] hover:bg-[#f6f2ea] flex items-center justify-center transition shadow-xs flex-shrink-0"
+                    className="w-9 h-9 rounded-full border border-[#ded8ce] dark:border-[var(--mav-line)] bg-white dark:bg-[#1e221b] text-[#6f7060] dark:text-[#b0b4a2] hover:text-[#23241B] dark:hover:text-[#eef0e6] hover:bg-[#f6f2ea] dark:hover:bg-[#242920] flex items-center justify-center transition shadow-xs flex-shrink-0"
                     title="Close"
                   >
                     <X className="w-4 h-4" />
@@ -4116,7 +4212,7 @@ export default function AppAdminPortalPage() {
                     <span>{statusBadgeText}</span>
                   </span>
 
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#eff5ea] text-[#557e2a]">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#eff5ea] dark:bg-[#20281b] text-[#557e2a] dark:text-[#b8d07c]">
                     <Globe className="w-3.5 h-3.5" />
                     <span>{channel}</span>
                   </span>
@@ -4156,14 +4252,14 @@ export default function AppAdminPortalPage() {
                                 ? "border-2 border-[#557e2a] bg-[#eff5ea] text-[#557e2a] shadow-xs ring-4 ring-[#eff5ea]"
                                 : isPassed
                                   ? "bg-[#557e2a] text-white"
-                                  : "border border-[#ded8ce] bg-white text-[#b5b3ab] group-hover:border-[#557e2a] group-hover:text-[#557e2a]"
+                                  : "border border-[#ded8ce] dark:border-[#33372c] bg-white dark:bg-[#1e221b] text-[#b5b3ab] dark:text-[#6f7060] group-hover:border-[#557e2a] group-hover:text-[#557e2a]"
                               }`}
                           >
                             <IconComp className="w-4 h-4" />
                           </div>
 
                           <span
-                            className={`text-[11px] mt-1.5 leading-tight ${isPassed ? "font-extrabold text-[#23241B]" : "font-medium text-[#8a8b7e]"
+                            className={`text-[11px] mt-1.5 leading-tight ${isPassed ? "font-extrabold text-[#23241B] dark:text-[#eef0e6]" : "font-medium text-[#8a8b7e] dark:text-[#93978a]"
                               }`}
                           >
                             {st.label}
@@ -4180,44 +4276,44 @@ export default function AppAdminPortalPage() {
 
                 {/* CUSTOMER Section */}
                 <div>
-                  <h4 className="text-[11px] font-extrabold tracking-wider text-[#6f7060] uppercase mb-2.5">
+                  <h4 className="text-[11px] font-extrabold tracking-wider text-[#6f7060] dark:text-[#b0b4a2] uppercase mb-2.5">
                     CUSTOMER
                   </h4>
-                  <div className="rounded-2xl bg-[#faf8f4] border border-[#eeebe3] p-4 flex items-center justify-between group cursor-pointer hover:bg-[#f6f2ea] transition">
+                  <div className="rounded-2xl bg-[#faf8f4] dark:bg-[#1e221b] border border-[#eeebe3] dark:border-[var(--mav-line)] p-4 flex items-center justify-between group cursor-pointer hover:bg-[#f6f2ea] dark:hover:bg-[#242920] transition">
                     <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="w-11 h-11 rounded-full bg-[#e5ede0] text-[#557e2a] font-extrabold text-sm flex items-center justify-center flex-shrink-0">
+                      <div className="w-11 h-11 rounded-full bg-[#e5ede0] dark:bg-[#20281b] text-[#557e2a] dark:text-[#b8d07c] font-extrabold text-sm flex items-center justify-center flex-shrink-0">
                         {initials}
                       </div>
                       <div className="min-w-0">
-                        <div className="font-extrabold text-sm text-[#23241B] truncate">
+                        <div className="font-extrabold text-sm text-[#23241B] dark:text-[#eef0e6] truncate">
                           {customerName}
                         </div>
-                        <div className="text-xs text-[#6f7060] font-medium mt-0.5 truncate">
+                        <div className="text-xs text-[#6f7060] dark:text-[#b0b4a2] font-medium mt-0.5 truncate">
                           {customerEmail}
                         </div>
-                        <div className="text-xs text-[#8a8b7e] font-medium mt-0.5 truncate">
+                        <div className="text-xs text-[#8a8b7e] dark:text-[#93978a] font-medium mt-0.5 truncate">
                           {customerCity}
                         </div>
                       </div>
                     </div>
 
-                    <ChevronRight className="w-4 h-4 text-[#b5b3ab] group-hover:text-[#23241B] transition flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-[#b5b3ab] dark:text-[#6f7060] group-hover:text-[#23241B] dark:group-hover:text-[#eef0e6] transition flex-shrink-0" />
                   </div>
                 </div>
 
                 {/* IN THE BOX (Line Items) */}
                 <div>
-                  <h4 className="text-[11px] font-extrabold tracking-wider text-[#6f7060] uppercase mb-3">
+                  <h4 className="text-[11px] font-extrabold tracking-wider text-[#6f7060] dark:text-[#b0b4a2] uppercase mb-3">
                     IN THE BOX
                   </h4>
                   <div className="space-y-2.5">
                     {lineItems.map((item: any, itIdx: number) => (
                       <div
                         key={item.id || itIdx}
-                        className="rounded-2xl bg-[#faf8f4] border border-[#eeebe3] p-3.5 flex items-center justify-between gap-3"
+                        className="rounded-2xl bg-[#faf8f4] dark:bg-[#1e221b] border border-[#eeebe3] dark:border-[var(--mav-line)] p-3.5 flex items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-11 h-11 rounded-xl bg-[#e8eef7] text-[#4b84d4] flex items-center justify-center flex-shrink-0 overflow-hidden relative">
+                          <div className="w-11 h-11 rounded-xl bg-[#e8eef7] dark:bg-[#19273c] text-[#4b84d4] dark:text-[#60a5fa] flex items-center justify-center flex-shrink-0 overflow-hidden relative">
                             {item.image ? (
                               <img
                                 src={item.image}
@@ -4232,20 +4328,20 @@ export default function AppAdminPortalPage() {
                               />
                             ) : null}
                             <div className={`box-item-fb w-full h-full ${item.image ? "hidden" : "flex"} items-center justify-center`}>
-                              <Package className="w-5 h-5 text-[#4b84d4]" />
+                              <Package className="w-5 h-5 text-[#4b84d4] dark:text-[#60a5fa]" />
                             </div>
                           </div>
                           <div className="min-w-0">
-                            <div className="font-extrabold text-xs sm:text-sm text-[#23241B] truncate">
+                            <div className="font-extrabold text-xs sm:text-sm text-[#23241B] dark:text-[#eef0e6] truncate">
                               {item.name}
                             </div>
-                            <div className="text-[11px] text-[#6f7060] font-medium mt-0.5 truncate">
+                            <div className="text-[11px] text-[#6f7060] dark:text-[#b0b4a2] font-medium mt-0.5 truncate">
                               {item.variant}
                             </div>
                           </div>
                         </div>
 
-                        <div className="font-extrabold text-xs sm:text-sm text-[#23241B] text-right flex-shrink-0">
+                        <div className="font-extrabold text-xs sm:text-sm text-[#23241B] dark:text-[#eef0e6] text-right flex-shrink-0">
                           {item.quantity} × {currencySymbol}{Number(item.price).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       </div>
@@ -4253,24 +4349,24 @@ export default function AppAdminPortalPage() {
                   </div>
 
                   {/* Financials Box */}
-                  <div className="mt-3.5 rounded-2xl bg-[#faf8f4] border border-[#eeebe3] p-4 space-y-2">
-                    <div className="flex justify-between items-center text-xs text-[#6f7060] font-medium">
+                  <div className="mt-3.5 rounded-2xl bg-[#faf8f4] dark:bg-[#1e221b] border border-[#eeebe3] dark:border-[var(--mav-line)] p-4 space-y-2">
+                    <div className="flex justify-between items-center text-xs text-[#6f7060] dark:text-[#b0b4a2] font-medium">
                       <span>Subtotal</span>
-                      <span className="font-bold text-[#23241B]">
+                      <span className="font-bold text-[#23241B] dark:text-[#eef0e6]">
                         {currencySymbol}{rawSubtotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center text-xs text-[#6f7060] font-medium">
+                    <div className="flex justify-between items-center text-xs text-[#6f7060] dark:text-[#b0b4a2] font-medium">
                       <span>Shipping</span>
-                      <span className="font-bold text-[#23241B]">
+                      <span className="font-bold text-[#23241B] dark:text-[#eef0e6]">
                         {rawShipping > 0
                           ? `${currencySymbol}${rawShipping.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                           : "Free"}
                       </span>
                     </div>
-                    <div className="border-t border-[#eeebe3] pt-2 mt-2 flex justify-between items-center">
-                      <span>Total</span>
-                      <span className="font-black text-base text-[#23241B]">
+                    <div className="border-t border-[#eeebe3] dark:border-[var(--mav-line)] pt-2 mt-2 flex justify-between items-center">
+                      <span className="text-xs text-[#6f7060] dark:text-[#b0b4a2] font-medium">Total</span>
+                      <span className="font-black text-base text-[#23241B] dark:text-[#eef0e6]">
                         {currencySymbol}{rawTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -4279,7 +4375,7 @@ export default function AppAdminPortalPage() {
               </div>
 
               {/* Bottom Action Bar */}
-              <div className="p-5 sm:p-6 border-t border-[#F0EEE8] bg-white space-y-2">
+              <div className="p-5 sm:p-6 border-t border-[#F0EEE8] dark:border-[var(--mav-line)] bg-white dark:bg-[#191c16] space-y-2">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -4301,21 +4397,34 @@ export default function AppAdminPortalPage() {
                     onClick={() => {
                       window.location.href = `mailto:${customerEmail}?subject=Order #${orderNum} Update`;
                     }}
-                    className="py-3 px-4 rounded-2xl bg-white border border-[#ded8ce] hover:bg-[#faf8f4] text-[#23241B] font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-xs"
+                    className="py-3 px-4 rounded-2xl bg-white dark:bg-[#1e221b] border border-[#ded8ce] dark:border-[var(--mav-line)] hover:bg-[#faf8f4] dark:hover:bg-[#242920] text-[#23241B] dark:text-[#eef0e6] font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-xs"
                     title="Send customer an email"
                   >
-                    <Mail className="w-3.5 h-3.5 text-[#6f7060]" />
+                    <Mail className="w-3.5 h-3.5 text-[#6f7060] dark:text-[#b0b4a2]" />
                     <span>Message</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => window.print()}
-                    className="py-3 px-4 rounded-2xl bg-white border border-[#ded8ce] hover:bg-[#faf8f4] text-[#23241B] font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-xs"
+                    className="py-3 px-4 rounded-2xl bg-white dark:bg-[#1e221b] border border-[#ded8ce] dark:border-[var(--mav-line)] hover:bg-[#faf8f4] dark:hover:bg-[#242920] text-[#23241B] dark:text-[#eef0e6] font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-xs"
                     title="Print packing slip"
                   >
-                    <Receipt className="w-3.5 h-3.5 text-[#6f7060]" />
+                    <Receipt className="w-3.5 h-3.5 text-[#6f7060] dark:text-[#b0b4a2]" />
                     <span>Packing slip</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExternalRefundOrder(selectedOrder);
+                      setActiveTab("orders");
+                    }}
+                    className="py-3 px-3.5 rounded-2xl bg-white dark:bg-[#1e221b] border border-[#ded8ce] dark:border-[var(--mav-line)] hover:bg-[#eff5fc] dark:hover:bg-[#152438] text-[#2563EB] dark:text-[#60a5fa] font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-xs"
+                    title="Issue TeraWallet Store Credit Refund"
+                  >
+                    <Wallet className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#60a5fa]" />
+                    <span>Refund</span>
                   </button>
                 </div>
 
@@ -4323,9 +4432,9 @@ export default function AppAdminPortalPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedOrder(null)}
-                    className="flex-1 py-2 px-3 rounded-xl border border-transparent hover:bg-[#fdeeed] text-[#d9534f] font-bold text-xs flex items-center justify-center gap-1.5 transition"
+                    className="flex-1 py-2 px-3 rounded-xl border border-transparent hover:bg-[#fdeeed] dark:hover:bg-[#381a1a] text-[#d9534f] dark:text-[#f87171] font-bold text-xs flex items-center justify-center gap-1.5 transition"
                   >
-                    <X className="w-3.5 h-3.5 text-[#d9534f]" />
+                    <X className="w-3.5 h-3.5 text-[#d9534f] dark:text-[#f87171]" />
                     <span>Cancel</span>
                   </button>
 
@@ -4334,7 +4443,7 @@ export default function AppAdminPortalPage() {
                       href={`${storeUrl}/wp-admin/post.php?post=${selectedOrder.id}&action=edit`}
                       target="_blank"
                       rel="noreferrer"
-                      className="py-2 px-3 rounded-xl text-xs text-[#6f7060] hover:text-[#23241B] font-medium flex items-center justify-center gap-1 transition"
+                      className="py-2 px-3 rounded-xl text-xs text-[#6f7060] dark:text-[#b0b4a2] hover:text-[#23241B] dark:hover:text-[#eef0e6] font-medium flex items-center justify-center gap-1 transition"
                     >
                       <span>Open in WooCommerce</span>
                       <ExternalLink className="w-3 h-3" />

@@ -18,8 +18,14 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
 
     if (!response.ok) {
+      const errorMsg =
+        data.errors?.email?.[0] ||
+        data.errors?.password?.[0] ||
+        data.message ||
+        data.error?.message ||
+        "The provided credentials are incorrect.";
       return NextResponse.json(
-        data.error || { code: "INVALID_CREDENTIALS", message: data.message || "Login failed" },
+        data.error || { code: "INVALID_CREDENTIALS", message: errorMsg, errors: data.errors },
         { status: response.status }
       );
     }

@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { apiClient } from "@/lib/api-client";
+import { AlertCircle, ShieldAlert, X } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -25,8 +26,25 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
   const queryRedirect = searchParams.get("redirect") || "";
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showErrorPopup, setShowErrorPopup] = useState(false);
+  const [errorDetails, setErrorDetails] = useState<{ title: string; message: string }>({
+    title: "Invalid Credentials",
+    message: "The provided credentials are incorrect. Please verify your email and password and try again.",
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [shakeCard, setShakeCard] = useState(false);
+
+  // Close popup with Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showErrorPopup) {
+        setShowErrorPopup(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showErrorPopup]);
 
   const navigateByAccountState = (currentUser: any, explicitRedirect?: string | null) => {
     if (currentUser?.is_super_admin || currentUser?.email === "admin@webintoapp.com") {
@@ -82,6 +100,7 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
   const onSubmit = async (data: LoginFormData) => {
     setIsSubmitting(true);
     setErrorMessage(null);
+    setShowErrorPopup(false);
 
     try {
       const res = await apiClient("/api/auth/login", {
@@ -97,14 +116,106 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
         router.refresh();
       }
     } catch (err: any) {
-      setErrorMessage(err.message || "Invalid email or password.");
+      const msg = err.message || "The provided credentials are incorrect. Please verify your email and password and try again.";
+      setErrorMessage(msg);
+
+      let title = "Invalid Credentials";
+      if (err.status === 429 || msg.toLowerCase().includes("too many")) {
+        title = "Too Many Attempts";
+      } else if (err.code === "EMAIL_NOT_VERIFIED" || msg.toLowerCase().includes("verify your email")) {
+        title = "Email Not Verified";
+      } else if (err.status === 500 || err.code === "SERVER_ERROR") {
+        title = "Server Connection Error";
+      }
+
+      setErrorDetails({
+        title,
+        message: msg,
+      });
+      setShowErrorPopup(true);
+
+      // Trigger tactile shake animation on the card
+      setShakeCard(true);
+      setTimeout(() => setShakeCard(false), 500);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="auth-layout" style={{ minHeight: "100vh", background: "#FFFFFF" }}>
+    <div className="auth-layout relative" style={{ minHeight: "100vh", background: "#FFFFFF" }}>
+      {/* ── Error Popup Modal ──────────────────────────────────────────────── */}
+      {showErrorPopup && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowErrorPopup(false)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="error-modal-title"
+            aria-describedby="error-modal-description"
+            className="relative w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-rose-100 flex flex-col items-center text-center animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setShowErrorPopup(false)}
+              className="absolute top-4 right-4 w-9 h-9 rounded-full border border-stone-200 text-stone-400 hover:text-stone-700 hover:bg-stone-100 flex items-center justify-center transition shadow-xs"
+              aria-label="Close error popup"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Error Icon Halo */}
+            <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mb-4 shadow-xs">
+              <ShieldAlert className="w-8 h-8 stroke-[2.2]" />
+            </div>
+
+            {/* Title */}
+            <h3 id="error-modal-title" className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight">
+              {errorDetails.title}
+            </h3>
+
+            {/* Description */}
+            <p id="error-modal-description" className="text-sm text-stone-600 leading-relaxed mt-2.5 max-w-sm">
+              {errorDetails.message}
+            </p>
+
+            {/* Action Buttons */}
+            <div className="w-full mt-6 space-y-2.5">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => {
+                  setShowErrorPopup(false);
+                  const pwdInput = document.getElementById("password") as HTMLInputElement | null;
+                  if (pwdInput) {
+                    pwdInput.focus();
+                    pwdInput.select();
+                  }
+                }}
+                className="w-full py-3.5 px-5 rounded-2xl bg-[#78593D] hover:bg-[#63472E] text-white font-bold text-sm shadow-md transition active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Try Again</span>
+              </button>
+
+              <div className="flex items-center justify-center pt-1">
+                <Link
+                  href="/forgot-password"
+                  onClick={() => setShowErrorPopup(false)}
+                  className="text-xs font-semibold text-[#78593D] hover:underline transition"
+                >
+                  Forgot your password? Reset it here →
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="auth-page-wrapper">
         {/* Top Auth Nav Bar */}
         <header className="auth-nav-bar">
@@ -155,7 +266,7 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
         {/* Main Content */}
         <main className="auth-main-content">
           <div className="auth-card-wrapper">
-            <div className="auth-card">
+            <div className={`auth-card transition-transform duration-300 ${shakeCard ? "animate-shake" : ""}`}>
               {/* Card Header */}
               <div className="auth-card-header">
                 <div className="auth-eyebrow-pill">
@@ -181,6 +292,27 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
                   Enter your credentials to access your app builds, analytics, and compatibility analysis.
                 </p>
               </div>
+
+              {/* In-Card Error Alert Banner */}
+              {errorMessage && (
+                <div className="mb-5 p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-start gap-3 text-left animate-in slide-in-from-top-2">
+                  <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <AlertCircle className="w-4 h-4 stroke-[2.2]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <strong className="text-xs font-bold text-rose-950 block">Invalid Login Credentials</strong>
+                    <p className="text-xs text-rose-700 leading-relaxed mt-0.5">{errorMessage}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setErrorMessage(null)}
+                    className="text-rose-400 hover:text-rose-700 p-1 rounded-lg transition"
+                    title="Dismiss alert"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               {/* Form */}
               <form onSubmit={handleSubmit(onSubmit)} className="auth-form" noValidate>
@@ -210,7 +342,7 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
                       type="email"
                       id="email"
                       placeholder="you@company.com"
-                      className="auth-input"
+                      className={`auth-input ${errorMessage ? "!border-rose-400 !ring-2 !ring-rose-100" : ""}`}
                     />
                   </div>
                   {errors.email && (
@@ -249,7 +381,7 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
                       type={showPassword ? "text" : "password"}
                       id="password"
                       placeholder="••••••••••••"
-                      className="auth-input auth-password-input"
+                      className={`auth-input auth-password-input ${errorMessage ? "!border-rose-400 !ring-2 !ring-rose-100" : ""}`}
                     />
                     <button
                       type="button"

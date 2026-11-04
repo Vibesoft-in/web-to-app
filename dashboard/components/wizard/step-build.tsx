@@ -726,7 +726,23 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
             </div>
           </div>
         )}
+      
+      {/* ── FINISH & DASHBOARD NAVIGATION BAR ── */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-200 mt-8">
+        <div className="text-xs text-slate-500 flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+          <span>Setup wizard complete! You can download your app build files anytime from your dashboard.</span>
+        </div>
+
+        <Link
+          href="/dashboard"
+          className="w-full sm:w-auto justify-center px-7 py-3 bg-slate-900 hover:bg-black text-white rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-slate-900/10 cursor-pointer active:scale-98"
+        >
+          <span>Complete &amp; Return to Dashboard</span>
+          <ArrowRight className="w-4 h-4" />
+        </Link>
       </div>
     </div>
+  </div>
   );
 }

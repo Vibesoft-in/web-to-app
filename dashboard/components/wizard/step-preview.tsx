@@ -1718,6 +1718,32 @@ export function StepPreview({ ulid, onNext }: StepPreviewProps) {
           />
         </div>
       </div>
+
+      {/* ── BOTTOM ACTION BAR WITH NEXT BUTTON ── */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-200 mt-8">
+        <div className="text-xs text-slate-500">
+          Mobile app layout and products previewed. Ready to configure push notifications and integrations.
+        </div>
+
+        <button
+          type="button"
+          onClick={handlePublish}
+          disabled={isPublishing || publishSuccess}
+          className="w-full sm:w-auto justify-center px-7 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-70 cursor-pointer active:scale-98"
+        >
+          {isPublishing ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Publishing &amp; Proceeding...</span>
+            </>
+          ) : (
+            <>
+              <span>Next: Integrations &amp; Add-ons</span>
+              <ArrowRight className="w-4 h-4" />
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 }

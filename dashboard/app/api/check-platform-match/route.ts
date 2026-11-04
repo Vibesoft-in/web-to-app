@@ -18,29 +18,50 @@ export async function POST(req: NextRequest) {
       rawUrl = "https://" + rawUrl;
     }
 
-    let detectedPlatform: string | null = null;
+    let detectedPlatform: "woocommerce" | "shopify" | "wordpress" | "custom" | null = null;
     let isCustom = false;
     let urlLower = rawUrl.toLowerCase();
 
-    // Fast domain signature checks
-    if (urlLower.includes("myshopify.com") || urlLower.includes("shopify")) {
-      detectedPlatform = "shopify";
-    } else if (urlLower.includes("woocommerce") || urlLower.includes("woo")) {
-      detectedPlatform = "woocommerce";
-    } else if (urlLower.includes("wordpress.com") || urlLower.includes("wp.")) {
-      detectedPlatform = "wordpress";
-    } else if (
-      urlLower.includes("wix.com") ||
-      urlLower.includes("wixsite.com") ||
-      urlLower.includes("squarespace.com") ||
-      urlLower.includes("webflow.io") ||
-      urlLower.includes("bigcommerce.com")
-    ) {
+    // Fast domain checks for known custom or non-ecommerce giants
+    const knownCustomDomains = [
+      "google.",
+      "youtube.",
+      "facebook.",
+      "instagram.",
+      "twitter.",
+      "x.com",
+      "apple.",
+      "microsoft.",
+      "linkedin.",
+      "github.",
+      "netflix.",
+      "wikipedia.",
+      "yahoo.",
+      "amazon.",
+      "reddit.",
+      "wix.com",
+      "wixsite.com",
+      "squarespace.com",
+      "webflow.io",
+      "webflow.com",
+      "bigcommerce.com",
+      "weebly.com",
+      "magento.",
+      "prestashop.",
+    ];
+
+    if (knownCustomDomains.some((d) => urlLower.includes(d))) {
       detectedPlatform = "custom";
       isCustom = true;
+    } else if (urlLower.includes("myshopify.com")) {
+      detectedPlatform = "shopify";
+    } else if (urlLower.includes("woocommerce.com")) {
+      detectedPlatform = "woocommerce";
+    } else if (urlLower.includes("wordpress.com") || urlLower.includes("wp.me")) {
+      detectedPlatform = "wordpress";
     }
 
-    // If not determined by URL string, inspect page headers and HTML
+    // If not determined by fast check, inspect page headers and HTML
     if (!detectedPlatform) {
       try {
         const controller = new AbortController();
@@ -64,63 +85,55 @@ export async function POST(req: NextRequest) {
         const poweredBy = (headers.get("x-powered-by") || "").toLowerCase();
         const text = (await response.text()).slice(0, 500000).toLowerCase();
 
-        // Check for Shopify
+        // 1. Check for Shopify
         if (
           text.includes("cdn.shopify.com") ||
           text.includes("window.shopify") ||
           text.includes("shopify.theme") ||
           text.includes("shopify-payment-button") ||
-          serverHeader.includes("cloudflare") && text.includes("myshopify")
+          headers.get("x-shopid") ||
+          headers.get("x-shopify-stage") ||
+          (serverHeader.includes("cloudflare") && text.includes("myshopify"))
         ) {
           detectedPlatform = "shopify";
         }
-        // Check for WooCommerce (WordPress + WooCommerce indicators)
+        // 2. Check for WooCommerce (WordPress + WooCommerce indicators)
         else if (
           text.includes("woocommerce") ||
           text.includes("wc-ajax") ||
           text.includes("wp-content/plugins/woocommerce") ||
-          text.includes("add-to-cart") && text.includes("wp-content")
+          text.includes("woocommerce-price-amount") ||
+          text.includes("woocommerce-cart") ||
+          (text.includes("add-to-cart") && text.includes("wp-content"))
         ) {
           detectedPlatform = "woocommerce";
         }
-        // Check for generic WordPress
+        // 3. Check for generic WordPress
         else if (
           text.includes("wp-content") ||
           text.includes("wp-includes") ||
           text.includes('name="generator" content="wordpress') ||
-          text.includes("wp-json")
+          text.includes("wp-json") ||
+          poweredBy.includes("wordpress") ||
+          headers.get("link")?.includes("wp-json")
         ) {
           detectedPlatform = "wordpress";
         }
-        // Check for Wix, Squarespace, etc.
-        else if (
-          text.includes("wix.com") ||
-          text.includes("squarespace.com") ||
-          text.includes("webflow.com") ||
-          text.includes("prestashop") ||
-          text.includes("magento") ||
-          text.includes("bigcommerce")
-        ) {
+        // 4. Any other website is a Custom Platform!
+        else {
           detectedPlatform = "custom";
           isCustom = true;
         }
       } catch (e) {
-        // If fetch fails or timeouts, fallback gracefully to selected platform if present
-        if (selectedPlatform && ["woocommerce", "shopify", "wordpress"].includes(selectedPlatform)) {
-          detectedPlatform = selectedPlatform;
-        }
+        // If fetch fails (timeout, blocked, DNS, SSL, etc.)
+        // Cannot verify as WooCommerce, Shopify, or WordPress -> treat as custom
+        detectedPlatform = "custom";
+        isCustom = true;
       }
     }
 
-    if (!detectedPlatform) {
-      if (selectedPlatform && ["woocommerce", "shopify", "wordpress"].includes(selectedPlatform)) {
-        detectedPlatform = selectedPlatform;
-      } else {
-        detectedPlatform = "woocommerce";
-      }
-    }
-
-    if (detectedPlatform === "custom" || isCustom) {
+    // If still null or anything else -> custom platform
+    if (!detectedPlatform || detectedPlatform === "custom" || isCustom) {
       return NextResponse.json({
         success: true,
         detected_platform: "custom",
@@ -128,14 +141,14 @@ export async function POST(req: NextRequest) {
         is_supported: false,
         matched: false,
         message:
-          "This website appears to be built on a custom platform. We currently only convert websites built on WooCommerce, Shopify, or WordPress.",
+          "Custom Platform Detected: This website appears to be built on a custom platform. AppifyHub only converts websites built on WooCommerce, Shopify, or WordPress.",
       });
     }
 
-    const finalPlatform = detectedPlatform || "woocommerce";
-    const matched = !selectedPlatform || selectedPlatform === finalPlatform;
+    // Now detectedPlatform is guaranteed to be "woocommerce", "shopify", or "wordpress"
+    const matched = !selectedPlatform || selectedPlatform === detectedPlatform;
     const detectedName =
-      finalPlatform.charAt(0).toUpperCase() + finalPlatform.slice(1);
+      detectedPlatform.charAt(0).toUpperCase() + detectedPlatform.slice(1);
     const selectedName = selectedPlatform
       ? selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1)
       : "";

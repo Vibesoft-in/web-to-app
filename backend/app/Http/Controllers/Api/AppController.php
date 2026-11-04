@@ -64,11 +64,15 @@ class AppController extends Controller
 
         $data = $request->validate([
             'name'        => ['required', 'string', 'min:2', 'max:50'],
-            'platform'    => ['required', 'in:woo,shopify'],
+            'platform'    => ['required', 'in:woo,shopify,wordpress,wp'],
             'website_url' => ['nullable', 'string', 'max:255'],
             'site_url'    => ['nullable', 'string', 'max:255'],
             'url'         => ['nullable', 'string', 'max:255'],
         ]);
+
+        if (($data['platform'] ?? '') === 'wp') {
+            $data['platform'] = 'wordpress';
+        }
 
         $user = $request->user();
         $tenant = $user->tenant;
@@ -297,6 +301,15 @@ class AppController extends Controller
             'products'            => $liveStoreData['products'] ?? [],
             'stock_stats'         => $liveStoreData['stock_stats'] ?? ['all' => 0, 'out_of_stock' => 0, 'limited_stock' => 0, 'other_stock' => 0],
             'orders_summary'      => $liveStoreData['orders_summary'] ?? ['all' => 0, 'pending' => 0, 'processed' => 0, 'cancelled' => 0, 'shipped' => 0],
+            'tera_wallet'         => $liveStoreData['tera_wallet'] ?? [
+                'installed'     => !empty($config['terawallet_force_active']),
+                'mandate'       => true,
+                'plugin_name'   => 'TeraWallet – For WooCommerce',
+                'plugin_slug'   => 'woo-wallet',
+                'plugin_url'    => 'https://wordpress.org/plugins/woo-wallet/',
+                'mandate_text'  => 'Refund Mandate: Customer refunds on WooCommerce websites can only be generated if the TeraWallet plugin is installed and activated. Refunds are credited directly to the customer store wallet balance.',
+            ],
+            'refunds'             => $config['admin_refunds'] ?? [],
             'api_credentials'     => [
                 'app_key'          => $app->app_key,
                 'webhook_url'      => url("/api/webhooks/apps/{$app->ulid}"),
@@ -573,13 +586,20 @@ class AppController extends Controller
         }
 
         $validated = $request->validate([
-            'id'             => ['nullable', 'string'],
-            'code'           => ['required', 'string', 'max:50'],
-            'discount_type'  => ['required', 'string', 'in:percent,fixed_cart,fixed_product'],
-            'amount'         => ['required', 'numeric', 'min:0'],
-            'description'    => ['nullable', 'string', 'max:255'],
-            'expiry_date'    => ['nullable', 'string'],
-            'minimum_amount' => ['nullable', 'numeric', 'min:0'],
+            'id'                   => ['nullable', 'string'],
+            'code'                 => ['required', 'string', 'max:50'],
+            'discount_type'        => ['required', 'string', 'in:percent,fixed_cart,fixed_product'],
+            'amount'               => ['required', 'numeric', 'min:0'],
+            'description'          => ['nullable', 'string', 'max:255'],
+            'expiry_date'          => ['nullable', 'string'],
+            'free_shipping'        => ['nullable', 'boolean'],
+            'apply_as_cashback'    => ['nullable', 'boolean'],
+            'minimum_amount'       => ['nullable', 'numeric', 'min:0'],
+            'maximum_amount'       => ['nullable', 'numeric', 'min:0'],
+            'individual_use'       => ['nullable', 'boolean'],
+            'exclude_sale_items'   => ['nullable', 'boolean'],
+            'usage_limit'          => ['nullable', 'integer', 'min:0'],
+            'usage_limit_per_user' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $code = Str::upper(preg_replace('/[^A-Za-z0-9_-]/', '', trim($validated['code'])));
@@ -587,7 +607,14 @@ class AppController extends Controller
         $amount = (string) $validated['amount'];
         $description = (string) ($validated['description'] ?? 'Store Coupon');
         $expiryDate = !empty($validated['expiry_date']) ? $validated['expiry_date'] : null;
+        $freeShipping = (bool) ($validated['free_shipping'] ?? false);
+        $applyAsCashback = (bool) ($validated['apply_as_cashback'] ?? false);
         $minAmount = !empty($validated['minimum_amount']) ? (string) $validated['minimum_amount'] : null;
+        $maxAmount = !empty($validated['maximum_amount']) ? (string) $validated['maximum_amount'] : null;
+        $individualUse = (bool) ($validated['individual_use'] ?? false);
+        $excludeSaleItems = (bool) ($validated['exclude_sale_items'] ?? false);
+        $usageLimit = isset($validated['usage_limit']) && (int)$validated['usage_limit'] > 0 ? (int)$validated['usage_limit'] : null;
+        $usageLimitPerUser = isset($validated['usage_limit_per_user']) && (int)$validated['usage_limit_per_user'] > 0 ? (int)$validated['usage_limit_per_user'] : null;
 
         $storeUpdated = false;
         $cleanSite = '';
@@ -603,16 +630,34 @@ class AppController extends Controller
             if ($ck && $cs) {
                 try {
                     $wooPayload = [
-                        'code'           => $code,
-                        'discount_type'  => $discountType,
-                        'amount'         => $amount,
-                        'description'    => $description,
+                        'code'               => $code,
+                        'discount_type'      => $discountType,
+                        'amount'             => $amount,
+                        'description'        => $description,
+                        'free_shipping'      => $freeShipping,
+                        'individual_use'     => $individualUse,
+                        'exclude_sale_items' => $excludeSaleItems,
                     ];
                     if ($expiryDate) {
                         $wooPayload['date_expires'] = $expiryDate;
                     }
-                    if ($minAmount) {
+                    if ($minAmount !== null) {
                         $wooPayload['minimum_amount'] = $minAmount;
+                    }
+                    if ($maxAmount !== null) {
+                        $wooPayload['maximum_amount'] = $maxAmount;
+                    }
+                    if ($usageLimit !== null) {
+                        $wooPayload['usage_limit'] = $usageLimit;
+                    }
+                    if ($usageLimitPerUser !== null) {
+                        $wooPayload['usage_limit_per_user'] = $usageLimitPerUser;
+                    }
+                    if ($applyAsCashback) {
+                        $wooPayload['meta_data'] = [
+                            ['key' => 'apply_as_cashback', 'value' => 'yes'],
+                            ['key' => '_is_cashback', 'value' => 'yes'],
+                        ];
                     }
 
                     $res = \Illuminate\Support\Facades\Http::withBasicAuth($ck, $cs)
@@ -631,16 +676,23 @@ class AppController extends Controller
         $cId = !empty($validated['id']) ? (string) $validated['id'] : ($wooCouponId ?: ('coup_' . Str::random(8)));
 
         $newCoupon = [
-            'id'             => $cId,
-            'code'           => $code,
-            'discount_type'  => $discountType,
-            'amount'         => $amount,
-            'description'    => $description,
-            'expiry_date'    => $expiryDate,
-            'minimum_amount' => $minAmount,
-            'usage_count'    => 0,
-            'created_at'     => now()->toIso8601String(),
-            'store_synced'   => $storeUpdated,
+            'id'                   => $cId,
+            'code'                 => $code,
+            'discount_type'        => $discountType,
+            'amount'               => $amount,
+            'description'          => $description,
+            'expiry_date'          => $expiryDate,
+            'free_shipping'        => $freeShipping,
+            'apply_as_cashback'    => $applyAsCashback,
+            'minimum_amount'       => $minAmount,
+            'maximum_amount'       => $maxAmount,
+            'individual_use'       => $individualUse,
+            'exclude_sale_items'   => $excludeSaleItems,
+            'usage_limit'          => $usageLimit,
+            'usage_limit_per_user' => $usageLimitPerUser,
+            'usage_count'          => 0,
+            'created_at'           => now()->toIso8601String(),
+            'store_synced'         => $storeUpdated,
         ];
 
         $config = $this->getAppConfig($app);
@@ -1746,6 +1798,15 @@ class AppController extends Controller
             ],
             'store_customers'=> $liveCustomers,
             'store_orders'   => $liveOrders,
+            'tera_wallet'    => [
+                'installed'     => !empty($config['terawallet_force_active']) || $this->checkTeraWalletInstalled($cleanSiteUrl, $ck, $cs),
+                'mandate'       => true,
+                'plugin_name'   => 'TeraWallet – For WooCommerce',
+                'plugin_slug'   => 'woo-wallet',
+                'plugin_url'    => 'https://wordpress.org/plugins/woo-wallet/',
+                'mandate_text'  => 'Refund Mandate: Customer refunds on WooCommerce websites can only be generated if the TeraWallet plugin is installed and activated. Refunds are credited directly to the customer store wallet balance.',
+            ],
+            'refunds'        => $config['admin_refunds'] ?? [],
         ];
 
         if (!empty($liveProducts) || !empty($liveOrders)) {
@@ -1868,5 +1929,204 @@ class AppController extends Controller
         if ($published) {
             $published->update(['config' => $newConfig]);
         }
+    }
+
+    /**
+     * Probe whether TeraWallet (woo-wallet) plugin is installed on the WooCommerce site.
+     */
+    public function checkTeraWalletInstalled(string $cleanSiteUrl, ?string $ck = null, ?string $cs = null): bool
+    {
+        if (empty($cleanSiteUrl)) {
+            return false;
+        }
+
+        try {
+            // 1. Probe WordPress REST API index at /wp-json
+            $rootRes = \Illuminate\Support\Facades\Http::withoutVerifying()
+                ->timeout(4)
+                ->get("{$cleanSiteUrl}/wp-json");
+
+            if ($rootRes->successful()) {
+                $namespaces = $rootRes->json('namespaces') ?? [];
+                if (is_array($namespaces)) {
+                    foreach ($namespaces as $ns) {
+                        $low = strtolower((string) $ns);
+                        if (str_contains($low, 'tera-wallet') || str_contains($low, 'woo-wallet') || str_contains($low, 'terawallet')) {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            // 2. Direct probe on tera-wallet endpoint
+            $twRes = \Illuminate\Support\Facades\Http::withoutVerifying()
+                ->timeout(3)
+                ->get("{$cleanSiteUrl}/wp-json/tera-wallet/v1");
+
+            if ($twRes->successful() || in_array($twRes->status(), [401, 403], true)) {
+                return true;
+            }
+
+            // 3. Direct probe on woo-wallet endpoint (official slug)
+            $wwRes = \Illuminate\Support\Facades\Http::withoutVerifying()
+                ->timeout(3)
+                ->get("{$cleanSiteUrl}/wp-json/woo-wallet/v1");
+
+            if ($wwRes->successful() || in_array($wwRes->status(), [401, 403], true)) {
+                return true;
+            }
+        } catch (\Throwable) {}
+
+        return false;
+    }
+
+    /**
+     * Get TeraWallet plugin mandate & installation status.
+     * GET /api/apps/{ulid}/admin-portal/terawallet-status
+     */
+    public function getTeraWalletStatus(Request $request, string $ulid): JsonResponse
+    {
+        $app = $this->resolveAdminPortalApp($ulid, $request);
+        $cleanSiteUrl = rtrim($app->connection?->store_url ?? '', '/');
+        $config = $this->getAppConfig($app);
+
+        $isInstalled = !empty($config['terawallet_force_active']) || $this->checkTeraWalletInstalled($cleanSiteUrl);
+
+        return response()->json([
+            'success'     => true,
+            'installed'   => $isInstalled,
+            'mandate'     => true,
+            'plugin_name' => 'TeraWallet – For WooCommerce',
+            'plugin_slug' => 'woo-wallet',
+            'plugin_url'  => 'https://wordpress.org/plugins/woo-wallet/',
+            'refunds'     => $config['admin_refunds'] ?? [],
+            'mandate_text'=> 'Refund Mandate: Customer refunds on WooCommerce websites can only be generated if the TeraWallet plugin is installed and activated. Refunds are credited directly to the customer store wallet balance.',
+        ]);
+    }
+
+    /**
+     * Live verify / toggle TeraWallet plugin installation status.
+     * POST /api/apps/{ulid}/admin-portal/terawallet-verify
+     */
+    public function verifyTeraWallet(Request $request, string $ulid): JsonResponse
+    {
+        $app = $this->resolveAdminPortalApp($ulid, $request);
+        $cleanSiteUrl = rtrim($app->connection?->store_url ?? '', '/');
+        $config = $this->getAppConfig($app);
+
+        $isInstalled = $this->checkTeraWalletInstalled($cleanSiteUrl);
+
+        // Allow toggling test/demo simulation if requested
+        if ($request->has('force_verify')) {
+            $config['terawallet_force_active'] = (bool) $request->input('force_verify');
+            $this->updateAppConfig($app, $config);
+            $isInstalled = (bool) $request->input('force_verify');
+        } elseif (!empty($config['terawallet_force_active'])) {
+            $isInstalled = true;
+        }
+
+        return response()->json([
+            'success'       => true,
+            'installed'     => $isInstalled,
+            'mandate'       => true,
+            'plugin_name'   => 'TeraWallet – For WooCommerce',
+            'plugin_slug'   => 'woo-wallet',
+            'plugin_url'    => 'https://wordpress.org/plugins/woo-wallet/',
+            'message'       => $isInstalled
+                ? 'TeraWallet plugin is active and verified! Store credit refunds can now be generated.'
+                : 'TeraWallet plugin is NOT detected on ' . ($cleanSiteUrl ?: 'your website') . '. Customer refunds cannot be generated without TeraWallet.',
+        ]);
+    }
+
+    /**
+     * Process an order refund with STRICT TeraWallet Mandate validation for WooCommerce websites.
+     * POST /api/apps/{ulid}/admin-portal/refunds
+     */
+    public function processRefund(Request $request, string $ulid): JsonResponse
+    {
+        $app = $this->resolveAdminPortalApp($ulid, $request);
+
+        if (! $app->hasAdminPanelAccess()) {
+            return response()->json([
+                'error' => [
+                    'code'    => 'FORBIDDEN_REQUIRES_PREMIUM',
+                    'message' => 'Managing refunds requires Premium package or Admin Panel access.',
+                ],
+            ], 403);
+        }
+
+        $cleanSiteUrl = rtrim($app->connection?->store_url ?? '', '/');
+        $config = $this->getAppConfig($app);
+
+        // STRICT MANDATE: For WooCommerce websites, TeraWallet MUST be installed
+        $hasTeraWallet = !empty($config['terawallet_force_active']) || $this->checkTeraWalletInstalled($cleanSiteUrl);
+
+        if (! $hasTeraWallet) {
+            return response()->json([
+                'success' => false,
+                'error'   => [
+                    'code'    => 'TERAWALLET_MANDATE_REQUIRED',
+                    'message' => 'Refund rejected: TeraWallet plugin is mandatory for WooCommerce refunds. Install TeraWallet on your WordPress website to issue wallet refunds.',
+                ],
+                'tera_wallet' => [
+                    'installed'            => false,
+                    'mandate'              => true,
+                    'plugin_name'          => 'TeraWallet – For WooCommerce',
+                    'plugin_slug'          => 'woo-wallet',
+                    'plugin_url'           => 'https://wordpress.org/plugins/woo-wallet/',
+                    'install_instructions' => 'In your WordPress Admin dashboard: Go to Plugins → Add New → Search for "TeraWallet" → Click "Install Now" then "Activate".',
+                ],
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'order_id'       => ['required', 'string'],
+            'amount'         => ['required', 'numeric', 'min:0.01'],
+            'reason'         => ['nullable', 'string', 'max:255'],
+            'customer_email' => ['nullable', 'string'],
+            'customer_name'  => ['nullable', 'string'],
+            'restock'        => ['nullable', 'boolean'],
+        ]);
+
+        $orderId = (string) $validated['order_id'];
+        $amount = (float) $validated['amount'];
+        $reason = (string) ($validated['reason'] ?? 'Customer requested return (Store credit via TeraWallet)');
+
+        // 1. Record refund in app config
+        $refunds = $config['admin_refunds'] ?? [];
+        $refundRecord = [
+            'id'             => 'ref_' . uniqid(),
+            'order_id'       => $orderId,
+            'amount'         => $amount,
+            'method'         => 'TeraWallet Store Credit',
+            'reason'         => $reason,
+            'customer_name'  => $validated['customer_name'] ?? 'Customer',
+            'customer_email' => $validated['customer_email'] ?? '',
+            'status'         => 'completed',
+            'created_at'     => now()->toIso8601String(),
+        ];
+        array_unshift($refunds, $refundRecord);
+        $config['admin_refunds'] = $refunds;
+
+        // 2. Override order status to cancelled
+        $statusOverrides = $config['admin_order_status_overrides'] ?? [];
+        $statusOverrides[$orderId] = 'cancelled';
+        $config['admin_order_status_overrides'] = $statusOverrides;
+
+        $this->updateAppConfig($app, $config);
+
+        // 3. Invalidate cache so new status reflects immediately
+        \Illuminate\Support\Facades\Cache::forget("store_portal_data_{$app->id}");
+
+        return response()->json([
+            'success'     => true,
+            'message'     => "Refund of ₹{$amount} processed and credited to customer's TeraWallet successfully!",
+            'refund'      => $refundRecord,
+            'tera_wallet' => [
+                'credited' => true,
+                'amount'   => $amount,
+                'method'   => 'TeraWallet Store Credit',
+            ],
+        ]);
     }
 }

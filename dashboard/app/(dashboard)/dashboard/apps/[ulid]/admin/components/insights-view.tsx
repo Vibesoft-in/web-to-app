@@ -357,7 +357,7 @@ export function InsightsView({
           </div>
           <h1 className="text-2xl font-serif text-[#1A1917] dark:text-[#F5F2EB] tracking-tight">Insights</h1>
           <p className="text-xs text-[#8A857D] dark:text-[#9A958D] mt-0.5">
-            How your roastery is doing, from the same orders the floor runs on.
+            How your store is doing, from the same orders the floor runs on.
           </p>
         </div>
 
@@ -746,24 +746,24 @@ export function InsightsView({
           <div className="space-y-6">
             <div className="bg-[#FAF8F5] dark:bg-[#1A1B1A] border border-[#E6E1D8] dark:border-[#2C2D2B] rounded-xl p-5 shadow-sm space-y-4">
               <div>
-                <h3 className="text-base font-serif font-medium text-[#1A1917] dark:text-[#F5F2EB]">Roast & category mix</h3>
-                <p className="text-xs text-[#8A857D] dark:text-[#9A958D]">Bags sold by roast profile</p>
+                <h3 className="text-base font-serif font-medium text-[#1A1917] dark:text-[#F5F2EB]">Product & category mix</h3>
+                <p className="text-xs text-[#8A857D] dark:text-[#9A958D]">Items sold by category profile</p>
               </div>
 
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div className="p-3 bg-white dark:bg-[#252625] border border-[#E6E1D8] dark:border-[#2C2D2B] rounded-xl">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#D97706] inline-block mb-1" />
-                  <p className="text-xs font-medium text-[#1A1917] dark:text-[#F5F2EB]">Light roast</p>
+                  <p className="text-xs font-medium text-[#1A1917] dark:text-[#F5F2EB]">Apparel & Tops</p>
                   <span className="text-base font-mono font-semibold text-[#525B44] dark:text-[#949F83]">54%</span>
                 </div>
                 <div className="p-3 bg-white dark:bg-[#252625] border border-[#E6E1D8] dark:border-[#2C2D2B] rounded-xl">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#C4554D] inline-block mb-1" />
-                  <p className="text-xs font-medium text-[#1A1917] dark:text-[#F5F2EB]">Medium roast</p>
+                  <p className="text-xs font-medium text-[#1A1917] dark:text-[#F5F2EB]">Accessories & Essentials</p>
                   <span className="text-base font-mono font-semibold text-[#525B44] dark:text-[#949F83]">32%</span>
                 </div>
                 <div className="p-3 bg-white dark:bg-[#252625] border border-[#E6E1D8] dark:border-[#2C2D2B] rounded-xl">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#475569] inline-block mb-1" />
-                  <p className="text-xs font-medium text-[#1A1917] dark:text-[#F5F2EB]">Dark roast</p>
+                  <p className="text-xs font-medium text-[#1A1917] dark:text-[#F5F2EB]">Featured Collections</p>
                   <span className="text-base font-mono font-semibold text-[#525B44] dark:text-[#949F83]">14%</span>
                 </div>
               </div>

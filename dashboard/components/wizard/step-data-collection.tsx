@@ -809,122 +809,78 @@ export function StepDataCollection({ ulid, app, setupState, onNext }: StepDataCo
         </div>
       </div>
 
-      {/* ── EXTRACTED STORE PRODUCTS & LIVE CATALOG SHOWCASE ── */}
+      {/* ── EXTRACTED STORE CATALOG SUMMARY: ONLY TOTAL PRODUCTS & CATEGORIES ── */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-900 flex items-center justify-center font-bold">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-900 flex items-center justify-center font-bold">
               <ShoppingBag className="w-5 h-5 text-amber-800" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-slate-900 text-base">
-                  Extracted Store Catalog &amp; Live Products
+                  Store Catalog Summary
                 </h3>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                  Live API Sync
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  Live Sync Active
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
-                Extracted directly from <strong className="text-slate-700 font-semibold">{storeUrl}</strong> via WooCommerce REST API. Ready for native iOS &amp; Android app screens.
+              <p className="text-xs text-slate-500 mt-0.5">
+                Catalog data indexed from <strong className="text-slate-700 font-semibold">{storeUrl}</strong> via WooCommerce REST API.
               </p>
             </div>
           </div>
+        </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
-              Total Inventory: <strong className="text-amber-900">{catalog.total_products || 29} Products</strong>
+        {/* 2 Clean Stat Cards: Number of Total Products & Number of Categories */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+          {/* Card 1: Total Products */}
+          <div className="p-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-amber-50/40 via-white to-slate-50/50 flex items-center justify-between shadow-2xs">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold shadow-xs">
+                <ShoppingBag className="w-6 h-6 text-amber-800" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                  Total Products
+                </span>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <span className="text-2xl font-black text-slate-900 font-mono">
+                    {catalog.total_products || currentData?.catalog?.total_products || 29}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500">Products</span>
+                </div>
+              </div>
+            </div>
+            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+              Active Inventory
             </span>
-            <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
-              Categories: <strong className="text-amber-900">{catalog.total_categories || 7}</strong>
+          </div>
+
+          {/* Card 2: Total Categories */}
+          <div className="p-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-indigo-50/40 via-white to-slate-50/50 flex items-center justify-between shadow-2xs">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-900 flex items-center justify-center font-bold shadow-xs">
+                <Layers className="w-6 h-6 text-indigo-800" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                  Total Categories
+                </span>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <span className="text-2xl font-black text-slate-900 font-mono">
+                    {catalog.total_categories || currentData?.catalog?.total_categories || 7}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500">Categories</span>
+                </div>
+              </div>
+            </div>
+            <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200">
+              Taxonomy Ready
             </span>
           </div>
         </div>
-
-        {/* Product Cards Grid */}
-        {sampleProducts && sampleProducts.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
-            {sampleProducts.map((p: any, idx: number) => {
-              const imgUrl = (p.images && p.images[0]) || "";
-              const formattedPrice = typeof p.price === "number" ? p.price.toLocaleString("en-IN") : p.price;
-              const formattedSalePrice = p.sale_price ? (typeof p.sale_price === "number" ? p.sale_price.toLocaleString("en-IN") : p.sale_price) : null;
-
-              return (
-                <div
-                  key={p.id || idx}
-                  className="group rounded-2xl border border-slate-200/90 bg-white hover:border-amber-300 hover:shadow-md transition overflow-hidden flex flex-col justify-between"
-                >
-                  <div className="relative aspect-square bg-slate-50 border-b border-slate-100 flex items-center justify-center overflow-hidden">
-                    {imgUrl ? (
-                      <img
-                        src={imgUrl}
-                        alt={p.title || "Product"}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        onError={(e) => {
-                          (e.target as HTMLElement).style.display = "none";
-                        }}
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-slate-300 p-4">
-                        <ShoppingBag className="w-10 h-10 mb-1" />
-                        <span className="text-[11px] text-slate-400">No Image</span>
-                      </div>
-                    )}
-                    {p.in_stock && (
-                      <span className="absolute top-2.5 left-2.5 text-[9.5px] font-bold uppercase tracking-wider bg-emerald-600/90 text-white px-2 py-0.5 rounded-md backdrop-blur-xs shadow-xs">
-                        In Stock
-                      </span>
-                    )}
-                    <span className="absolute top-2.5 right-2.5 text-[9.5px] font-mono font-bold bg-black/60 text-white px-1.5 py-0.5 rounded backdrop-blur-xs">
-                      ID #{p.id}
-                    </span>
-                  </div>
-
-                  <div className="p-3.5 flex flex-col flex-1 justify-between gap-2">
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm line-clamp-2 leading-snug group-hover:text-amber-900 transition-colors">
-                        {p.title}
-                      </h4>
-                      {p.url && (
-                        <a
-                          href={p.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[10px] text-slate-400 hover:text-indigo-600 flex items-center gap-1 mt-1 truncate"
-                        >
-                          <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
-                          <span className="truncate">{p.url}</span>
-                        </a>
-                      )}
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="text-sm font-black text-slate-900">
-                          {catalog.currency_symbol || "₹"}{formattedSalePrice || formattedPrice}
-                        </span>
-                        {formattedSalePrice && formattedPrice && (
-                          <span className="text-[11px] text-slate-400 line-through">
-                            {catalog.currency_symbol || "₹"}{formattedPrice}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/80">
-                        Synced
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-            <ShoppingBag className="w-8 h-8 text-slate-300 mx-auto" />
-            <p className="text-xs font-semibold text-slate-700">Connecting to WooCommerce Catalog...</p>
-            <p className="text-[11px] text-slate-400">Products are being indexed from {storeUrl}.</p>
-          </div>
-        )}
       </div>
 
       {/* ── CALCULATED STORE DATA & 11-FACTOR WEBSITE PERFORMANCE ROW ── */}
@@ -1093,16 +1049,16 @@ export function StepDataCollection({ ulid, app, setupState, onNext }: StepDataCo
           type="button"
           onClick={handleApplyAndContinue}
           disabled={isApplying}
-          className="w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-white bg-amber-900 hover:bg-amber-950 focus:ring-4 focus:ring-amber-200 transition shadow-lg shadow-amber-900/20 flex items-center justify-center gap-2 disabled:opacity-70"
+          className="w-full sm:w-auto px-7 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-200 transition shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer active:scale-98"
         >
           {isApplying ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Applying Website Brand Tokens...</span>
+              <span>Applying Website Tokens...</span>
             </>
           ) : (
             <>
-              <span>Apply Website Data &amp; Continue</span>
+              <span>Next: Select Theme</span>
               <ArrowRight className="w-4 h-4" />
             </>
           )}

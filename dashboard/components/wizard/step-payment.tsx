@@ -1346,6 +1346,24 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
           <span className="hidden sm:inline">UPI • Cards • NetBanking • Wallets</span>
         </div>
       </div>
+
+      {/* ── BOTTOM ACTION BAR WITH NEXT BUTTON ── */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-200 mt-6">
+        <div className="text-xs text-slate-500">
+          {hasActiveSubscription
+            ? "Your license package is active. Proceed to the APK build & compilation step."
+            : "Select your desired package above or proceed to the mobile build compilation step."}
+        </div>
+
+        <button
+          type="button"
+          onClick={onNext}
+          className="w-full sm:w-auto justify-center px-7 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-indigo-600/20 cursor-pointer active:scale-98"
+        >
+          <span>Next: Build &amp; Compile APK</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 }

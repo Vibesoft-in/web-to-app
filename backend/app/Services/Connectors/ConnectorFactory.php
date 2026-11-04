@@ -55,7 +55,7 @@ class ConnectorFactory
     ): ConnectorInterface {
         $platformKey = strtolower($platform);
 
-        if ($platformKey === 'woo' || $platformKey === 'woocommerce') {
+        if ($platformKey === 'woo' || $platformKey === 'woocommerce' || $platformKey === 'wordpress' || $platformKey === 'wp') {
             return new WooConnector(
                 siteUrl: $siteUrl,
                 consumerKey: (string) ($credentials['consumer_key'] ?? $credentials['ck'] ?? ''),

@@ -57,7 +57,7 @@ export function BestSellerModal({
   const productSub =
     product.sub_category ||
     product.sub ||
-    (product.category ? `${product.category} · Medium roast` : "House espresso · Medium roast");
+    (product.category ? `${product.category || "General"} · In Stock` : "Standard Item · In Stock");
   const productSku = product.sku || "LT-ESP-250";
   const productCategory = product.category || "Coffee";
   const productStock = product.stock_quantity ?? product.stock ?? 78;
@@ -89,10 +89,10 @@ export function BestSellerModal({
     );
   };
 
-  const handleRoastBatch = () => {
+  const handleRestockBatch = () => {
     const batchId = Math.floor(1000 + Math.random() * 9000);
     showToast(
-      `🔥 Batch #${batchId} scheduled for roasting (${productName})!`,
+      `🔥 Restock order #${batchId} placed (${productName})!`,
       "success"
     );
   };
@@ -261,15 +261,15 @@ export function BestSellerModal({
           </div>
         </div>
 
-        {/* Bottom Action Buttons (Roast a batch + Copy SKU) */}
+        {/* Bottom Action Buttons (Restock Inventory + Copy SKU) */}
         <div className="mt-5 pt-2 flex items-center gap-2.5">
           <button
             type="button"
-            onClick={handleRoastBatch}
+            onClick={handleRestockBatch}
             className="flex-1 h-12 rounded-2xl bg-[#4a6828] hover:bg-[#3f5721] text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.99]"
           >
             <Flame className="w-4 h-4 fill-white/20 stroke-[2.2]" />
-            <span>Roast a batch</span>
+            <span>Restock Inventory</span>
           </button>
 
           <button

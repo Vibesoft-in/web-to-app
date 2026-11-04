@@ -8,4 +8,5 @@ enum Platform: string
 {
     case WooCommerce = 'woo';
     case Shopify     = 'shopify';
+    case WordPress   = 'wordpress';
 }

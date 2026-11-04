@@ -28,6 +28,8 @@ import {
   HardDrive,
   Layers,
   LayoutDashboard,
+  LayoutGrid,
+  List,
   Loader2,
   Lock,
   MessageSquare,
@@ -145,6 +147,7 @@ function UserDashboardContent() {
     }
   }, [searchParams]);
 
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isRebuilding, setIsRebuilding] = useState(false);
   const [rebuildMessage, setRebuildMessage] = useState<string | null>(null);
   const [rebuildingAppUlids, setRebuildingAppUlids] = useState<Record<string, boolean>>({});
@@ -721,9 +724,35 @@ function UserDashboardContent() {
       planSlug.includes("enterprise") ||
       Boolean(appPlan.has_admin_panel);
 
-    const appHasAdmin =
-      appItem.has_admin_panel ??
-      (appPlan.has_admin_panel ?? (isPremiumTier || appPlan.name === "Premium"));
+    const hasAdminAddon =
+      Boolean(
+        (Array.isArray(appItem.purchased_addon_slugs) &&
+          (appItem.purchased_addon_slugs.includes("admin_panel_addon") ||
+            appItem.purchased_addon_slugs.includes("admin_panel"))) ||
+        myOrders?.some(
+          (o: any) =>
+            o.status === "paid" &&
+            (String(o.app_id) === String(appItem.id) || o.app_ulid === appItem.ulid) &&
+            o.items?.some(
+              (i: any) =>
+                i.meta?.slug === "admin_panel_addon" ||
+                i.meta?.slug === "admin_panel" ||
+                i.item_id === 5 ||
+                (i.name && i.name.toLowerCase().includes("admin panel"))
+            )
+        )
+      );
+
+    const appHasAdmin = Boolean(
+      appItem.has_admin_panel ||
+      hasAdminAddon ||
+      appPlan.has_admin_panel ||
+      isPremiumTier ||
+      planSlug.includes("enterprise") ||
+      appPlan.name === "Premium" ||
+      appPlan.name === "Enterprise" ||
+      appPlan.name === "Enterprise Suite"
+    );
 
     const appConfig = appItem.configs?.[0]?.config || {};
     const activeFeatures = appConfig.features || {};
@@ -1141,7 +1170,7 @@ function UserDashboardContent() {
     }
   };
 
-  const handleOpenAppDetails = async (app: any) => {
+  const handleOpenAppDetails = async (app: any, initialSection?: string) => {
     setViewingAppDetails(app);
     setIsLoadingConfig(true);
     try {
@@ -1157,6 +1186,12 @@ function UserDashboardContent() {
       }
     } finally {
       setIsLoadingConfig(false);
+      if (initialSection) {
+        setTimeout(() => {
+          const el = document.getElementById(initialSection);
+          if (el) el.scrollIntoView({ behavior: "smooth" });
+        }, 150);
+      }
     }
   };
 
@@ -1178,6 +1213,18 @@ function UserDashboardContent() {
         }}
         onRebuild={handleRebuild}
         isRebuilding={isRebuilding}
+        addons={displayedAddons}
+        onPurchaseAddon={async (addon) => {
+          await handlePurchaseAddon(addon, viewingAppDetails);
+          const freshApps = await refetchApps();
+          const refreshed = freshApps?.data?.find((a: any) => String(a.id) === String(viewingAppDetails.id));
+          if (refreshed) {
+            setViewingAppDetails(refreshed);
+          }
+        }}
+        isPurchasingAddon={isPurchasingAddon}
+        appHasAddon={(targetApp, addon) => appHasAddon(targetApp || viewingAppDetails, addon)}
+        user={user}
       />
     );
   }
@@ -1562,549 +1609,454 @@ function UserDashboardContent() {
                 );
               }
 
-              return displayedApps.map((appItem: any) => {
-                const { catalog, entitled, unclaimed, claimed, appPlan, appHasAdmin } = getAppFeatureCatalog(appItem);
-                const appBuilds = appItem.builds || [];
-                const appReadyBuild = appBuilds.find((b: any) => b.status === "ready" || b.status?.value === "ready") || appBuilds[0];
-                const appLatestBuild = appReadyBuild || appBuilds[0];
-                const appTargetBuildId = appLatestBuild?.id;
-
-                const appCanApk = appItem.can_apk ?? (appPlan.can_apk ?? true);
-                const appCanAab =
-                  appItem.can_aab ??
-                  (appPlan.can_aab ??
-                    (appPlan.name !== "Basic" &&
-                      appPlan.name !== "Basic App" &&
-                      appPlan.name !== "Starter"));
-
-                const isAppRebuilding = Boolean(rebuildingAppUlids[appItem.ulid]);
-                const activeFilter = featureTabFilter[appItem.ulid] || "unclaimed";
-
-                const displayedFeatures =
-                  activeFilter === "unclaimed"
-                    ? unclaimed
-                    : activeFilter === "claimed"
-                    ? claimed
-                    : entitled;
-
-                const isDraft = isAppDraft(appItem);
-                const currentStepKey = appItem.setup_step || "platform";
-                const stepInfo = SETUP_STEP_DETAILS[currentStepKey] || {
-                  stepNumber: 1,
-                  title: "Platform Selection",
-                  description: "Configure your store platform and credentials.",
-                  nextAction: "Select Platform",
-                };
-
+              if (viewMode === "grid") {
                 return (
-                  <div
-                    key={appItem.id || appItem.ulid}
-                    className={`bg-white rounded-3xl p-6 sm:p-8 shadow-sm space-y-6 relative overflow-hidden transition-all ${
-                      isDraft
-                        ? "border-2 border-amber-300/80 shadow-amber-500/5"
-                        : "border border-[#EBE6DF]"
-                    }`}
-                  >
-                    {isDraft && (
-                      <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-300" />
-                    )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {displayedApps.map((appItem: any) => {
+                      const { catalog, entitled, unclaimed, claimed, appPlan, appHasAdmin } = getAppFeatureCatalog(appItem);
+                      const appBuilds = appItem.builds || [];
+                      const appReadyBuild = appBuilds.find((b: any) => b.status === "ready" || b.status?.value === "ready") || appBuilds[0];
+                      const appLatestBuild = appReadyBuild || appBuilds[0];
+                      const appTargetBuildId = appLatestBuild?.id;
+                      const isDraft = isAppDraft(appItem);
+                      const currentStepKey = appItem.setup_step || "platform";
+                      const stepInfo = SETUP_STEP_DETAILS[currentStepKey] || {
+                        stepNumber: 1,
+                        title: "Platform Selection",
+                        description: "Configure your store platform and credentials.",
+                        nextAction: "Select Platform",
+                      };
+                      const isAppRebuilding = Boolean(rebuildingAppUlids[appItem.ulid]);
+                      const buildPercentage = isAppRebuilding
+                        ? 95
+                        : Math.max(10, Math.min(90, Math.round(((stepInfo.stepNumber - 1) / 10) * 100)));
+                      const circumference = 88;
+                      const strokeDashoffset = circumference - (circumference * buildPercentage) / 100;
+                      const storeUrl = appItem.connection?.store_url || appItem.connection?.site_url;
 
-                    {/* Top App Row */}
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-[#EBE6DF]">
-                      <div className="flex items-start gap-4">
+                      return (
                         <div
-                          className={`w-14 h-14 rounded-2xl text-white font-extrabold text-2xl flex items-center justify-center shadow-md flex-shrink-0 ${
+                          key={appItem.id || appItem.ulid}
+                          className={`bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden group ${
                             isDraft
-                              ? "bg-gradient-to-tr from-amber-600 to-amber-400 shadow-amber-600/20"
-                              : "bg-gradient-to-tr from-[#78593D] to-[#C2A88F] shadow-[#78593D]/20"
+                              ? "border-2 border-amber-300/80 shadow-amber-500/5"
+                              : "border border-[#EBE6DF]"
                           }`}
                         >
-                          {appItem.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h2 className="text-xl font-black text-[#1C1917]">{appItem.name}</h2>
-                            {isDraft ? (
-                              <>
-                                <span className="px-3 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1.5 shadow-2xs">
-                                  <Clock className="w-3.5 h-3.5 text-amber-700" />
-                                  <span>Draft &bull; Step {stepInfo.stepNumber} of 10</span>
-                                </span>
-                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
-                                  Incomplete Setup
-                                </span>
-                              </>
-                            ) : (
-                              <>
-                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                  {appItem.status || "Ready"}
-                                </span>
-                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30">
-                                  {appPlan.name} Package
-                                </span>
-                              </>
-                            )}
-                          </div>
-                          <p className="text-xs text-[#7E756B] font-mono mt-1">{appItem.package_name}</p>
-                          <p className="text-xs text-[#57514B] mt-1">
-                            Store URL:{" "}
-                            <a
-                              href={appItem.connection?.store_url || appItem.connection?.site_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[#78593D] hover:underline font-semibold inline-flex items-center gap-0.5"
-                            >
-                              {appItem.connection?.store_url || appItem.connection?.site_url || "Connected Store"}
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Direct Download & Build Actions */}
-                      <div className="flex flex-wrap items-center gap-3">
-                        {/* VIEW APP DETAILS BUTTON */}
-                        <button
-                          type="button"
-                          onClick={() => handleOpenAppDetails(appItem)}
-                          className="px-4 py-2.5 bg-[#EFEAE2]/60 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
-                        >
-                          <Eye className="w-4 h-4 text-[#78593D]" />
-                          <span>View App Details</span>
-                        </button>
-
-                        {isDraft ? (
-                          /* DRAFT APP PRIMARY ACTION BUTTON */
-                          <Link
-                            href={`/dashboard/apps/${appItem.ulid}/setup/${appItem.setup_step || "platform"}`}
-                            className="px-4 py-2.5 bg-gradient-to-r from-[#78593D] to-[#8C6D4F] hover:from-[#634932] hover:to-[#78593D] text-white rounded-xl text-xs font-black transition shadow-md shadow-[#78593D]/25 flex items-center gap-2 group cursor-pointer"
-                          >
-                            <PlayCircle className="w-4 h-4 text-amber-300 group-hover:scale-110 transition-transform" />
-                            <span>Continue Setup (Step {stepInfo.stepNumber}/10)</span>
-                            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                          </Link>
-                        ) : (
-                          /* COMPLETED APP ACTIONS */
-                          <>
-                            {/* 1. APK DOWNLOAD BUTTON */}
-                            {appBuilds.length > 0 && appTargetBuildId ? (
-                              <a
-                                href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk`}
-                                download
-                                className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-md shadow-emerald-700/20 flex items-center gap-2"
-                              >
-                                <Download className="w-4 h-4" />
-                                <span>Download APK (v{appLatestBuild?.version_code || 1})</span>
-                              </a>
-                            ) : (
-                              <button
-                                onClick={() => handleRebuildForApp(appItem)}
-                                disabled={isAppRebuilding}
-                                className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-md shadow-emerald-700/20 flex items-center gap-2 cursor-pointer"
-                              >
-                                <RefreshCw className={`w-4 h-4 ${isAppRebuilding ? "animate-spin" : ""}`} />
-                                <span>{isAppRebuilding ? "Compiling APK..." : "Compile First APK"}</span>
-                              </button>
-                            )}
-
-                            {/* 2. AAB DOWNLOAD BUTTON (PRO / PREMIUM ONLY) */}
-                            {appBuilds.length > 0 && appTargetBuildId && (
-                              appCanAab ? (
-                                <a
-                                  href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=aab`}
-                                  download
-                                  className="px-4 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition shadow-md shadow-[#78593D]/20 flex items-center gap-2"
-                                >
-                                  <Download className="w-4 h-4" />
-                                  <span>Download Play Store .AAB</span>
-                                </a>
-                              ) : (
-                                <button
-                                  onClick={() => {
-                                    const proPkg = commercialPackages.find((p: any) => p.slug === "pro") || {
-                                      id: 2,
-                                      name: "Pro",
-                                      price_monthly: 799900,
-                                      can_aab: true,
-                                    };
-                                    setUpgradeTargetApp(appItem);
-                                    setUpgradeTargetPkg(proPkg);
-                                  }}
-                                  className="px-4 py-2.5 bg-[#F7F5F0] hover:bg-[#EFEAE2] text-[#57514B] border border-[#EBE6DF] rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer"
-                                >
-                                  <Lock className="w-3.5 h-3.5 text-amber-600" />
-                                  <span>AAB Locked &bull; Upgrade to Pro</span>
-                                </button>
-                              )
-                            )}
-
-                            {/* 3. DEDICATED APP ADMIN PANEL ACCESS (PREMIUM ONLY) */}
-                            {appHasAdmin ? (
-                              <Link
-                                href={`/dashboard/apps/${appItem.ulid}/admin`}
-                                className="px-4 py-2.5 bg-indigo-700 hover:bg-indigo-800 text-white rounded-xl text-xs font-bold transition shadow-md shadow-indigo-700/20 flex items-center gap-2"
-                              >
-                                <LayoutDashboard className="w-4 h-4" />
-                                <span>Open App Admin Panel</span>
-                              </Link>
-                            ) : (
-                              <button
-                                onClick={() => {
-                                  const premPkg = commercialPackages.find((p: any) => p.slug === "premium") || {
-                                    id: 3,
-                                    name: "Premium",
-                                    price_monthly: 1499900,
-                                    has_admin_panel: true,
-                                  };
-                                  setUpgradeTargetApp(appItem);
-                                  setUpgradeTargetPkg(premPkg);
-                                }}
-                                className="px-3.5 py-2.5 bg-[#F7F5F0] hover:bg-[#EFEAE2] text-[#7E756B] border border-[#EBE6DF] rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                                title="Admin Panel requires Premium Package or Add-on"
-                              >
-                                <Lock className="w-3.5 h-3.5 text-amber-600" />
-                                <span>Admin Panel (Premium)</span>
-                              </button>
-                            )}
-
-                            <Link
-                              href={`/dashboard/apps/${appItem.ulid}/setup/branding`}
-                              className="px-4 py-2.5 border border-[#EBE6DF] hover:border-[#A68A70] text-[#57514B] rounded-xl text-xs font-bold transition flex items-center gap-2"
-                            >
-                              <span>Edit Settings</span>
-                            </Link>
-
-                            <button
-                              onClick={() => handleRebuildForApp(appItem)}
-                              disabled={isAppRebuilding}
-                              className="p-2.5 rounded-xl border border-[#EBE6DF] hover:border-[#A68A70] text-[#57514B] hover:text-[#1C1917] transition cursor-pointer"
-                              title="Sync Store Products & Rebuild APK"
-                            >
-                              <RefreshCw className={`w-4 h-4 ${isAppRebuilding ? "animate-spin text-[#78593D]" : ""}`} />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {isDraft ? (
-                      <div className="pt-6 border-t border-amber-200/80 bg-gradient-to-br from-amber-50/50 via-[#FDFBF7] to-[#F7F5F0] -mx-6 -mb-6 sm:-mx-8 sm:-mb-8 p-6 sm:p-8 rounded-b-3xl space-y-5">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-300 text-amber-900 flex items-center justify-center flex-shrink-0 shadow-xs">
-                              <PlayCircle className="w-6 h-6 text-amber-700" />
-                            </div>
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-200 text-amber-950 border border-amber-300">
-                                  Setup Paused
-                                </span>
-                                <h3 className="text-base font-black text-[#1C1917] tracking-tight">
-                                  Continue Where You Left Off &bull; Step {stepInfo.stepNumber} of 10: {stepInfo.title}
-                                </h3>
-                              </div>
-                              <p className="text-xs text-[#57514B] mt-1 max-w-2xl leading-relaxed">
-                                {stepInfo.description} You exited during this step, but all previously configured store credentials, assets, and settings were saved safely.
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* PROMINENT RESUME BUTTON BELOW THE DRAFT APP */}
-                          <Link
-                            href={`/dashboard/apps/${appItem.ulid}/setup/${appItem.setup_step || "platform"}`}
-                            className="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-[#78593D] hover:bg-[#634932] text-white font-black text-sm shadow-lg shadow-[#78593D]/25 hover:shadow-xl transition-all group flex-shrink-0 cursor-pointer self-start md:self-auto"
-                          >
-                            <PlayCircle className="w-5 h-5 text-amber-300 group-hover:scale-110 transition-transform" />
-                            <span>Continue Where You Left Off</span>
-                            <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-1 transition-transform" />
-                          </Link>
-                        </div>
-
-                        {/* Progress Meter */}
-                        <div className="bg-white/90 p-4 rounded-2xl border border-amber-200/70 shadow-2xs space-y-3">
-                          <div className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-2">
-                              <span className="font-extrabold text-[#1C1917]">Wizard Progress:</span>
-                              <span className="font-bold text-[#78593D]">
-                                Step {stepInfo.stepNumber} of 10 ({Math.round(((stepInfo.stepNumber - 1) / 10) * 100)}% Complete)
-                              </span>
-                            </div>
-                            <span className="text-amber-900 text-[11px] font-bold bg-amber-100/80 px-2.5 py-0.5 rounded-full border border-amber-200">
-                              Next Action: {stepInfo.nextAction}
-                            </span>
-                          </div>
-
-                          {/* Progress track */}
-                          <div className="w-full h-2.5 bg-amber-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-[#C2A88F] via-[#78593D] to-amber-600 rounded-full transition-all duration-500"
-                              style={{
-                                width: `${Math.max(10, Math.round(((stepInfo.stepNumber - 1) / 10) * 100))}%`,
-                              }}
-                            />
-                          </div>
-
-                          {/* 10 Step Interactive Trail */}
-                          <div className="hidden lg:grid grid-cols-10 gap-1.5 pt-1">
-                            {WIZARD_STEPS_LIST.map((st, idx) => {
-                              const isPast = idx + 1 < stepInfo.stepNumber;
-                              const isCurrent = idx + 1 === stepInfo.stepNumber;
-                              return (
-                                <div
-                                  key={st.key}
-                                  className={`px-1.5 py-1.5 rounded-lg border text-center transition ${
-                                    isPast
-                                      ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                                      : isCurrent
-                                      ? "bg-amber-100 border-amber-400 text-amber-950 font-black shadow-xs ring-2 ring-amber-400/40"
-                                      : "bg-slate-50 border-slate-200 text-slate-400"
-                                  }`}
-                                >
-                                  <div className="text-[10px] font-extrabold leading-none truncate">
-                                    {isPast ? "✓ " : ""}{idx + 1}. {st.label}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Preserved Data Notice & Restart Links */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-[#7E756B]">
-                          <div className="flex items-center gap-1.5">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                            <span>Your configuration is automatically saved. You can resume anytime without losing your inputs.</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Link
-                              href={`/dashboard/apps/${appItem.ulid}/setup/platform`}
-                              className="text-[#78593D] hover:underline font-bold text-xs"
-                            >
-                              Restart from Step 1
-                            </Link>
-                            <span className="text-slate-300">&bull;</span>
-                            <Link
-                              href={`/dashboard/apps/${appItem.ulid}/setup/${appItem.setup_step || "platform"}`}
-                              className="text-[#78593D] hover:underline font-bold text-xs inline-flex items-center gap-1"
-                            >
-                              <span>Open Step {stepInfo.stepNumber} ({stepInfo.title})</span>
-                              <ExternalLink className="w-3 h-3" />
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="pt-4 border-t border-[#EBE6DF]">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Sparkles className="w-3.5 h-3.5 text-[#78593D]" />
-                          <h3 className="text-xs sm:text-sm font-black text-[#1C1917] tracking-tight">
-                            Premium Plan &amp; Purchased Perks
-                          </h3>
-                          {unclaimed.length > 0 && (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-900 border border-amber-300">
-                              {unclaimed.length} Unclaimed
-                            </span>
+                          {isDraft && (
+                            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-300" />
                           )}
-                        </div>
-                        <p className="text-[11px] text-[#7E756B] mt-0.5">
-                          Package inclusions &amp; add-ons ready to activate for this application build.
-                        </p>
-                      </div>
 
-                      {/* Filter Tabs */}
-                      <div className="flex items-center gap-1 p-0.5 bg-[#F7F5F0] rounded-lg border border-[#EBE6DF] text-[11px] font-bold self-start sm:self-auto">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setFeatureTabFilter((prev) => ({ ...prev, [appItem.ulid]: "unclaimed" }))
-                          }
-                          className={`px-2.5 py-1 rounded-md transition cursor-pointer flex items-center gap-1.5 ${
-                            activeFilter === "unclaimed"
-                              ? "bg-[#78593D] text-white shadow-xs"
-                              : "text-[#57514B] hover:text-[#1C1917]"
-                          }`}
-                        >
-                          <span>Unclaimed</span>
-                          <span
-                            className={`px-1.5 py-0.2 rounded-full text-[9px] font-extrabold ${
-                              activeFilter === "unclaimed"
-                                ? "bg-white/20 text-white"
-                                : "bg-[#EBE6DF] text-[#57514B]"
-                            }`}
-                          >
-                            {unclaimed.length}
-                          </span>
-                        </button>
+                          <div className="space-y-3">
+                            {/* App Header Card Top */}
+                            <div className="flex items-start gap-3">
+                              <div
+                                className={`w-10 h-10 rounded-xl text-white font-extrabold text-lg flex items-center justify-center shadow-xs flex-shrink-0 ${
+                                  isDraft
+                                    ? "bg-gradient-to-tr from-amber-600 to-amber-400 shadow-amber-600/20"
+                                    : "bg-gradient-to-tr from-[#78593D] to-[#C2A88F] shadow-[#78593D]/20"
+                                }`}
+                              >
+                                {appItem.name.charAt(0).toUpperCase()}
+                              </div>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setFeatureTabFilter((prev) => ({ ...prev, [appItem.ulid]: "claimed" }))
-                          }
-                          className={`px-2.5 py-1 rounded-md transition cursor-pointer flex items-center gap-1.5 ${
-                            activeFilter === "claimed"
-                              ? "bg-[#78593D] text-white shadow-xs"
-                              : "text-[#57514B] hover:text-[#1C1917]"
-                          }`}
-                        >
-                          <span>Claimed &amp; Active</span>
-                          <span
-                            className={`px-1.5 py-0.2 rounded-full text-[9px] font-extrabold ${
-                              activeFilter === "claimed"
-                                ? "bg-white/20 text-white"
-                                : "bg-[#EBE6DF] text-[#57514B]"
-                            }`}
-                          >
-                            {claimed.length}
-                          </span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setFeatureTabFilter((prev) => ({ ...prev, [appItem.ulid]: "all" }))
-                          }
-                          className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
-                            activeFilter === "all"
-                              ? "bg-[#78593D] text-white shadow-xs"
-                              : "text-[#57514B] hover:text-[#1C1917]"
-                          }`}
-                        >
-                          <span>All ({entitled.length})</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Features Grid: Compact 3-col on lg screens */}
-                    {displayedFeatures.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                        {displayedFeatures.map((feat) => {
-                          const FeatIcon = feat.icon;
-                          const isClaimingThis = claimingFeatureKey === `${appItem.ulid}_${feat.key}`;
-
-                          return (
-                            <div
-                              key={feat.key}
-                              className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${
-                                feat.isClaimed
-                                  ? "bg-white border-[#EBE6DF] hover:border-[#D9D1C5]"
-                                  : "bg-amber-50/25 border-amber-200 hover:border-amber-300 shadow-2xs"
-                              }`}
-                            >
-                              <div>
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <div
-                                      className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                        feat.isClaimed
-                                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                          : "bg-amber-100 text-amber-800 border border-amber-300"
-                                      }`}
-                                    >
-                                      <FeatIcon className="w-3.5 h-3.5" />
-                                    </div>
-                                    <div className="min-w-0">
-                                      <h4 className="font-extrabold text-xs text-[#1C1917] truncate leading-tight" title={feat.title}>
-                                        {feat.title}
-                                      </h4>
-                                    </div>
-                                  </div>
-
-                                  {feat.isClaimed ? (
-                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-0.5 flex-shrink-0">
-                                      <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
-                                      Active
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-1.5">
+                                  <h3 className="text-sm sm:text-base font-black text-[#1C1917] truncate" title={appItem.name}>
+                                    {appItem.name}
+                                  </h3>
+                                  {isDraft ? (
+                                    <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 flex-shrink-0">
+                                      Step {stepInfo.stepNumber}/10
                                     </span>
                                   ) : (
-                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-0.5 flex-shrink-0">
-                                      <Clock className="w-2.5 h-2.5 text-amber-700" />
-                                      Unclaimed
-                                    </span>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                      {appHasAdmin && (
+                                        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-100 text-[#78593D] border border-amber-300 flex items-center gap-0.5">
+                                          <LayoutDashboard className="w-2.5 h-2.5 text-[#78593D]" />
+                                          Admin
+                                        </span>
+                                      )}
+                                      <span className="px-2 py-0.5 rounded-full text-[9.5px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        {appItem.status || "Completed"}
+                                      </span>
+                                    </div>
                                   )}
                                 </div>
 
-                                <p className="text-[11px] text-[#57514B] leading-snug line-clamp-2 mt-1.5">
-                                  {feat.desc}
+                                <p className="text-[10.5px] text-[#7E756B] font-mono truncate mt-0.5">
+                                  {appItem.package_name || `com.${appItem.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.app`}
                                 </p>
-                              </div>
 
-                              <div className="mt-2.5 pt-2 border-t border-[#EBE6DF]/70 flex items-center justify-between gap-2">
-                                <span className="text-[10px] text-[#7E756B] truncate">
-                                  {feat.isClaimed ? "Active in build" : "Ready to claim"}
-                                </span>
-
-                                {feat.isClaimed ? (
-                                  <Link
-                                    href={
-                                      feat.key === "admin_panel"
-                                        ? `/dashboard/apps/${appItem.ulid}/admin`
-                                        : `/dashboard/apps/${appItem.ulid}/setup/branding`
-                                    }
-                                    className="px-2.5 py-1 rounded-lg border border-[#EBE6DF] hover:border-[#A68A70] text-[#57514B] hover:text-[#1C1917] text-[11px] font-bold transition flex items-center gap-1 flex-shrink-0"
-                                  >
-                                    <span>Configure</span>
-                                    <ArrowRight className="w-2.5 h-2.5" />
-                                  </Link>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    disabled={isClaimingThis}
-                                    onClick={() => handleClaimFeature(appItem, feat)}
-                                    className="px-3 py-1 bg-[#78593D] hover:bg-[#634932] disabled:opacity-60 text-white rounded-lg text-[11px] font-bold transition shadow-xs flex items-center gap-1 flex-shrink-0 cursor-pointer active:scale-95"
-                                  >
-                                    {isClaimingThis ? (
-                                      <>
-                                        <Loader2 className="w-3 h-3 animate-spin" />
-                                        <span>Claiming...</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Sparkles className="w-3 h-3 text-amber-300" />
-                                        <span>Claim Now</span>
-                                      </>
-                                    )}
-                                  </button>
+                                {storeUrl && (
+                                  <p className="text-[10.5px] text-[#57514B] truncate mt-0.5">
+                                    <a
+                                      href={storeUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-[#78593D] hover:underline font-semibold inline-flex items-center gap-1 truncate"
+                                    >
+                                      <Globe className="w-2.5 h-2.5 text-slate-400 flex-shrink-0" />
+                                      <span className="truncate">{storeUrl.replace(/^https?:\/\//, "")}</span>
+                                      <ExternalLink className="w-2 h-2 flex-shrink-0 opacity-70" />
+                                    </a>
+                                  </p>
                                 )}
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="p-4 rounded-xl bg-[#F7F5F0] border border-[#EBE6DF] text-center">
-                        <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto mb-1" />
-                        <h4 className="text-xs font-extrabold text-[#1C1917]">
-                          {activeFilter === "unclaimed"
-                            ? "All Included Features Have Been Claimed!"
-                            : "No features found in this view"}
-                        </h4>
-                        <p className="text-[11px] text-[#7E756B] mt-0.5 max-w-md mx-auto">
-                          {activeFilter === "unclaimed"
-                            ? "All premium perks and features included with your package are claimed and active on this app build."
-                            : "Switch to another filter above to view your features."}
-                        </p>
-                        {activeFilter === "unclaimed" && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setFeatureTabFilter((prev) => ({ ...prev, [appItem.ulid]: "claimed" }))
-                            }
-                            className="mt-2 inline-flex items-center gap-1 px-3 py-1 bg-[#EFEAE2] hover:bg-[#E2DBD0] text-[#78593D] rounded-lg text-[11px] font-bold transition cursor-pointer"
-                          >
-                            <span>View {claimed.length} Active Perks</span>
-                            <ArrowRight className="w-2.5 h-2.5" />
-                          </button>
-                        )}
-                      </div>
-                    )}
+
+                            {/* Middle Info Block (Compact Short-Card 2x2 Grid) */}
+                            {isDraft ? (
+                              <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-50/70 via-[#FDFBF7] to-[#FAF8F5] border border-amber-200/80 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className="relative w-6 h-6 flex-shrink-0 flex items-center justify-center">
+                                      <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                                        <circle cx="18" cy="18" r="14" stroke="#E8DFD5" strokeWidth="3.5" fill="none" />
+                                        <circle
+                                          cx="18"
+                                          cy="18"
+                                          r="14"
+                                          stroke="#78593D"
+                                          strokeWidth="3.5"
+                                          fill="none"
+                                          strokeDasharray={circumference}
+                                          strokeDashoffset={strokeDashoffset}
+                                          strokeLinecap="round"
+                                          className="transition-all duration-700 ease-out"
+                                        />
+                                      </svg>
+                                      <span className="absolute text-[8px] font-black text-[#78593D]">
+                                        {buildPercentage}%
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-[11px] font-bold text-[#1C1917] block">
+                                        Step {stepInfo.stepNumber} of 10
+                                      </span>
+                                      <span className="text-[9.5px] text-[#7E756B] truncate block">
+                                        {stepInfo.nextAction}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <span className="text-xs font-black text-[#78593D] font-mono">{buildPercentage}%</span>
+                                </div>
+                                <div className="w-full h-1 bg-amber-100 rounded-full overflow-hidden border border-amber-200/50">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-[#C2A88F] to-[#78593D] rounded-full transition-all duration-700"
+                                    style={{ width: `${buildPercentage}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="p-2.5 rounded-xl bg-[#F7F5F0] border border-[#EBE6DF] text-xs">
+                                <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+                                  <div className="min-w-0">
+                                    <span className="text-[10px] font-medium text-[#7E756B] block">Package Tier</span>
+                                    <span className="font-extrabold text-[#78593D] text-[11px] truncate block">
+                                      {appPlan.name}
+                                    </span>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <span className="text-[10px] font-medium text-[#7E756B] block">Latest Build</span>
+                                    <span className="font-bold text-[#1C1917] text-[11px] truncate block">
+                                      {appBuilds.length > 0 ? `v${appLatestBuild?.version_code || 1}.0.0 (Ready)` : "Ready"}
+                                    </span>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <span className="text-[10px] font-medium text-[#7E756B] block">Platform</span>
+                                    <span className="font-bold text-[#57514B] text-[11px] capitalize truncate block">
+                                      {appItem.platform === "woo" ? "WooCommerce" : appItem.platform || "WordPress"}
+                                    </span>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <span className="text-[10px] font-medium text-[#7E756B] block">Admin Panel</span>
+                                    <span className="font-bold text-[11px] truncate block">
+                                      {appHasAdmin ? (
+                                        <span className="text-emerald-700 font-extrabold flex items-center gap-1">
+                                          <CheckCircle2 className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+                                          <span>Unlocked</span>
+                                        </span>
+                                      ) : (
+                                        <span className="text-[#8A837A] font-medium">Add-on</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Bottom Action Buttons (Short-Card 2-Row Layout) */}
+                          <div className="pt-3 border-t border-[#EBE6DF] mt-3 space-y-2">
+                            {isDraft ? (
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenAppDetails(appItem)}
+                                  className="py-2 px-2.5 bg-[#EFEAE2]/80 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 truncate"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-[#78593D] flex-shrink-0" />
+                                  <span className="truncate">View Details</span>
+                                </button>
+
+                                <Link
+                                  href={`/dashboard/apps/${appItem.ulid}/setup/${appItem.setup_step || "platform"}`}
+                                  className="py-2 px-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs text-center active:scale-98 cursor-pointer truncate"
+                                >
+                                  <span className="truncate">Continue</span>
+                                  <ArrowRight className="w-3.5 h-3.5 flex-shrink-0" />
+                                </Link>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {/* Row 1: Primary Action(s) */}
+                                {appHasAdmin ? (
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {appBuilds.length > 0 && appTargetBuildId ? (
+                                      <a
+                                        href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk`}
+                                        download
+                                        className="py-2 px-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5 truncate"
+                                        title={`Download APK (v${appLatestBuild?.version_code || 1})`}
+                                      >
+                                        <Download className="w-3.5 h-3.5 flex-shrink-0" />
+                                        <span className="truncate">Download APK</span>
+                                      </a>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRebuildForApp(appItem)}
+                                        disabled={isAppRebuilding}
+                                        className="py-2 px-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer truncate"
+                                      >
+                                        <RefreshCw className={`w-3.5 h-3.5 flex-shrink-0 ${isAppRebuilding ? "animate-spin" : ""}`} />
+                                        <span className="truncate">Compile APK</span>
+                                      </button>
+                                    )}
+
+                                    <Link
+                                      href={`/dashboard/apps/${appItem.ulid}/admin`}
+                                      className="py-2 px-2 bg-gradient-to-r from-[#4A3B32] to-[#2E241E] hover:from-[#3D2F27] hover:to-[#221A15] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98 border border-[#3D2F27] truncate"
+                                      title="Open App Admin Panel"
+                                    >
+                                      <LayoutDashboard className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
+                                      <span className="truncate">Admin Panel</span>
+                                    </Link>
+                                  </div>
+                                ) : (
+                                  appBuilds.length > 0 && appTargetBuildId ? (
+                                    <a
+                                      href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk`}
+                                      download
+                                      className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5"
+                                    >
+                                      <Download className="w-3.5 h-3.5" />
+                                      <span>Download APK (v${appLatestBuild?.version_code || 1})</span>
+                                    </a>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRebuildForApp(appItem)}
+                                      disabled={isAppRebuilding}
+                                      className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                      <RefreshCw className={`w-3.5 h-3.5 ${isAppRebuilding ? "animate-spin" : ""}`} />
+                                      <span>Compile APK</span>
+                                    </button>
+                                  )
+                                )}
+
+                                {/* Row 2: Secondary Actions (Side-by-Side: View Details & Buy Add-ons) */}
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenAppDetails(appItem)}
+                                    className="py-2 px-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98 truncate"
+                                  >
+                                    <Eye className="w-3.5 h-3.5 text-white flex-shrink-0" />
+                                    <span className="truncate">View Details</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenAppDetails(appItem, "app-addons-section")}
+                                    className="py-2 px-2.5 bg-[#F7F5F0] hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/25 hover:border-[#78593D] rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98 truncate"
+                                  >
+                                    <Sparkles className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                                    <span className="truncate">Buy Add-ons</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
-              </div>
-            );
-          });
-        })()
+                );
+              }
+
+              // List View fallback
+              return (
+                <div className="space-y-4">
+                  {displayedApps.map((appItem: any) => {
+                    const { catalog, entitled, unclaimed, claimed, appPlan, appHasAdmin } = getAppFeatureCatalog(appItem);
+                    const appBuilds = appItem.builds || [];
+                    const appReadyBuild = appBuilds.find((b: any) => b.status === "ready" || b.status?.value === "ready") || appBuilds[0];
+                    const appLatestBuild = appReadyBuild || appBuilds[0];
+                    const appTargetBuildId = appLatestBuild?.id;
+                    const isDraft = isAppDraft(appItem);
+                    const currentStepKey = appItem.setup_step || "platform";
+                    const stepInfo = SETUP_STEP_DETAILS[currentStepKey] || {
+                      stepNumber: 1,
+                      title: "Platform Selection",
+                      description: "Configure your store platform and credentials.",
+                      nextAction: "Select Platform",
+                    };
+                    const isAppRebuilding = Boolean(rebuildingAppUlids[appItem.ulid]);
+                    const buildPercentage = isAppRebuilding
+                      ? 95
+                      : Math.max(10, Math.min(90, Math.round(((stepInfo.stepNumber - 1) / 10) * 100)));
+                    const circumference = 88;
+                    const strokeDashoffset = circumference - (circumference * buildPercentage) / 100;
+                    const storeUrl = appItem.connection?.store_url || appItem.connection?.site_url;
+
+                    return (
+                      <div
+                        key={appItem.id || appItem.ulid}
+                        className={`bg-white rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5 relative overflow-hidden ${
+                          isDraft ? "border-2 border-amber-300/80" : "border border-[#EBE6DF]"
+                        }`}
+                      >
+                        <div className="flex items-start gap-4 min-w-0 flex-1">
+                          <div
+                            className={`w-12 h-12 rounded-2xl text-white font-extrabold text-xl flex items-center justify-center shadow-md flex-shrink-0 ${
+                              isDraft
+                                ? "bg-gradient-to-tr from-amber-600 to-amber-400"
+                                : "bg-gradient-to-tr from-[#78593D] to-[#C2A88F]"
+                            }`}
+                          >
+                            {appItem.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-base font-black text-[#1C1917] truncate">{appItem.name}</h3>
+                              {isDraft ? (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300">
+                                  Draft • Step {stepInfo.stepNumber}/10
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  Completed
+                                </span>
+                              )}
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#EFEAE2] text-[#78593D]">
+                                {appPlan.name}
+                              </span>
+                            </div>
+                            <p className="text-xs text-[#7E756B] font-mono mt-0.5 truncate">{appItem.package_name}</p>
+                            {storeUrl && (
+                              <p className="text-xs text-[#57514B] mt-0.5 truncate">
+                                Store: <a href={storeUrl} target="_blank" rel="noreferrer" className="text-[#78593D] hover:underline font-semibold">{storeUrl}</a>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Actions in list view */}
+                        <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto flex-shrink-0">
+                          {isDraft ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAppDetails(appItem)}
+                                className="px-4 py-2 bg-[#EFEAE2]/80 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-[#78593D]" />
+                                <span>View Details</span>
+                              </button>
+                              <Link
+                                href={`/dashboard/apps/${appItem.ulid}/setup/${appItem.setup_step || "platform"}`}
+                                className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-50 to-[#FAF7F2] border border-amber-300/80 hover:border-amber-400 hover:shadow-xs transition group"
+                                title="Click to resume setup"
+                              >
+                                <div className="relative w-7 h-7 flex-shrink-0 flex items-center justify-center">
+                                  <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                                    <circle cx="18" cy="18" r="14" stroke="#E8DFD5" strokeWidth="3.5" fill="none" />
+                                    <circle
+                                      cx="18"
+                                      cy="18"
+                                      r="14"
+                                      stroke="#78593D"
+                                      strokeWidth="3.5"
+                                      fill="none"
+                                      strokeDasharray={circumference}
+                                      strokeDashoffset={strokeDashoffset}
+                                      strokeLinecap="round"
+                                      className="transition-all duration-700 ease-out"
+                                    />
+                                  </svg>
+                                  <span className="absolute text-[8px] font-black text-[#78593D]">
+                                    {buildPercentage}%
+                                  </span>
+                                </div>
+                                <div className="text-left">
+                                  <span className="text-xs font-extrabold text-[#78593D] block group-hover:underline">
+                                    {buildPercentage}% Completed
+                                  </span>
+                                  <span className="text-[10px] text-amber-800/80 font-medium block">
+                                    Step {stepInfo.stepNumber}/10 • Resume →
+                                  </span>
+                                </div>
+                              </Link>
+                            </>
+                          ) : (
+                            <>
+                              {appBuilds.length > 0 && appTargetBuildId && (
+                                <a
+                                  href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk`}
+                                  download
+                                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>Download APK</span>
+                                </a>
+                              )}
+                              {appHasAdmin && (
+                                <Link
+                                  href={`/dashboard/apps/${appItem.ulid}/admin`}
+                                  className="px-4 py-2 bg-gradient-to-r from-[#4A3B32] to-[#2E241E] hover:from-[#3D2F27] hover:to-[#221A15] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs border border-[#3D2F27]"
+                                >
+                                  <LayoutDashboard className="w-3.5 h-3.5 text-amber-300" />
+                                  <span>Open App Admin Panel</span>
+                                </Link>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAppDetails(appItem)}
+                                className="px-4 py-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-white" />
+                                <span>View App Details</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAppDetails(appItem, "app-addons-section")}
+                                className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-[#78593D] border border-amber-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                              >
+                                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                                <span>Buy Add-ons</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );})()
       ) : (
             <div className="bg-white border border-[#EBE6DF] rounded-3xl p-12 text-center">
               <Smartphone className="w-12 h-12 text-[#A68A70] mx-auto mb-3" />

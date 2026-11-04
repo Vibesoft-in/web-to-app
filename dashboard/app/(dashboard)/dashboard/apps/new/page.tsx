@@ -9,11 +9,32 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { apiClient } from "@/lib/api-client";
 import { getUserData, saveUserData } from "@/lib/user-data-store";
-import { ArrowRight, Check, Loader2, Palette, Rocket, Shield, Sparkles, Store } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  Globe,
+  Loader2,
+  Palette,
+  Rocket,
+  Shield,
+  Sparkles,
+  Store,
+} from "lucide-react";
 
 const newAppSchema = z.object({
   name: z.string().min(2, "App name must be at least 2 characters").max(50),
-  platform: z.enum(["woo", "shopify"]),
+  website_url: z
+    .string()
+    .optional()
+    .refine(
+      (val) => {
+        if (!val || !val.trim()) return true;
+        const trimmed = val.trim();
+        return trimmed.includes(".") && trimmed.length >= 4;
+      },
+      { message: "Please enter a valid website URL (e.g. https://yourstore.com)" }
+    ),
+  platform: z.enum(["woo", "shopify", "wordpress"]),
 });
 
 type NewAppForm = z.infer<typeof newAppSchema>;
@@ -31,6 +52,17 @@ export default function NewAppPage() {
     price?: string;
   } | null>(null);
 
+  // Live URL Platform Verification State
+  const [checkingPlatform, setCheckingPlatform] = useState(false);
+  const [platformFeedback, setPlatformFeedback] = useState<{
+    type: "checking" | "matched" | "unsupported" | null;
+    title?: string;
+    message?: string;
+    detectedPlatform?: string | null;
+  }>({ type: null });
+  const activeAbortController = useRef<AbortController | null>(null);
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+
   const { data: authData } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
@@ -43,7 +75,13 @@ export default function NewAppPage() {
   const storedData = typeof window !== "undefined" ? getUserData() : {};
   const queryUrl = searchParams.get("url") || storedData.website_url || "";
   const queryPlatform = (searchParams.get("platform") || storedData.platform || "").toLowerCase();
-  const initialPlatform: "woo" | "shopify" = queryPlatform === "shopify" ? "shopify" : "woo";
+  const initialPlatform: "woo" | "shopify" | "wordpress" =
+    queryPlatform === "shopify"
+      ? "shopify"
+      : queryPlatform === "wordpress" || queryPlatform === "wp"
+      ? "wordpress"
+      : "woo";
+
   const queryName =
     searchParams.get("name") ||
     storedData.store_name ||
@@ -151,6 +189,7 @@ export default function NewAppPage() {
     defaultValues: {
       platform: initialPlatform,
       name: queryName,
+      website_url: queryUrl,
     },
   });
 
@@ -164,11 +203,105 @@ export default function NewAppPage() {
       setValue("platform", initialPlatform);
     }
     if (queryUrl) {
+      setValue("website_url", queryUrl);
       setPrefilledUrl(queryUrl);
     }
   }, [queryName, initialPlatform, queryUrl, setValue]);
 
   const selectedPlatform = watch("platform");
+  const watchedUrl = watch("website_url");
+
+  // Live platform check as the user types website URL
+  useEffect(() => {
+    const clean = (watchedUrl || "").trim();
+    if (!clean || clean.length < 4 || !clean.includes(".")) {
+      setPlatformFeedback({ type: null });
+      return;
+    }
+
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+
+    debounceTimer.current = setTimeout(async () => {
+      if (activeAbortController.current) {
+        activeAbortController.current.abort();
+      }
+      const controller = new AbortController();
+      activeAbortController.current = controller;
+
+      setCheckingPlatform(true);
+      setPlatformFeedback({
+        type: "checking",
+        title: "Scanning store platform...",
+      });
+
+      try {
+        const res = await fetch("/api/check-platform-match", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            url: clean,
+            platform:
+              selectedPlatform === "shopify"
+                ? "shopify"
+                : selectedPlatform === "wordpress"
+                ? "wordpress"
+                : "woocommerce",
+            manual: false,
+          }),
+        });
+
+        const data = await res.json();
+        setCheckingPlatform(false);
+
+        if (data.is_custom || data.detected_platform === "custom" || data.is_supported === false) {
+          setPlatformFeedback({
+            type: "unsupported",
+            title: "Custom Platform Detected",
+            message:
+              data.message ||
+              "This website appears to be built on a custom platform. AppifyHub only converts websites built on WooCommerce, Shopify, or WordPress.",
+          });
+        } else if (data.auto_platform || data.detected_platform) {
+          const detected = data.auto_platform || data.detected_platform;
+          if (detected === "shopify") {
+            setValue("platform", "shopify");
+            setPlatformFeedback({
+              type: "matched",
+              title: "Shopify Store Detected",
+              message: "Website verified: Automatically configured for Shopify.",
+              detectedPlatform: "shopify",
+            });
+          } else if (detected === "wordpress") {
+            setValue("platform", "wordpress");
+            setPlatformFeedback({
+              type: "matched",
+              title: "WordPress Site Detected",
+              message: "Website verified: Automatically configured for WordPress.",
+              detectedPlatform: "wordpress",
+            });
+          } else if (detected === "woocommerce") {
+            setValue("platform", "woo");
+            setPlatformFeedback({
+              type: "matched",
+              title: "WooCommerce Store Detected",
+              message: "Website verified: Automatically configured for WooCommerce.",
+              detectedPlatform: "woocommerce",
+            });
+          }
+        }
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          setCheckingPlatform(false);
+          setPlatformFeedback({ type: null });
+        }
+      }
+    }, 450);
+
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, [watchedUrl, selectedPlatform, setValue]);
 
   if (isAdmin) {
     return (
@@ -195,29 +328,49 @@ export default function NewAppPage() {
     );
   }
 
-
   const onSubmit = async (data: NewAppForm) => {
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     setIsSubmitting(true);
     setErrorMsg(null);
 
+    const rawUrl = data.website_url?.trim() || prefilledUrl?.trim() || "";
+    const cleanUrl = rawUrl
+      ? rawUrl.startsWith("http://") || rawUrl.startsWith("https://")
+        ? rawUrl
+        : `https://${rawUrl}`
+      : "";
+
+    if (cleanUrl && platformFeedback.type === "unsupported") {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+      setErrorMsg("Custom Platform Detected: Please enter a website built on WooCommerce, Shopify, or WordPress.");
+      return;
+    }
+
     try {
       const res = await apiClient("/api/apps", {
         method: "POST",
         body: JSON.stringify({
-          ...data,
-          website_url: prefilledUrl || undefined,
-          site_url: prefilledUrl || undefined,
+          name: data.name.trim(),
+          platform: data.platform,
+          website_url: cleanUrl || undefined,
+          site_url: cleanUrl || undefined,
         }),
       });
 
       // Save user store data with chosen configuration
       saveUserData({
-        store_name: data.name,
+        store_name: data.name.trim(),
         platform: data.platform,
-        website_url: prefilledUrl || undefined,
+        website_url: cleanUrl || undefined,
       });
+
+      if (cleanUrl) {
+        try {
+          localStorage.setItem("appifyhub_temp_store_url", cleanUrl);
+        } catch {}
+      }
 
       // Clear the one-time selected theme and plan after application initialization
       try {
@@ -229,6 +382,18 @@ export default function NewAppPage() {
 
       const ulid = res.ulid || res.app?.ulid;
       if (ulid) {
+        if (cleanUrl) {
+          try {
+            localStorage.setItem(
+              `appifyhub_connect_${ulid}`,
+              JSON.stringify({
+                site_url: cleanUrl,
+                consumer_key: "",
+                consumer_secret: "",
+              })
+            );
+          } catch {}
+        }
         // Direct directly to connect step because platform is already selected!
         router.push(`/dashboard/apps/${ulid}/setup/connect`);
       } else {
@@ -242,6 +407,12 @@ export default function NewAppPage() {
     }
   };
 
+  const getPlatformLabel = (plat: string) => {
+    if (plat === "shopify") return "Shopify";
+    if (plat === "wordpress") return "WordPress";
+    return "WooCommerce";
+  };
+
   return (
     <div className="max-w-xl mx-auto py-8">
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-8">
@@ -253,7 +424,7 @@ export default function NewAppPage() {
             Create New Mobile Application
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Let's start by naming your app and choosing your e-commerce platform.
+            Let's start by naming your app and choosing your website platform.
           </p>
         </div>
 
@@ -265,7 +436,7 @@ export default function NewAppPage() {
                 <span className="prefilled-label">Auto-Fetched Configuration</span>
                 <span className="prefilled-val">
                   Store: <strong>{prefilledName || "Your Store"}</strong> &bull; Platform:{" "}
-                  <strong>{selectedPlatform === "shopify" ? "Shopify" : "WooCommerce"}</strong>
+                  <strong>{getPlatformLabel(selectedPlatform)}</strong>
                   {prefilledUrl && (
                     <>
                       {" "}
@@ -391,9 +562,10 @@ export default function NewAppPage() {
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* Application Name */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-              Application Name
+              Application Name <span className="text-rose-500">*</span>
             </label>
             <input
               {...register("name")}
@@ -406,41 +578,166 @@ export default function NewAppPage() {
             )}
           </div>
 
+          {/* Website / Store URL Field */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Website / Store URL
+              </label>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded-md">
+                Reflected in Setup
+              </span>
+            </div>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Globe className="w-4 h-4" />
+              </span>
+              <input
+                {...register("website_url")}
+                type="text"
+                placeholder="https://yourstore.com"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition"
+              />
+            </div>
+            {errors.website_url && (
+              <p className="text-xs text-rose-600 mt-1.5">{errors.website_url.message}</p>
+            )}
+            <p className="text-xs text-slate-400 mt-1.5">
+              Enter your live website URL. We will pre-configure and reflect this in your store connection and preview steps.
+            </p>
+
+            {/* Platform Scanning & Feedback */}
+            {platformFeedback.type === "checking" && (
+              <div className="mt-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2 text-xs text-slate-600">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                <span>{platformFeedback.title}</span>
+              </div>
+            )}
+
+            {platformFeedback.type === "matched" && (
+              <div className="mt-2.5 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-xs text-emerald-800">
+                <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <div>
+                  <strong className="block font-bold">{platformFeedback.title}</strong>
+                  <span>{platformFeedback.message}</span>
+                </div>
+              </div>
+            )}
+
+            {platformFeedback.type === "unsupported" && (
+              <div className="mt-2.5 p-3 rounded-xl bg-[#FDF3F1] border border-[#F2B9B0] text-[#8C2517] text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <span className="text-sm">✕</span>
+                  <span>{platformFeedback.title}</span>
+                </div>
+                <p className="leading-relaxed">{platformFeedback.message}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Website Platform Selector (WooCommerce, Shopify, WordPress) */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">
-              Store Platform
+              Website Platform <span className="text-rose-500">*</span>
             </label>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              {/* WooCommerce */}
               <button
                 type="button"
                 onClick={() => setValue("platform", "woo")}
                 className={`p-4 rounded-xl border-2 text-left transition flex flex-col justify-between ${
                   selectedPlatform === "woo"
-                    ? "border-indigo-600 bg-indigo-50/30"
-                    : "border-slate-200 hover:border-slate-300"
+                    ? "border-indigo-600 bg-indigo-50/40 ring-2 ring-indigo-600/15 shadow-xs"
+                    : "border-slate-200 hover:border-slate-300 bg-white"
                 }`}
               >
                 <div>
-                  <div className="font-bold text-slate-900">WooCommerce</div>
-                  <div className="text-xs text-slate-500 mt-1">WordPress REST API</div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200">
+                      WOO
+                    </span>
+                    <span
+                      className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${
+                        selectedPlatform === "woo"
+                          ? "border-indigo-600 bg-indigo-600"
+                          : "border-slate-300 bg-white"
+                      }`}
+                    >
+                      {selectedPlatform === "woo" && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                      )}
+                    </span>
+                  </div>
+                  <div className="font-bold text-slate-900 text-sm">WooCommerce</div>
+                  <div className="text-xs text-slate-500 mt-0.5">WordPress Store</div>
                 </div>
-                <div className="mt-4 text-xs font-semibold text-indigo-600">Recommended</div>
+                <div className="mt-4 text-[11px] font-bold text-indigo-600">Recommended</div>
               </button>
 
+              {/* Shopify */}
               <button
                 type="button"
                 onClick={() => setValue("platform", "shopify")}
                 className={`p-4 rounded-xl border-2 text-left transition flex flex-col justify-between ${
                   selectedPlatform === "shopify"
-                    ? "border-indigo-600 bg-indigo-50/30"
-                    : "border-slate-200 hover:border-slate-300"
+                    ? "border-indigo-600 bg-indigo-50/40 ring-2 ring-indigo-600/15 shadow-xs"
+                    : "border-slate-200 hover:border-slate-300 bg-white"
                 }`}
               >
                 <div>
-                  <div className="font-bold text-slate-900">Shopify</div>
-                  <div className="text-xs text-slate-500 mt-1">Storefront & Admin API</div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      SHOPIFY
+                    </span>
+                    <span
+                      className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${
+                        selectedPlatform === "shopify"
+                          ? "border-indigo-600 bg-indigo-600"
+                          : "border-slate-300 bg-white"
+                      }`}
+                    >
+                      {selectedPlatform === "shopify" && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                      )}
+                    </span>
+                  </div>
+                  <div className="font-bold text-slate-900 text-sm">Shopify</div>
+                  <div className="text-xs text-slate-500 mt-0.5">Cloud eCommerce</div>
                 </div>
-                <div className="mt-4 text-xs font-semibold text-slate-400">Available</div>
+                <div className="mt-4 text-[11px] font-bold text-slate-500">Available</div>
+              </button>
+
+              {/* WordPress */}
+              <button
+                type="button"
+                onClick={() => setValue("platform", "wordpress")}
+                className={`p-4 rounded-xl border-2 text-left transition flex flex-col justify-between ${
+                  selectedPlatform === "wordpress"
+                    ? "border-indigo-600 bg-indigo-50/40 ring-2 ring-indigo-600/15 shadow-xs"
+                    : "border-slate-200 hover:border-slate-300 bg-white"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-sky-100 text-sky-800 border border-sky-200">
+                      WORDPRESS
+                    </span>
+                    <span
+                      className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${
+                        selectedPlatform === "wordpress"
+                          ? "border-indigo-600 bg-indigo-600"
+                          : "border-slate-300 bg-white"
+                      }`}
+                    >
+                      {selectedPlatform === "wordpress" && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                      )}
+                    </span>
+                  </div>
+                  <div className="font-bold text-slate-900 text-sm">WordPress</div>
+                  <div className="text-xs text-slate-500 mt-0.5">Content &amp; Blog CMS</div>
+                </div>
+                <div className="mt-4 text-[11px] font-bold text-slate-500">Available</div>
               </button>
             </div>
           </div>
@@ -448,7 +745,7 @@ export default function NewAppPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-3 px-4 rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2 disabled:opacity-70"
+            className="w-full py-3 px-4 rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
           >
             {isSubmitting ? (
               <>
