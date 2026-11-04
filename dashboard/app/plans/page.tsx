@@ -1340,9 +1340,9 @@ export default function PlansPage() {
           <div className="footer-bottom-bar">
             <p className="copyright">&copy; {new Date().getFullYear()} AppifyHub. All rights reserved.</p>
             <div className="footer-legal">
-              <a href="#privacy">Privacy Policy</a>
+              <Link href="/privacy">Privacy Policy</Link>
               <span className="sep">|</span>
-              <a href="#terms">Terms &amp; Conditions</a>
+              <Link href="/terms">Terms &amp; Conditions</Link>
             </div>
           </div>
         </div>
