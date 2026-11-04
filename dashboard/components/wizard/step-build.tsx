@@ -68,6 +68,9 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
   const canDownloadAab = setupState?.app?.can_aab ?? (subInfo?.can_download_aab ?? (planName !== "Basic" && planName !== "Basic App" && planName !== "Starter App" && planName !== "Starter"));
   const canDownloadIpa = localUnlockedIpa || Boolean(subInfo?.can_download_ipa ?? (planName === "Pro" || planName === "Premium" || planName === "Pro Growth" || planName === "Enterprise" || planName === "Pro Combo" || planName === "Enterprise Suite"));
   const hasAdminPanel = localUnlockedAdmin || Boolean(setupState?.app?.has_admin_panel ?? (subInfo?.admin_panel_access ?? (planName === "Premium" || planName === "Premium Package" || planName === "Enterprise" || planName === "Enterprise Suite")));
+  const appDisplayName = setupState?.app?.name || "app";
+  const safeFileSlug = appDisplayName.toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/-+/g, "-");
+  const appVersionName = latestBuildInfo?.version_name || "1.0.0";
 
   const handlePurchaseAddon = async (addonSlug: "ios_bundle" | "admin_panel_addon") => {
     if (purchasingAddon) return;
@@ -502,8 +505,8 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
                 </div>
 
                 <a
-                  href={`/api/apps/${ulid}/builds/${downloadBuildId}/download-file?format=apk`}
-                  download
+                  href={`/api/apps/${ulid}/builds/${downloadBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appDisplayName)}&version=${appVersionName}`}
+                  download={`${safeFileSlug}-v${appVersionName}.apk`}
                   className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20"
                 >
                   <Download className="w-4 h-4" />
@@ -538,8 +541,8 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
 
                 {canDownloadAab ? (
                   <a
-                    href={`/api/apps/${ulid}/builds/${downloadBuildId}/download-file?format=aab`}
-                    download
+                    href={`/api/apps/${ulid}/builds/${downloadBuildId}/download-file?format=aab&app_name=${encodeURIComponent(appDisplayName)}&version=${appVersionName}`}
+                    download={`${safeFileSlug}-v${appVersionName}.aab`}
                     className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20"
                   >
                     <Download className="w-4 h-4" />
@@ -609,8 +612,8 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
 
                 {canDownloadIpa ? (
                   <a
-                    href={`/api/apps/${ulid}/builds/${downloadBuildId}/download-file?format=ipa`}
-                    download
+                    href={`/api/apps/${ulid}/builds/${downloadBuildId}/download-file?format=ipa&app_name=${encodeURIComponent(appDisplayName)}&version=${appVersionName}`}
+                    download={`${safeFileSlug}-v${appVersionName}.ipa`}
                     className="w-full py-2.5 px-4 bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-md shadow-sky-600/20"
                   >
                     <Download className="w-4 h-4" />
@@ -693,8 +696,8 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
                       <span>Open App Admin Panel</span>
                     </Link>
                     <a
-                      href={`/api/apps/${ulid}/builds/${downloadBuildId}/download-file?format=admin`}
-                      download
+                      href={`/api/apps/${ulid}/builds/${downloadBuildId}/download-file?format=admin&app_name=${encodeURIComponent(appDisplayName)}`}
+                      download={`${safeFileSlug}-admin-portal.json`}
                       className="py-2.5 px-3 bg-purple-50 hover:bg-purple-100 active:scale-95 text-purple-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 border border-purple-200"
                       title="Download Admin Package"
                     >

@@ -441,8 +441,8 @@ export function AppDetailsView({
           </button>
 
           <a
-            href={`/api/apps/${app?.ulid}/builds/${targetBuildId}/download-file?format=apk`}
-            download
+            href={`/api/apps/${app?.ulid}/builds/${targetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(app?.name || "app")}&version=${latestBuild?.version_code || 1}`}
+            download={`${(app?.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${latestBuild?.version_code || 1}.apk`}
             className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-2"
           >
             <Download className="w-3.5 h-3.5" />
@@ -1134,8 +1134,8 @@ export function AppDetailsView({
           )}
 
           <a
-            href={`/api/apps/${app?.ulid}/builds/${targetBuildId}/download-file?format=apk`}
-            download
+            href={`/api/apps/${app?.ulid}/builds/${targetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(app?.name || "app")}&version=${latestBuild?.version_code || 1}`}
+            download={`${(app?.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${latestBuild?.version_code || 1}.apk`}
             className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-2"
           >
             <Download className="w-3.5 h-3.5" />

@@ -1815,8 +1815,8 @@ function UserDashboardContent() {
                                   <div className="grid grid-cols-2 gap-2">
                                     {appBuilds.length > 0 && appTargetBuildId ? (
                                       <a
-                                        href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk`}
-                                        download
+                                        href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
+                                        download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
                                         className="py-2 px-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5 truncate"
                                         title={`Download APK (v${appLatestBuild?.version_code || 1})`}
                                       >
@@ -1847,8 +1847,8 @@ function UserDashboardContent() {
                                 ) : (
                                   appBuilds.length > 0 && appTargetBuildId ? (
                                     <a
-                                      href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk`}
-                                      download
+                                      href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
+                                      download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
                                       className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5"
                                     >
                                       <Download className="w-3.5 h-3.5" />
@@ -2015,8 +2015,8 @@ function UserDashboardContent() {
                             <>
                               {appBuilds.length > 0 && appTargetBuildId && (
                                 <a
-                                  href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk`}
-                                  download
+                                  href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
+                                  download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
                                   className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
                                 >
                                   <Download className="w-3.5 h-3.5" />
@@ -2137,8 +2137,8 @@ function UserDashboardContent() {
                       <td className="py-3.5 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <a
-                            href={`/api/apps/${primaryApp?.ulid}/builds/${b.id}/download-file?format=apk`}
-                            download
+                            href={`/api/apps/${primaryApp?.ulid}/builds/${b.id}/download-file?format=apk&app_name=${encodeURIComponent(primaryApp?.name || "app")}&version=${b.version_name || b.version_code || 1}`}
+                            download={`${(primaryApp?.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${b.version_name || b.version_code || 1}.apk`}
                             className="px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-[11px] flex items-center gap-1 transition"
                           >
                             <Download className="w-3 h-3" />
@@ -2147,8 +2147,8 @@ function UserDashboardContent() {
 
                           {canDownloadAab ? (
                             <a
-                              href={`/api/apps/${primaryApp?.ulid}/builds/${b.id}/download-file?format=aab`}
-                              download
+                              href={`/api/apps/${primaryApp?.ulid}/builds/${b.id}/download-file?format=aab&app_name=${encodeURIComponent(primaryApp?.name || "app")}&version=${b.version_name || b.version_code || 1}`}
+                              download={`${(primaryApp?.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${b.version_name || b.version_code || 1}.aab`}
                               className="px-2.5 py-1.5 rounded-lg bg-[#EFEAE2] text-[#78593D] hover:bg-[#E2DBD0] font-bold text-[11px] flex items-center gap-1 transition"
                             >
                               <Download className="w-3 h-3" />
