@@ -27,6 +27,7 @@ import {
   CheckSquare,
   Square,
   Palette,
+  ExternalLink,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { openRazorpayModal, withSinglePaymentLock } from "@/lib/razorpay";
@@ -199,6 +200,35 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
   const [selectedAddonIds, setSelectedAddonIds] = useState<number[]>([]);
   const [isYearly, setIsYearly] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Mandatory Payment Terms & Conditions Consent State
+  const [hasPaymentConsented, setHasPaymentConsented] = useState(false);
+  const [isPaymentTermsModalOpen, setIsPaymentTermsModalOpen] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+
+  // Fetch recorded payment consent from backend
+  const { data: consentData } = useQuery({
+    queryKey: ['app-consent', ulid],
+    queryFn: async () => {
+      try {
+        const res = await apiClient(`/api/apps/${ulid}/consent`);
+        return res;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!ulid,
+  });
+
+  useEffect(() => {
+    if (
+      consentData?.payment_terms?.consented ||
+      setupState?.verification?.payment_consent ||
+      hasActiveSubscription
+    ) {
+      setHasPaymentConsented(true);
+    }
+  }, [consentData, setupState, hasActiveSubscription]);
+
   const isSubmittingRef = useRef(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState<string | null>(null);
@@ -429,6 +459,11 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
       return;
     }
 
+    if (!hasPaymentConsented && !hasActiveSubscription) {
+      setConsentError('Please accept the Payment Terms & Conditions before initiating payment.');
+      return;
+    }
+    setConsentError(null);
     if (isSubmittingRef.current || isSubmitting) return; // Prevent double-clicks
     isSubmittingRef.current = true;
     setPaymentError(null);
@@ -455,6 +490,24 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
         if (!orderRes?.success || !orderRes?.order) {
           throw new Error(orderRes?.error || "Could not initialize payment order.");
         }
+        // Record mandatory payment consent on backend
+        try {
+          await apiClient(`/api/apps/${ulid}/consent`, {
+            method: 'POST',
+            body: JSON.stringify({
+              consent_type: 'payment_terms',
+              agreed: true,
+              policy_version: 'v1.0',
+              metadata: {
+                plan_id: planToActivate,
+                amount_rupees: grandTotalInRupees,
+              },
+            }),
+          });
+        } catch (cErr) {
+          console.warn('Payment consent record note:', cErr);
+        }
+
 
         const orderData = orderRes.order;
 
@@ -1252,12 +1305,53 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
                 </div>
               </div>
 
+              {/* ── REQ 5B: MANDATORY PAYMENT TERMS & CONDITIONS CONSENT CHECKBOX & LEARN MORE ── */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 space-y-2 mb-3">
+                <div className="flex items-start gap-2.5">
+                  <input
+                    id="payment-terms-consent"
+                    type="checkbox"
+                    checked={hasPaymentConsented}
+                    onChange={(e) => {
+                      setHasPaymentConsented(e.target.checked);
+                      if (e.target.checked) setConsentError(null);
+                    }}
+                    className="w-4 h-4 mt-0.5 rounded border-slate-300 text-amber-900 focus:ring-amber-800 cursor-pointer"
+                  />
+                  <div className="space-y-0.5 flex-1">
+                    <label
+                      htmlFor="payment-terms-consent"
+                      className="font-bold text-slate-900 cursor-pointer select-none text-xs"
+                    >
+                      I have read and agree to the Payment Terms &amp; Conditions. *
+                    </label>
+                    <p className="text-slate-500 text-[10.5px] leading-tight">
+                      One-time license, digital software fulfillment, and 7-day technical refund guarantee.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsPaymentTermsModalOpen(true)}
+                    className="text-[11px] font-bold text-amber-800 hover:text-amber-950 hover:underline flex items-center gap-1 cursor-pointer flex-shrink-0"
+                  >
+                    <Receipt className="w-3 h-3" />
+                    <span>Learn More</span>
+                  </button>
+                </div>
+
+                {consentError && (
+                  <p className="text-[11px] text-rose-600 font-medium pl-6 animate-in fade-in">
+                    {consentError}
+                  </p>
+                )}
+              </div>
+
               {/* Action Buttons */}
               <div className="space-y-2.5">
                 <button
                   type="button"
                   onClick={handleRazorpayPayment}
-                  disabled={isSubmitting || (isSelectedCurrentPlan && selectedAddonIds.length === 0)}
+                  disabled={isSubmitting || (!hasPaymentConsented && !hasActiveSubscription) || (isSelectedCurrentPlan && selectedAddonIds.length === 0)}
                   className={`w-full py-3 px-4 bg-amber-900 hover:bg-amber-800 disabled:opacity-60 text-white rounded-xl text-sm font-bold transition flex items-center justify-center gap-2 shadow-md shadow-amber-900/25 ${
                     isSubmitting ? "pointer-events-none opacity-60 cursor-not-allowed" : "cursor-pointer"
                   }`}
@@ -1358,12 +1452,136 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
         <button
           type="button"
           onClick={onNext}
-          className="w-full sm:w-auto justify-center px-7 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-indigo-600/20 cursor-pointer active:scale-98"
+          disabled={!hasActiveSubscription && !hasPaymentConsented}
+          className={`w-full sm:w-auto justify-center px-7 py-3 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md ${
+            hasActiveSubscription || hasPaymentConsented
+              ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20 cursor-pointer active:scale-98"
+              : "bg-slate-300 text-slate-500 cursor-not-allowed shadow-none"
+          }`}
         >
           <span>Next: Build &amp; Compile APK</span>
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
+      {!hasActiveSubscription && !hasPaymentConsented && (
+        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200/70 p-2.5 rounded-xl text-center">
+          🔒 <strong>Step Locked:</strong> Payment Terms &amp; Conditions consent is required before proceeding to the mobile build compilation step.
+        </p>
+      )}
+
+      {/* ── MODAL: PAYMENT TERMS LEARN MORE (8 MANDATORY SECTIONS) ── */}
+      {isPaymentTermsModalOpen && (
+        <div className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+          <div className="fixed inset-0" onClick={() => setIsPaymentTermsModalOpen(false)} />
+
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl relative z-10 border border-slate-200 my-auto max-h-[90vh] overflow-y-auto space-y-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center flex-shrink-0">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                    Payment Terms &amp; Commercial Conditions
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Clear breakdown of licensing, payment schedules, refund policy, and activation terms.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPaymentTermsModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">1. Covered Service &amp; Package Deliverables</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  Payment covers automated cloud compilation, code signing, and digital fulfillment of your mobile application artifacts (installable Android APK, Google Play Bundle .AAB, iOS .IPA, and admin management portal access per selected tier).
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">2. One-Time vs Recurring Charges</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  All packages and add-on modules are billed as transparent, one-time lifetime license fees. There are zero recurring monthly royalties or revenue commissions on store sales.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">3. Additional Third-Party Charges</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  There are no hidden gateway surcharges. Note that Google Play Developer ($25 one-time) and Apple Developer ($99/year) console registration fees are paid directly to Google and Apple respectively if you choose to publish on their app stores.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">4. Refund Policy</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  We offer a 100% money-back refund guarantee within 7 business days if our automated build engine fails to compile your verified store application and our technical engineering team cannot resolve it.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">5. Cancellation Policy</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  Orders may be cancelled or modified at any point prior to final production build generation. Once production binaries are generated, the digital software license is delivered.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">6. Service Activation Timeline</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  License entitlement activates immediately upon successful transaction verification through Razorpay. You can trigger mobile build compilation without delay.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">7. Service Delivery &amp; Support Conditions</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  All binary outputs are delivered electronically directly into your dashboard downloads section. You receive full developer documentation and priority email/chat support for store deployment.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">8. Failed or Duplicate Payment Handling</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  If an order fails but your account was charged, Razorpay automatically reconciles the transaction within 24-48 hours. Any inadvertent duplicate payment is detected automatically and refunded in full to your original payment method.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-amber-800 hover:underline flex items-center gap-1 font-semibold"
+              >
+                <span>Full Terms of Service</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setHasPaymentConsented(true);
+                  setConsentError(null);
+                  setIsPaymentTermsModalOpen(false);
+                }}
+                className="px-5 py-2.5 bg-amber-900 hover:bg-amber-800 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-sm active:scale-95"
+              >
+                Accept &amp; Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

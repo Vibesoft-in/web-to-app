@@ -57,6 +57,31 @@ export function StepDataCollection({ ulid, app, setupState, onNext }: StepDataCo
   // Priority order for initial data: setupState.website_data, app.website_data
   const initialSiteData = setupState?.website_data || app?.website_data;
 
+  // Mandatory Data Collection Consent State
+  const [hasConsented, setHasConsented] = useState(false);
+  const [isConsentModalOpen, setIsConsentModalOpen] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+
+  // Fetch recorded consent from backend
+  const { data: consentData } = useQuery({
+    queryKey: ['app-consent', ulid],
+    queryFn: async () => {
+      try {
+        const res = await apiClient(`/api/apps/${ulid}/consent`);
+        return res;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!ulid,
+  });
+
+  useEffect(() => {
+    if (consentData?.data_collection?.consented || setupState?.verification?.data_consent) {
+      setHasConsented(true);
+    }
+  }, [consentData, setupState]);
+
   // Fetch website extracted data
   const {
     data: siteData,
@@ -263,7 +288,29 @@ export function StepDataCollection({ ulid, app, setupState, onNext }: StepDataCo
   };
 
   const handleApplyAndContinue = async () => {
+    if (!hasConsented) {
+      setConsentError('Please select the mandatory Data Collection consent checkbox before proceeding.');
+      return;
+    }
+    setConsentError(null);
     setIsApplying(true);
+    try {
+      // Record mandatory data collection consent on backend
+      await apiClient(`/api/apps/${ulid}/consent`, {
+        method: 'POST',
+        body: JSON.stringify({
+          consent_type: 'data_collection',
+          agreed: true,
+          policy_version: 'v1.0',
+          metadata: {
+            store_url: storeUrl,
+            store_name: storeName,
+          },
+        }),
+      });
+    } catch (cErr) {
+      console.warn('Consent recording error:', cErr);
+    }
     const finalLogoUrl = customLogoUrl || brand.logo_url || "";
     try {
       if (brand || finalLogoUrl) {
@@ -1036,6 +1083,47 @@ export function StepDataCollection({ ulid, app, setupState, onNext }: StepDataCo
         )}
       </div>
 
+      {/* ── REQ 5A: MANDATORY DATA COLLECTION CONSENT CHECKBOX & LEARN MORE ── */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-800 space-y-3 shadow-xs">
+        <div className="flex items-start gap-3">
+          <input
+            id="data-collection-consent"
+            type="checkbox"
+            checked={hasConsented}
+            onChange={(e) => {
+              setHasConsented(e.target.checked);
+              if (e.target.checked) setConsentError(null);
+            }}
+            className="w-4 h-4 mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          />
+          <div className="space-y-1 flex-1">
+            <label
+              htmlFor="data-collection-consent"
+              className="font-bold text-slate-900 cursor-pointer select-none text-xs sm:text-sm"
+            >
+              I agree to the Data Collection and Privacy Policy. *
+            </label>
+            <p className="text-slate-500 text-[11px] leading-relaxed">
+              We collect your store name, branding logo, color palette tokens, and catalog structure to compile your native mobile application.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsConsentModalOpen(true)}
+            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 cursor-pointer flex-shrink-0"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Learn More</span>
+          </button>
+        </div>
+
+        {consentError && (
+          <p className="text-xs text-rose-600 font-medium pl-7 animate-in fade-in">
+            {consentError}
+          </p>
+        )}
+      </div>
+
       {/* ── BOTTOM ACTIONS ── */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-slate-200">
         <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -1048,7 +1136,7 @@ export function StepDataCollection({ ulid, app, setupState, onNext }: StepDataCo
         <button
           type="button"
           onClick={handleApplyAndContinue}
-          disabled={isApplying}
+          disabled={isApplying || !hasConsented}
           className="w-full sm:w-auto px-7 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-200 transition shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer active:scale-98"
         >
           {isApplying ? (
@@ -1064,6 +1152,111 @@ export function StepDataCollection({ ulid, app, setupState, onNext }: StepDataCo
           )}
         </button>
       </div>
+      {!hasConsented && (
+        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200/70 p-2.5 rounded-xl text-center">
+          🔒 <strong>Step Locked:</strong> Mandatory user consent is required before continuing to theme selection.
+        </p>
+      )}
+
+      {/* ── MODAL: DATA COLLECTION LEARN MORE (6 MANDATORY SECTIONS) ── */}
+      {isConsentModalOpen && (
+        <div className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+          <div className="fixed inset-0" onClick={() => setIsConsentModalOpen(false)} />
+
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl relative z-10 border border-slate-200 my-auto max-h-[90vh] overflow-y-auto space-y-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                    Data Collection &amp; Privacy Policy Information
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Transparent disclosure of how your store data is processed, used, and protected.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsConsentModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">1. Why We Need Your Data</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  We require your website URL, store name, brand logo, color codes, and catalog hierarchy to accurately generate, configure, and customize the user interface of your dedicated mobile app shell.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">2. Purpose of Collection</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  The collected information is used exclusively to calibrate the mobile app layout, match your store identity, populate product category carousels, and establish secure REST API connectivity.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">3. Data Usage</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  Data is processed by our automated build system to compile native Android (.APK / .AAB) and iOS (.IPA) binary packages that seamlessly reflect your online store.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">4. Data Retention</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  Project metadata and build packages are retained for the active lifecycle of your application to support app re-builds, store updates, and push notifications.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">5. Data Sharing</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  We strictly never sell, trade, or monetize your store data or customer information. Data is never shared with third parties except verified infrastructure providers necessary to compile your application.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <h4 className="font-bold text-slate-900 text-sm mb-1">6. Data Deletion</h4>
+                <p className="text-slate-600 leading-relaxed">
+                  You maintain full ownership of your data and can request permanent project data and artifact deletion at any time directly through your dashboard settings or by contacting privacy support.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-indigo-600 hover:underline flex items-center gap-1 font-semibold"
+              >
+                <span>Full Privacy Policy</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setHasConsented(true);
+                  setConsentError(null);
+                  setIsConsentModalOpen(false);
+                }}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-sm active:scale-95"
+              >
+                Accept &amp; Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

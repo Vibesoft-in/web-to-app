@@ -521,6 +521,12 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::post('/apps/{ulid}/rollback', [\App\Http\Controllers\Api\SetupStateController::class, 'rollback'])
         ->name('api.apps.rollback');
 
+    // ── User Consent (Mandatory Step-by-Step Compliance) ─────────────────────
+    Route::get('/apps/{ulid}/consent', [\App\Http\Controllers\Api\ConsentController::class, 'index'])
+        ->name('api.apps.consent.index');
+    Route::post('/apps/{ulid}/consent', [\App\Http\Controllers\Api\ConsentController::class, 'store'])
+        ->name('api.apps.consent.store');
+
     // ── Apps & Connections ───────────────────────────────────────────────────
     Route::get('/apps/{ulid}/connection', [\App\Http\Controllers\Api\ConnectionController::class, 'show'])
         ->name('api.apps.connection.show');
@@ -735,6 +741,12 @@ Route::get('/apps/{ulid}/setup-state', [\App\Http\Controllers\Api\SetupStateCont
 
 Route::post('/apps/{ulid}/advance-step', [\App\Http\Controllers\Api\SetupStateController::class, 'advanceStep'])
     ->name('api.apps.advance-step.direct');
+
+Route::get('/apps/{ulid}/consent', [\App\Http\Controllers\Api\ConsentController::class, 'index'])
+    ->name('api.apps.consent.index.direct');
+
+Route::post('/apps/{ulid}/consent', [\App\Http\Controllers\Api\ConsentController::class, 'store'])
+    ->name('api.apps.consent.store.direct');
 
 Route::get('/apps/{ulid}/admin-portal', [\App\Http\Controllers\Api\AppController::class, 'adminPortal'])
     ->name('api.apps.admin-portal.direct');

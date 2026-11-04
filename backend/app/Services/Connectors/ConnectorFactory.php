@@ -7,6 +7,7 @@ namespace App\Services\Connectors;
 use App\Enums\Platform;
 use App\Models\App;
 use App\Models\Connection;
+use App\Services\Connectors\Shopify\ShopifyConnector;
 use App\Services\Connectors\Woo\WooConnector;
 use App\Services\Security\CredentialVault;
 use App\Services\Security\UrlGuard;
@@ -60,6 +61,15 @@ class ConnectorFactory
                 siteUrl: $siteUrl,
                 consumerKey: (string) ($credentials['consumer_key'] ?? $credentials['ck'] ?? ''),
                 consumerSecret: (string) ($credentials['consumer_secret'] ?? $credentials['cs'] ?? ''),
+                urlGuard: $this->urlGuard
+            );
+        }
+
+        if ($platformKey === 'shopify') {
+            return new ShopifyConnector(
+                siteUrl: $siteUrl,
+                consumerKey: (string) ($credentials['consumer_key'] ?? $credentials['access_token'] ?? $credentials['api_key'] ?? ''),
+                consumerSecret: (string) ($credentials['consumer_secret'] ?? $credentials['secret_key'] ?? ''),
                 urlGuard: $this->urlGuard
             );
         }

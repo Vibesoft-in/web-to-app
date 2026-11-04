@@ -10,6 +10,7 @@ use App\Enums\SetupStep;
 use App\Http\Controllers\Controller;
 use App\Models\App;
 use App\Models\AuditLog;
+use App\Models\UserConsent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,27 +34,57 @@ class SetupStateController extends Controller
     {
         $app = $this->resolveApp($request, $ulid);
 
-        $currentStep = $app->setup_step;
+        // Verification checks
+        $isConnectionVerified = ($app->connection && $app->connection->status === ConnectionStatus::Verified);
+        
+        $hasDataConsent = UserConsent::where('app_id', $app->id)
+            ->where('consent_type', 'data_collection')
+            ->exists();
 
-        // Only real progress made by the user dictates the setup step.
-        // No premature auto-advance during state retrieval.
-
-        $allSteps = SetupStep::cases();
-
-        $completedSteps = [];
-        $allowedSteps = [];
-
-        foreach ($allSteps as $step) {
-            if ($step->order() < $currentStep->order()) {
-                $completedSteps[] = $step->value;
-                $allowedSteps[] = $step->value;
-            } elseif ($step->order() === $currentStep->order()) {
-                $allowedSteps[] = $step->value;
-            }
-        }
+        $hasPaymentConsent = UserConsent::where('app_id', $app->id)
+            ->where('consent_type', 'payment_terms')
+            ->exists();
 
         $activePlan = $app->getActivePlan();
         $hasActive = ($activePlan !== null);
+
+        // Clamp current_step if prerequisites are invalidated
+        $currentStep = $app->setup_step;
+        if (! $isConnectionVerified && $currentStep->order() > SetupStep::Connect->order()) {
+            $currentStep = SetupStep::Connect;
+            $app->update(['setup_step' => SetupStep::Connect]);
+        } elseif (! $hasDataConsent && $currentStep->order() > SetupStep::DataCollection->order()) {
+            $currentStep = SetupStep::DataCollection;
+            $app->update(['setup_step' => SetupStep::DataCollection]);
+        }
+
+        $allSteps = SetupStep::cases();
+        $completedSteps = [];
+        $allowedSteps = [SetupStep::Platform->value, SetupStep::Connect->value];
+
+        if ($isConnectionVerified) {
+            $allowedSteps[] = SetupStep::Analysis->value;
+            $allowedSteps[] = SetupStep::DataCollection->value;
+        }
+
+        if ($isConnectionVerified && $hasDataConsent) {
+            $allowedSteps[] = SetupStep::Theme->value;
+            $allowedSteps[] = SetupStep::Branding->value;
+            $allowedSteps[] = SetupStep::Preview->value;
+            $allowedSteps[] = SetupStep::Integrations->value;
+            $allowedSteps[] = SetupStep::Payment->value;
+        }
+
+        if ($isConnectionVerified && $hasDataConsent && ($hasActive || $hasPaymentConsent)) {
+            $allowedSteps[] = SetupStep::Build->value;
+        }
+
+        foreach ($allSteps as $step) {
+            if ($step->order() < $currentStep->order() && in_array($step->value, $allowedSteps, true)) {
+                $completedSteps[] = $step->value;
+            }
+        }
+
         $planName = $activePlan?->name ?? null;
         $paidAmountPaise = $activePlan ? (int) $activePlan->price_monthly : 0;
         $paidAmountRupees = (int) round($paidAmountPaise / 100);
@@ -63,7 +94,7 @@ class SetupStateController extends Controller
         $canDownloadIpa = $app->canDownloadIpa();
         $hasAdminPanel = $app->hasAdminPanelAccess();
 
-        $siteUrl = $app->connection?->site_url;
+        $siteUrl = $app->connection?->site_url ?: ($app->website_url ?? null);
         $cachedWebsiteData = \Illuminate\Support\Facades\Cache::get("website_data_{$app->id}");
 
         if ((! $cachedWebsiteData || ! isset($cachedWebsiteData['brand'])) && $siteUrl) {
@@ -78,22 +109,28 @@ class SetupStateController extends Controller
 
         return response()->json([
             'app' => [
-                'ulid'         => $app->ulid,
-                'name'         => $app->name,
-                'platform'     => $app->platform,
-                'package_name' => $app->package_name,
-                'status'       => $app->status,
-                'site_url'     => $siteUrl,
-                'website_url'  => $siteUrl,
+                'ulid'             => $app->ulid,
+                'name'             => $app->name,
+                'platform'         => $app->platform,
+                'package_name'     => $app->package_name,
+                'status'           => $app->status,
+                'site_url'         => $siteUrl,
+                'website_url'      => $siteUrl,
+                'connection_status' => $app->connection?->status?->value ?? 'not_started',
                 'has_admin_panel'  => $hasAdminPanel,
                 'can_download_ipa' => $canDownloadIpa,
             ],
             'website_data'    => $cachedWebsiteData,
             'current_step'    => $currentStep->value,
-            'completed_steps' => $completedSteps,
-            'allowed_steps'   => $allowedSteps,
+            'completed_steps' => array_values(array_unique($completedSteps)),
+            'allowed_steps'   => array_values(array_unique($allowedSteps)),
             'build_allowed'   => $app->isBuildAllowed(),
             'build_blockers'  => $app->getBuildBlockers(),
+            'verification'    => [
+                'connection_verified' => $isConnectionVerified,
+                'data_consent'        => $hasDataConsent,
+                'payment_consent'     => $hasPaymentConsent,
+            ],
             'selected_theme'  => (function () use ($app) {
                 $draft = $app->configs()->where('state', 'draft')->latest()->first();
                 $themeKey = $draft?->config['selected_theme_key'] ?? $draft?->config['theme']['key'] ?? $app->assigned_theme_key ?? 'theme_a';
@@ -148,7 +185,7 @@ class SetupStateController extends Controller
             if ($isPlatformChanged) {
                 // Invalidate connection and subsequent step artifacts
                 if ($app->connection) {
-                    $app->connection->delete(); // delete connection credentials
+                    $app->connection->delete();
                 }
 
                 // Invalidate unpublished draft configs
@@ -197,7 +234,7 @@ class SetupStateController extends Controller
         $app = $this->resolveApp($request, $ulid);
 
         $validated = $request->validate([
-            'target_step' => ['required', 'string', 'in:platform,connect,theme,branding'],
+            'target_step' => ['required', 'string', 'in:platform,connect,analysis,data-collection,theme,branding,preview,integrations,payment'],
         ]);
 
         $target = SetupStep::from($validated['target_step']);
@@ -250,8 +287,8 @@ class SetupStateController extends Controller
     /**
      * Advance setup wizard to the next or specified step as the user progresses.
      *
-     * Invariant: Wizard steps are travelled strictly in forward sequence.
-     * Users can revisit past completed steps without losing their furthest unlocked progress.
+     * Mandatory Step Lock Enforcement:
+     * - Next step cannot be advanced without prerequisite step verification.
      *
      * POST /api/apps/{ulid}/advance-step
      */
@@ -264,11 +301,58 @@ class SetupStateController extends Controller
         ]);
 
         $target = SetupStep::tryFrom($validated['step']);
-        if (!$target) {
+        if (! $target) {
             return response()->json(['error' => 'Invalid step identifier.'], 422);
         }
 
-        // Advance forward to the target step
+        // STEP LOCK VALIDATION
+        // 1. Advancing past Connect requires verified store connection
+        if ($target->order() > SetupStep::Connect->order()) {
+            $isVerified = ($app->connection && $app->connection->status === ConnectionStatus::Verified);
+            if (! $isVerified) {
+                return response()->json([
+                    'error' => [
+                        'code'    => 'STEP_LOCKED',
+                        'message' => 'Store connection must be successfully verified before proceeding to diagnostics and subsequent steps.',
+                    ],
+                ], 422);
+            }
+        }
+
+        // 2. Advancing past Data Collection requires mandatory data collection consent
+        if ($target->order() > SetupStep::DataCollection->order()) {
+            $hasDataConsent = UserConsent::where('app_id', $app->id)
+                ->where('consent_type', 'data_collection')
+                ->exists();
+
+            if (! $hasDataConsent) {
+                return response()->json([
+                    'error' => [
+                        'code'    => 'CONSENT_REQUIRED',
+                        'message' => 'Mandatory Data Collection consent must be accepted before continuing to theme selection.',
+                    ],
+                ], 422);
+            }
+        }
+
+        // 3. Advancing to Build step requires active plan or payment terms consent
+        if ($target === SetupStep::Build) {
+            $hasPaymentConsent = UserConsent::where('app_id', $app->id)
+                ->where('consent_type', 'payment_terms')
+                ->exists();
+            $hasActivePlan = ($app->getActivePlan() !== null);
+
+            if (! $hasPaymentConsent && ! $hasActivePlan) {
+                return response()->json([
+                    'error' => [
+                        'code'    => 'PAYMENT_CONSENT_REQUIRED',
+                        'message' => 'Payment terms and conditions must be accepted before compiling the application build.',
+                    ],
+                ], 422);
+            }
+        }
+
+        // Advance forward to the target step if prerequisites passed
         if ($target->order() > $app->setup_step->order()) {
             $app->update([
                 'setup_step' => $target,
@@ -280,4 +364,3 @@ class SetupStateController extends Controller
         return $this->show($request, $ulid);
     }
 }
-

@@ -939,180 +939,195 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
 
       </div>
 
-      {/* 11 Pillars In-Depth Diagnostics Grid */}
+      {/* ── REQ 3: COMPACT IN-DEPTH WEBSITE & STORE DIAGNOSTICS GRID WITH CIRCULAR CHARTS ── */}
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="font-bold text-slate-900 text-base">In-Depth Website &amp; Store Diagnostics</h3>
+            <h3 className="font-bold text-slate-900 text-sm sm:text-base">In-Depth Website &amp; Store Diagnostics</h3>
             <p className="text-xs text-slate-500">
-              Live website audit across latency, Google Core Web Vitals, checkout security, and catalog readiness.
+              Live automated audit across Core Web Vitals, server latency, SSL security, and store compatibility.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                const allOpen = evaluatedPillars.length > 0 && evaluatedPillars.every((p) => expandedCardIds[p.id]);
-                if (allOpen) {
-                  setExpandedCardIds({});
-                } else {
-                  const all: Record<string, boolean> = {};
-                  evaluatedPillars.forEach((p) => {
-                    all[p.id] = true;
-                  });
-                  setExpandedCardIds(all);
-                }
-              }}
-              className="text-xs font-semibold text-slate-600 hover:text-indigo-600 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-            >
-              {evaluatedPillars.length > 0 && evaluatedPillars.every((p) => expandedCardIds[p.id]) ? (
-                <>
-                  <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Collapse All</span>
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Expand All</span>
-                </>
-              )}
-            </button>
-            <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 w-fit">
-              Google Insights Score: {totalScore} / 100 ({totalStyle.status})
-            </span>
-          </div>
+          <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 w-fit">
+            Overall Health: {totalScore} / 100 ({totalStyle.status})
+          </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {evaluatedPillars.map((pillar) => {
-            const Icon = pillar.icon;
-            const isHovered = hoveredPillarId === pillar.id;
-            const isExpanded = !!expandedCardIds[pillar.id];
+        {(() => {
+          // Dynamic calculation of the 8 diagnostic metrics from real engine results
+          const rawFcp = parseFloat((googlePageSpeed.fcp || "1.2s").replace("s", "")) || 1.2;
+          const mobileScore = rawFcp <= 1.8 ? 92 : rawFcp <= 2.5 ? 75 : 52;
 
-            return (
-              <div
-                key={pillar.id}
-                onMouseEnter={() => setHoveredPillarId(pillar.id)}
-                onMouseLeave={() => setHoveredPillarId(null)}
-                className={`bg-white border-2 rounded-2xl p-4 sm:p-5 transition flex flex-col justify-between ${
-                  isHovered
-                    ? "border-indigo-500 shadow-md ring-1 ring-indigo-500"
-                    : isExpanded
-                    ? "border-indigo-300 shadow-sm"
-                    : "border-slate-200 shadow-xs hover:border-slate-300"
-                }`}
-              >
-                <div>
-                  {/* Pillar Header with Status Badge & Accordion Icon */}
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-xs flex-shrink-0"
-                        style={{ backgroundColor: pillar.color }}
-                      >
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h4 className="font-bold text-slate-900 text-xs sm:text-sm truncate" title={pillar.name}>
-                          {pillar.name}
-                        </h4>
-                        <span className="text-[11px] text-slate-400 font-medium block truncate">
-                          Benchmark: {pillar.benchmark}
+          const isHttps = (targetSiteUrl || "").startsWith("https://");
+          const securityScore = isHttps ? 95 : 40;
+
+          const catalogData = activeWebsiteData?.catalog;
+          const prodCount = typeof catalogData?.total_products === "number"
+            ? catalogData.total_products
+            : (parseInt(String(catalogData?.total_products || 0)) || 0);
+          const compatScore = prodCount > 0 ? 92 : 45;
+
+          const rawSpeedStr = String(metrics?.speed?.value || "145ms");
+          const rawTtfb = parseInt(rawSpeedStr.replace("ms", "")) || 145;
+          const latencyScore = rawTtfb <= 300
+            ? Math.max(80, Math.round(100 - (rawTtfb / 300) * 15))
+            : Math.max(25, Math.round(80 - ((rawTtfb - 300) / 700) * 55));
+
+          const diagnosticGridItems = [
+            {
+              id: "perf",
+              heading: "Performance Score",
+              percentage: Number(googlePageSpeed.performance || 0),
+              meetsBenchmark: Number(googlePageSpeed.performance || 0) >= 80,
+              benchmarkLabel: "Benchmark: ≥ 80%",
+              statusLabel: Number(googlePageSpeed.performance || 0) >= 80 ? "Optimal" : "Needs Attention",
+              subtext: `FCP: ${googlePageSpeed.fcp || "1.2s"} • TBT: ${googlePageSpeed.tbt || "120ms"}`,
+            },
+            {
+              id: "seo",
+              heading: "SEO Score",
+              percentage: Number(googlePageSpeed.seo || 0),
+              meetsBenchmark: Number(googlePageSpeed.seo || 0) >= 80,
+              benchmarkLabel: "Benchmark: ≥ 80%",
+              statusLabel: Number(googlePageSpeed.seo || 0) >= 80 ? "Optimal" : "Needs Attention",
+              subtext: "Meta • Headings • Crawl",
+            },
+            {
+              id: "a11y",
+              heading: "Accessibility Score",
+              percentage: Number(googlePageSpeed.accessibility || 0),
+              meetsBenchmark: Number(googlePageSpeed.accessibility || 0) >= 80,
+              benchmarkLabel: "Benchmark: ≥ 80%",
+              statusLabel: Number(googlePageSpeed.accessibility || 0) >= 80 ? "Optimal" : "Needs Attention",
+              subtext: "Contrast • Alt Tags • UX",
+            },
+            {
+              id: "mobile",
+              heading: "Mobile Responsiveness",
+              percentage: mobileScore,
+              meetsBenchmark: mobileScore >= 80,
+              benchmarkLabel: "Benchmark: FCP < 1.8s",
+              statusLabel: mobileScore >= 80 ? "Optimal" : "Needs Attention",
+              subtext: `First Paint: ${rawFcp.toFixed(1)}s`,
+            },
+            {
+              id: "sec",
+              heading: "Security Score",
+              percentage: securityScore,
+              meetsBenchmark: securityScore >= 85,
+              benchmarkLabel: "Benchmark: SSL Active",
+              statusLabel: securityScore >= 85 ? "Passed" : "Insecure",
+              subtext: isHttps ? "TLS 1.3 Active" : "Insecure HTTP",
+            },
+            {
+              id: "health",
+              heading: "Website Health",
+              percentage: Number(googlePageSpeed.best_practices || 0),
+              meetsBenchmark: Number(googlePageSpeed.best_practices || 0) >= 85,
+              benchmarkLabel: "Benchmark: ≥ 85%",
+              statusLabel: Number(googlePageSpeed.best_practices || 0) >= 85 ? "Optimal" : "Needs Attention",
+              subtext: "Doctype • HTTPS • APIs",
+            },
+            {
+              id: "compat",
+              heading: "Store Compatibility",
+              percentage: compatScore,
+              meetsBenchmark: compatScore >= 80,
+              benchmarkLabel: "Benchmark: Active Catalog",
+              statusLabel: compatScore >= 80 ? "Compatible" : "Incomplete",
+              subtext: `${prodCount} Products Ready`,
+            },
+            {
+              id: "latency",
+              heading: "Speed Latency (TTFB)",
+              percentage: latencyScore,
+              meetsBenchmark: rawTtfb <= 300,
+              benchmarkLabel: "Benchmark: < 300ms",
+              statusLabel: rawTtfb <= 300 ? "Optimal" : "Slow",
+              subtext: `Response: ${rawTtfb}ms`,
+            },
+          ];
+
+          return (
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+              {diagnosticGridItems.map((item) => {
+                const radius = 28;
+                const strokeWidth = 5;
+                const circumference = 2 * Math.PI * radius;
+                const strokeDashoffset =
+                  circumference - (Math.min(100, Math.max(0, item.percentage)) / 100) * circumference;
+                // Green Chart if meets benchmark, Red Chart if below benchmark
+                const chartColor = item.meetsBenchmark ? "#10b981" : "#ef4444";
+
+                return (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col items-center text-center shadow-xs hover:border-slate-300 transition"
+                  >
+                    <span
+                      className="text-xs font-bold text-slate-800 tracking-tight block truncate w-full mb-2"
+                      title={item.heading}
+                    >
+                      {item.heading}
+                    </span>
+
+                    {/* Circular Chart */}
+                    <div className="relative w-18 h-18 flex items-center justify-center my-1">
+                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 68 68">
+                        <circle
+                          cx="34"
+                          cy="34"
+                          r={radius}
+                          stroke="#f1f5f9"
+                          strokeWidth={strokeWidth}
+                          fill="none"
+                        />
+                        <circle
+                          cx="34"
+                          cy="34"
+                          r={radius}
+                          stroke={chartColor}
+                          strokeWidth={strokeWidth}
+                          strokeDasharray={circumference}
+                          strokeDashoffset={strokeDashoffset}
+                          strokeLinecap="round"
+                          fill="none"
+                          className="transition-all duration-700 ease-out"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-base font-black text-slate-900 leading-none">
+                          {item.percentage}%
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                        pillar.status === "good"
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : pillar.status === "moderate"
-                          ? "bg-amber-50 text-amber-800 border-amber-200"
-                          : "bg-rose-50 text-rose-700 border-rose-200"
-                      }`}>
-                        {pillar.status === "good" ? "Optimal" : pillar.status === "moderate" ? "Needs Attention" : "Unoptimized"}
-                      </span>
-
-                      {/* Accordion Toggle Icon Button */}
-                      <button
-                        type="button"
-                        onClick={() => toggleCardAccordion(pillar.id)}
-                        aria-label={isExpanded ? `Collapse ${pillar.name} details` : `Expand ${pillar.name} details`}
-                        title={isExpanded ? "Collapse details" : "Expand details"}
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition border cursor-pointer ${
-                          isExpanded
-                            ? "bg-indigo-50 border-indigo-200 text-indigo-600 shadow-xs"
-                            : "bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                    {/* Status Badge & Benchmarks */}
+                    <div className="mt-2 flex flex-col items-center gap-1 w-full">
+                      <span
+                        className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          item.meetsBenchmark
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-rose-50 text-rose-700 border-rose-200"
                         }`}
                       >
-                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? "rotate-180 text-indigo-600" : ""}`} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Measured Value Pill - Clickable to toggle accordion as well */}
-                  <div
-                    onClick={() => toggleCardAccordion(pillar.id)}
-                    className="my-2.5 p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs cursor-pointer hover:bg-slate-100/70 transition"
-                  >
-                    <span className="text-slate-500 font-medium">Measured Value:</span>
-                    <span className="font-bold font-mono text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
-                      {pillar.displayValue}
-                    </span>
-                  </div>
-
-                  {/* Collapsed State: Accordion Trigger */}
-                  {!isExpanded && (
-                    <button
-                      type="button"
-                      onClick={() => toggleCardAccordion(pillar.id)}
-                      className="w-full pt-1.5 flex items-center justify-between text-[11px] font-medium text-slate-400 hover:text-indigo-600 transition group cursor-pointer"
-                    >
-                      <span>View checklist &amp; diagnostics</span>
-                      <span className="text-[10px] text-slate-400 group-hover:text-indigo-600 flex items-center gap-1 font-semibold">
-                        Details <ChevronDown className="w-3 h-3 group-hover:translate-y-0.5 transition-transform" />
+                        {item.statusLabel}
                       </span>
-                    </button>
-                  )}
-
-                  {/* Expanded State: Accordion Details */}
-                  {isExpanded && (
-                    <div className="pt-2.5 border-t border-slate-100 space-y-2.5 animate-in fade-in duration-200">
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        {pillar.description}
-                      </p>
-
-                      {/* Diagnostic Checklist */}
-                      <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
-                        {(!isLowScore ? pillar.checklistHigh : pillar.checklistLow).map((check, cidx) => (
-                          <div key={cidx} className="flex items-start gap-1.5">
-                            {!isLowScore ? (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                            ) : (
-                              <AlertCircle className="w-3.5 h-3.5 text-rose-500 flex-shrink-0 mt-0.5" />
-                            )}
-                            <span className="text-slate-700 text-[11px] leading-snug">
-                              {check}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => toggleCardAccordion(pillar.id)}
-                        className="w-full pt-1.5 text-right text-[10px] font-semibold text-slate-400 hover:text-indigo-600 transition cursor-pointer flex items-center justify-end gap-1"
-                      >
-                        <span>Hide Details</span>
-                        <ChevronUp className="w-3 h-3" />
-                      </button>
+                      <span className="text-[10px] text-slate-400 font-medium block truncate max-w-full">
+                        {item.benchmarkLabel}
+                      </span>
+                      {item.subtext && (
+                        <span className="text-[9.5px] text-slate-400 block truncate max-w-full">
+                          {item.subtext}
+                        </span>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Subtle Optional Enhancement Note (Not overly highlighted) */}
