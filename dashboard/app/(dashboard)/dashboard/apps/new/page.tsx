@@ -10,6 +10,7 @@ import * as z from "zod";
 import { apiClient } from "@/lib/api-client";
 import { getUserData, saveUserData } from "@/lib/user-data-store";
 import { normalizeWebsiteUrl } from "@/lib/url-utils";
+import { DeleteAppModal } from "@/components/dashboard/delete-app-modal";
 import {
   ArrowRight,
   Check,
@@ -64,7 +65,9 @@ export default function NewAppPage() {
   const activeAbortController = useRef<AbortController | null>(null);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const { data: authData } = useQuery({
+  const [draftToDelete, setDraftToDelete] = useState<any | null>(null);
+
+  const { data: authData, refetch: refetchAuth } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
     retry: false,
@@ -462,7 +465,10 @@ export default function NewAppPage() {
           </div>
         )}
 
-        {authData?.user?.latest_draft && authData.user.latest_draft.setup_step !== "build" && authData.user.latest_draft.setup_step !== "completed" && authData.user.latest_draft.status !== "completed" && (
+        {Boolean(authData?.user?.latest_draft) &&
+          !["build", "completed", "finish"].includes((authData.user.latest_draft.setup_step || "").toLowerCase()) &&
+          !["completed", "live", "active"].includes((authData.user.latest_draft.status || "").toLowerCase()) &&
+          !authData.user.latest_draft.is_completed && (
           <div className="mb-6 p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
@@ -790,6 +796,17 @@ export default function NewAppPage() {
           </button>
         </form>
       </div>
-    </div>
+    
+      {/* ── 3-STEP POPUP APPLICATION DELETION MODAL ── */}
+      <DeleteAppModal
+        isOpen={Boolean(draftToDelete)}
+        onClose={() => setDraftToDelete(null)}
+        app={draftToDelete}
+        onDeleted={() => {
+          setDraftToDelete(null);
+          refetchAuth();
+        }}
+      />
+</div>
   );
 }

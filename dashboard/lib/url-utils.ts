@@ -52,3 +52,4 @@ export function isValidUrlStructure(url: string): boolean {
     return false;
   }
 }
+

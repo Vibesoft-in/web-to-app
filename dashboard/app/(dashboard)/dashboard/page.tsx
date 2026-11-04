@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { openRazorpayModal, withSinglePaymentLock } from "@/lib/razorpay";
 import { AppDetailsView } from "@/components/dashboard/app-details-view";
+import { DeleteAppModal } from "@/components/dashboard/delete-app-modal";
 import {
   ArrowLeft,
   ArrowRight,
@@ -38,6 +39,7 @@ import {
   Plus,
   Printer,
   Receipt,
+  Trash2,
   RefreshCw,
   Rocket,
   Shield,
@@ -148,6 +150,7 @@ function UserDashboardContent() {
   }, [searchParams]);
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [appToDelete, setAppToDelete] = useState<any | null>(null);
   const [isRebuilding, setIsRebuilding] = useState(false);
   const [rebuildMessage, setRebuildMessage] = useState<string | null>(null);
   const [rebuildingAppUlids, setRebuildingAppUlids] = useState<Record<string, boolean>>({});
@@ -247,25 +250,29 @@ function UserDashboardContent() {
   });
 
   const isAppDraft = (appItem: any) => {
+    if (!appItem) return false;
+    const statusStr = (typeof appItem.status === "string" ? appItem.status : appItem.status?.value || "").toLowerCase();
+    const stepStr = (typeof appItem.setup_step === "string" ? appItem.setup_step : appItem.setup_step?.value || "").toLowerCase();
+
     // If explicitly completed or live or active
     if (
-      appItem?.is_completed ||
-      appItem?.status === "completed" ||
-      appItem?.status === "live" ||
-      appItem?.status === "active"
+      Boolean(appItem.is_completed) ||
+      statusStr === "completed" ||
+      statusStr === "live" ||
+      statusStr === "active"
     ) {
       return false;
     }
     // If the app has reached or completed step 10 (build)
     if (
-      appItem?.setup_step === "build" ||
-      appItem?.setup_step === "completed" ||
-      appItem?.setup_step === "finish"
+      stepStr === "build" ||
+      stepStr === "completed" ||
+      stepStr === "finish"
     ) {
       return false;
     }
     // If the app has any builds
-    const builds = appItem?.builds || [];
+    const builds = appItem.builds || [];
     if (builds.length > 0) {
       return false;
     }
@@ -1808,23 +1815,32 @@ function UserDashboardContent() {
                           {/* Bottom Action Buttons (Short-Card 2-Row Layout) */}
                           <div className="pt-3 border-t border-[#EBE6DF] mt-3 space-y-2">
                             {isDraft ? (
-                              <div className="grid grid-cols-2 gap-2">
+                              <div className="grid grid-cols-12 gap-2">
                                 <button
                                   type="button"
                                   onClick={() => handleOpenAppDetails(appItem)}
-                                  className="py-2 px-2.5 bg-[#EFEAE2]/80 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 truncate"
+                                  className="col-span-5 py-2 px-2 bg-[#EFEAE2]/80 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 truncate"
                                 >
                                   <Eye className="w-3.5 h-3.5 text-[#78593D] flex-shrink-0" />
-                                  <span className="truncate">View Details</span>
+                                  <span className="truncate">Details</span>
                                 </button>
 
                                 <Link
                                   href={`/dashboard/apps/${appItem.ulid}/setup/${appItem.setup_step || "platform"}`}
-                                  className="py-2 px-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs text-center active:scale-98 cursor-pointer truncate"
+                                  className="col-span-5 py-2 px-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs text-center active:scale-98 cursor-pointer truncate"
                                 >
                                   <span className="truncate">Continue</span>
                                   <ArrowRight className="w-3.5 h-3.5 flex-shrink-0" />
                                 </Link>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setAppToDelete(appItem)}
+                                  className="col-span-2 py-2 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer active:scale-98"
+                                  title="Delete Draft"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                </button>
                               </div>
                             ) : (
                               <div className="space-y-2">
@@ -1885,24 +1901,33 @@ function UserDashboardContent() {
                                   )
                                 )}
 
-                                {/* Row 2: Secondary Actions (Side-by-Side: View Details & Buy Add-ons) */}
-                                <div className="grid grid-cols-2 gap-2">
+                                {/* Row 2: Secondary Actions (Details & Add-ons & Delete) */}
+                                <div className="grid grid-cols-12 gap-2">
                                   <button
                                     type="button"
                                     onClick={() => handleOpenAppDetails(appItem)}
-                                    className="py-2 px-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98 truncate"
+                                    className="col-span-5 py-2 px-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98 truncate"
                                   >
                                     <Eye className="w-3.5 h-3.5 text-white flex-shrink-0" />
-                                    <span className="truncate">View Details</span>
+                                    <span className="truncate">Details</span>
                                   </button>
 
                                   <button
                                     type="button"
                                     onClick={() => handleOpenAppDetails(appItem, "app-addons-section")}
-                                    className="py-2 px-2.5 bg-[#F7F5F0] hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/25 hover:border-[#78593D] rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98 truncate"
+                                    className="col-span-5 py-2 px-2 bg-[#EFEAE2]/80 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-98 truncate"
                                   >
-                                    <Sparkles className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                                    <span className="truncate">Buy Add-ons</span>
+                                    <Sparkles className="w-3 h-3 text-[#78593D]" />
+                                    <span className="truncate">Add-ons</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setAppToDelete(appItem)}
+                                    className="col-span-2 py-2 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer active:scale-98"
+                                    title="Delete App"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
                                   </button>
                                 </div>
                               </div>
@@ -3403,10 +3428,19 @@ function UserDashboardContent() {
 
         return mounted ? createPortal(invoiceMarkup, document.body) : invoiceMarkup;
       })()}
+      {/* ── 3-STEP POPUP APPLICATION DELETION MODAL ── */}
+      <DeleteAppModal
+        isOpen={Boolean(appToDelete)}
+        onClose={() => setAppToDelete(null)}
+        app={appToDelete}
+        onDeleted={() => {
+          setAppToDelete(null);
+          refetchApps();
+        }}
+      />
     </div>
   );
 }
-
 
 export default function UserDashboardPage() {
   return (

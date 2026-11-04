@@ -85,6 +85,10 @@ class SetupStateController extends Controller
             }
         }
 
+        if ($currentStep === SetupStep::Build || $app->isCompleted()) {
+            $completedSteps[] = SetupStep::Build->value;
+        }
+
         $planName = $activePlan?->name ?? null;
         $paidAmountPaise = $activePlan ? (int) $activePlan->price_monthly : 0;
         $paidAmountRupees = (int) round($paidAmountPaise / 100);
@@ -354,9 +358,13 @@ class SetupStateController extends Controller
 
         // Advance forward to the target step if prerequisites passed
         if ($target->order() > $app->setup_step->order()) {
-            $app->update([
-                'setup_step' => $target,
-            ]);
+            $updatePayload = ['setup_step' => $target];
+            if ($target === SetupStep::Build) {
+                $updatePayload['status'] = \App\Enums\AppStatus::Completed;
+            }
+            $app->update($updatePayload);
+        } elseif ($target === SetupStep::Build && $app->status === \App\Enums\AppStatus::Draft) {
+            $app->update(['status' => \App\Enums\AppStatus::Completed]);
         }
 
         $app->refresh();

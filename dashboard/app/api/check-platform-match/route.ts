@@ -155,14 +155,25 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // If response returned 404 Not Found
-      if (response.status === 404) {
+      // If response returned error status (4xx or 5xx)
+      if (response.status >= 400) {
         return NextResponse.json({
           success: false,
           is_invalid: true,
           detected_platform: "invalid",
           title: "Invalid Website Entry",
-          message: `Invalid Website Entry: This website returned 404 Not Found (${hostname}). Please verify the domain.`,
+          message: `Invalid Website Entry: This website returned HTTP ${response.status} (${hostname}). Please verify the domain and ensure your store is live.`,
+        });
+      }
+
+      // If text is suspiciously short or indicates DNS/parking error
+      if (text.length < 50 || text.includes("dns points to prohibited ip") || text.includes("domain not configured") || text.includes("site not found")) {
+        return NextResponse.json({
+          success: false,
+          is_invalid: true,
+          detected_platform: "invalid",
+          title: "Invalid Website Entry",
+          message: `Invalid Website Entry: This website could not be loaded properly (${hostname}). Please verify the domain.`,
         });
       }
 
@@ -268,8 +279,14 @@ export async function POST(req: NextRequest) {
     });
   } catch (err: any) {
     return NextResponse.json(
-      { success: false, is_invalid: true, message: err.message || "Failed to verify website." },
-      { status: 500 }
+      {
+        success: false,
+        is_invalid: true,
+        detected_platform: "invalid",
+        title: "Invalid Website Entry",
+        message: err.message || "Failed to verify website entry.",
+      },
+      { status: 200 }
     );
   }
 }

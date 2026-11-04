@@ -357,3 +357,4 @@ export const STANDARDIZED_ADDONS: AddonDetail[] = [
     },
   },
 ];
+

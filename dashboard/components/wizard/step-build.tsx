@@ -471,14 +471,20 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
                   Select your package format based on your active <span className="font-semibold text-slate-800">{planName}</span> subscription.
                 </p>
               </div>
-              <Link
-                href="/dashboard"
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 self-start sm:self-auto shadow-sm"
+              <button
+                type="button"
+                onClick={handleCompleteAndReturn}
+                disabled={isFinishing}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 self-start sm:self-auto shadow-sm cursor-pointer disabled:opacity-70"
               >
-                <LayoutDashboard className="w-3.5 h-3.5" />
+                {isFinishing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                )}
                 <span>Go to App Dashboard</span>
                 <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+              </button>
             </div>
 
             {addonSuccessMsg && (
@@ -764,13 +770,24 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
           <span>Setup wizard complete! You can download your app build files anytime from your dashboard.</span>
         </div>
 
-        <Link
-          href="/dashboard"
-          className="w-full sm:w-auto justify-center px-7 py-3 bg-slate-900 hover:bg-black text-white rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-slate-900/10 cursor-pointer active:scale-98"
+        <button
+          type="button"
+          onClick={handleCompleteAndReturn}
+          disabled={isFinishing}
+          className="w-full sm:w-auto justify-center px-7 py-3 bg-slate-900 hover:bg-black text-white rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-slate-900/10 cursor-pointer active:scale-98 disabled:opacity-70"
         >
-          <span>Complete &amp; Return to Dashboard</span>
-          <ArrowRight className="w-4 h-4" />
-        </Link>
+          {isFinishing ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Completing Setup...</span>
+            </>
+          ) : (
+            <>
+              <span>Complete &amp; Return to Dashboard</span>
+              <ArrowRight className="w-4 h-4" />
+            </>
+          )}
+        </button>
       </div>
     </div>
   </div>

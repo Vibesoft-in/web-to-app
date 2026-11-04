@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { DeleteAppModal } from "@/components/dashboard/delete-app-modal";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -26,6 +27,7 @@ import {
   Shield,
   ShieldCheck,
   Sliders,
+  Trash2,
   Smartphone,
   Sparkles,
   Store,
@@ -208,6 +210,7 @@ export function AppDetailsView({
   const [selectedAddonForModal, setSelectedAddonForModal] = useState<any | null>(null);
   const [localPurchasedSlugs, setLocalPurchasedSlugs] = useState<string[]>([]);
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [checkoutMessage, setCheckoutMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const readyBuild = app?.builds?.find((b: any) => b.status === "ready" || b.status?.value === "ready") || app?.builds?.[0];
@@ -475,6 +478,15 @@ export function AppDetailsView({
             title="Sync Store Products & Rebuild APK"
           >
             <RefreshCw className={`w-4 h-4 ${isRebuilding ? "animate-spin text-[#78593D]" : ""}`} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsDeleteModalOpen(true)}
+            className="p-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition shadow-2xs cursor-pointer"
+            title="Delete Application"
+          >
+            <Trash2 className="w-4 h-4 text-rose-600" />
           </button>
         </div>
       </div>
@@ -1297,6 +1309,17 @@ export function AppDetailsView({
           </div>
         </div>
       )}
-    </div>
+    
+      {/* ── 3-STEP POPUP APPLICATION DELETION MODAL ── */}
+      <DeleteAppModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        app={app}
+        onDeleted={() => {
+          setIsDeleteModalOpen(false);
+          onBack();
+        }}
+      />
+</div>
   );
 }

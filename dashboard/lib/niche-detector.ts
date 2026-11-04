@@ -115,10 +115,14 @@ export function detectStoreNicheFromData(
     }
   }
 
-  // Find winner
+  // Find winner (universal retail / fashion default)
   let topNiche = "fashion";
   let maxScore = 0;
   for (const [key, score] of Object.entries(scores)) {
+    // Never pick lighting unless specifically high automotive scores and no apparel/beauty matches
+    if (key === "lighting" && (score < 25 || (scores.fashion || 0) > 0 || (scores.beauty || 0) > 0)) {
+      continue;
+    }
     if (score > maxScore) {
       maxScore = score;
       topNiche = key;

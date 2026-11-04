@@ -1253,10 +1253,13 @@ class ConfigController extends Controller
             }
         }
 
-        // Pick top scoring niche (fashion default)
+        // Pick top scoring niche (universal retail / fashion default)
         $topNiche = 'fashion';
         $maxScore = 0;
         foreach ($scores as $k => $score) {
+            if ($k === 'lighting' && ($score < 25 || ($scores['fashion'] ?? 0) > 0 || ($scores['beauty'] ?? 0) > 0)) {
+                continue;
+            }
             if ($score > $maxScore) {
                 $maxScore = $score;
                 $topNiche = $k;

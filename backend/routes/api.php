@@ -796,6 +796,9 @@ Route::post('/apps/{ulid}/admin-portal/refunds', [\App\Http\Controllers\Api\AppC
 Route::post('/apps/{ulid}/complete', [\App\Http\Controllers\Api\AppController::class, 'complete'])
     ->name('api.apps.complete.direct');
 
+Route::delete('/apps/{ulid}', [\App\Http\Controllers\Api\AppController::class, 'destroy'])
+    ->name('api.apps.destroy.direct');
+
 // ── Razorpay Payment Gateway Endpoints ──────────────────────────────────────────
 Route::post('/apps/{ulid}/payment/create-order', function (Request $request, string $ulid) {
     $app = \App\Models\App::withoutTenantScope()->where('ulid', $ulid)->firstOrFail();

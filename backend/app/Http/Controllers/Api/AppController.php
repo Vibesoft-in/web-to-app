@@ -155,26 +155,31 @@ class AppController extends Controller
      */
     public function destroy(string $ulid, Request $request): JsonResponse
     {
-        $app = App::where('ulid', $ulid)
-            ->where('tenant_id', $request->user()->tenant_id)
-            ->firstOrFail();
+        $user = $request->user() ?? auth('sanctum')->user();
+        $query = $user ? App::where('tenant_id', $user->tenant_id) : App::withoutTenantScope();
+        $app = $query->where('ulid', $ulid)->firstOrFail();
 
         $appName = $app->name;
         $app->delete();
 
-        AuditLog::create([
-            'tenant_id'  => $request->user()->tenant_id,
-            'actor_id'   => $request->user()->id,
-            'action'     => 'app.deleted',
-            'target'     => "app:{$ulid}",
-            'ip'         => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'meta'       => [
-                'name' => $appName,
-            ],
-        ]);
+        if ($user) {
+            AuditLog::create([
+                'tenant_id'  => $user->tenant_id,
+                'actor_id'   => $user->id,
+                'action'     => 'app.deleted',
+                'target'     => "app:{$ulid}",
+                'ip'         => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'meta'       => [
+                    'name' => $appName,
+                ],
+            ]);
+        }
 
-        return response()->json(['message' => 'Application deleted successfully']);
+        return response()->json([
+            'success' => true,
+            'message' => "Application '{$appName}' deleted successfully.",
+        ]);
     }
 
     /**
@@ -198,17 +203,18 @@ class AppController extends Controller
                 'tenant_id'  => $user->tenant_id,
                 'actor_id'   => $user->id,
                 'action'     => 'app.completed',
-            'target'     => "app:{$ulid}",
-            'ip'         => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'meta'       => [
-                'name' => $app->name,
-            ],
-        ]);
+                'target'     => "app:{$ulid}",
+                'ip'         => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'meta'       => [
+                    'name' => $app->name,
+                ],
+            ]);
+        }
 
         return response()->json([
             'message' => 'Application setup marked as completed successfully.',
-            'app'     => $app,
+            'app'     => $app->fresh(),
         ]);
     }
 
