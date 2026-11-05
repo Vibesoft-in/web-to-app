@@ -208,53 +208,35 @@ export default function AddonsPage() {
                   : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
               }`}
             >
-              {/* Card Main Info */}
-              <div className="p-4 sm:p-5 space-y-3 flex-1">
+              {/* Card Main Info: Heading & Price ONLY */}
+              <div className="p-4 sm:p-5 space-y-2 flex-1">
                 <div className="flex items-start justify-between gap-2.5">
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
                         addon.isActive
                           ? "bg-emerald-100 text-emerald-800"
                           : "bg-indigo-50 text-indigo-700"
                       }`}
                     >
-                      <Icon className="w-5 h-5" />
+                      <Icon className="w-4 h-4" />
                     </div>
-                    <div className="min-w-0">
-                      <h3 className="font-extrabold text-sm text-slate-900 truncate">
-                        {addon.shortName}
-                      </h3>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-600 inline-block mt-0.5">
-                        {addon.category || "Extension"}
-                      </span>
-                    </div>
+                    <h3 className="font-extrabold text-sm text-slate-900 leading-snug line-clamp-1" title={addon.shortName}>
+                      {addon.shortName}
+                    </h3>
                   </div>
 
-                  <div>
-                    {addon.isActive ? (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                        <Check className="w-3 h-3 stroke-[3]" />
-                        <span>Active</span>
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                        Available
-                      </span>
-                    )}
-                  </div>
+                  {addon.isActive && (
+                    <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 flex items-center gap-1 flex-shrink-0">
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                      <span>Active</span>
+                    </span>
+                  )}
                 </div>
 
-                <div className="flex items-baseline justify-between pt-1">
-                  <div>
-                    <span className="text-base font-black text-slate-900">{addon.price}</span>
-                    <span className="text-[10px] text-slate-400 ml-1.5 font-medium">{addon.licenseType}</span>
-                  </div>
+                <div className="pt-1">
+                  <span className="text-base font-black text-slate-900">{addon.price}</span>
                 </div>
-
-                <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
-                  {addon.oneLineDesc}
-                </p>
               </div>
 
               {/* Card Bottom / Toggle & Actions */}
@@ -312,9 +294,22 @@ export default function AddonsPage() {
                   </div>
                 </div>
 
-                {/* Expandable Section inside card */}
+                {/* Expandable Section inside card: shown ONLY when clicking View Details */}
                 {isExpanded && (
-                  <div className="pt-3 border-t border-slate-100 space-y-3 animate-fadeIn text-xs">
+                  <div className="pt-3 border-t border-slate-100 space-y-2.5 animate-fadeIn text-xs">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-600">
+                        {addon.category || "Extension"}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-50 text-slate-500 border border-slate-200">
+                        {addon.licenseType}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {addon.oneLineDesc}
+                    </p>
+
                     {addon.featureDetails?.items && (
                       <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1.5">
                         <strong className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700 block">
