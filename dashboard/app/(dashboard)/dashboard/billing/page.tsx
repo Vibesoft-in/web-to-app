@@ -13,6 +13,7 @@ import {
   Loader2,
   Receipt,
   ShieldCheck,
+  Smartphone,
   Sparkles,
   Zap,
   Mail,
@@ -30,15 +31,34 @@ export default function BillingPage() {
   const [resendingOrderId, setResendingOrderId] = useState<number | null>(null);
   const [invoiceNotice, setInvoiceNotice] = useState<string | null>(null);
   const [isYearly, setIsYearly] = useState(false);
+  const [selectedAppUlid, setSelectedAppUlid] = useState<string>("");
+
+  const { data: userAppsData } = useQuery({
+    queryKey: ["user-apps-billing"],
+    queryFn: () => apiClient("/api/apps"),
+  });
+
+  const apps: any[] = userAppsData || [];
+  const selectedApp =
+    apps.find((a: any) => a.ulid === selectedAppUlid) || apps[0] || null;
+  const currentAppUlid = selectedApp?.ulid || "";
 
   const { data: billingData, isLoading, refetch } = useQuery({
-    queryKey: ["billing-data"],
-    queryFn: () => apiClient("/api/billing"),
+    queryKey: ["billing-data", currentAppUlid],
+    queryFn: () =>
+      apiClient(
+        currentAppUlid ? `/api/billing?app_ulid=${currentAppUlid}` : "/api/billing"
+      ),
   });
 
   const { data: ordersData, refetch: refetchOrders } = useQuery({
-    queryKey: ["orders", "my-orders"],
-    queryFn: () => apiClient("/api/orders/my-orders"),
+    queryKey: ["orders", "my-orders", currentAppUlid],
+    queryFn: () =>
+      apiClient(
+        currentAppUlid
+          ? `/api/orders/my-orders?app_ulid=${currentAppUlid}`
+          : "/api/orders/my-orders"
+      ),
   });
   const myOrders: any[] = ordersData?.orders || [];
 
@@ -180,6 +200,23 @@ export default function BillingPage() {
       ? "₹0"
       : `₹${(currentPlan.price_monthly / 100).toLocaleString("en-IN")}`;
 
+  const paidOrders = myOrders.filter(
+    (o: any) => o.status === "paid" || o.status === "completed"
+  );
+  const pendingOrders = myOrders.filter(
+    (o: any) => o.status === "pending" || o.status === "created"
+  );
+
+  const totalPaidRupees = paidOrders.reduce((acc: number, o: any) => {
+    const val = typeof o.total_amount === "number" ? o.total_amount : 0;
+    return acc + Math.round(val / 100);
+  }, 0);
+
+  const totalPendingRupees = pendingOrders.reduce((acc: number, o: any) => {
+    const val = typeof o.total_amount === "number" ? o.total_amount : 0;
+    return acc + Math.round(val / 100);
+  }, 0);
+
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-12">
       {/* Page Header */}
@@ -188,6 +225,120 @@ export default function BillingPage() {
         <p className="text-sm text-slate-500 mt-1">
           Manage your subscription tier, billing period, and view receipt history.
         </p>
+      </div>
+
+      {/* App-Wise Selection / Information Header */}
+      {apps.length > 1 ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#78593D] text-white flex items-center justify-center font-bold text-sm shadow-xs flex-shrink-0">
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">
+                Select Application
+              </span>
+              <h2 className="text-sm font-bold text-slate-900">
+                Viewing billing details for:
+              </h2>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <label htmlFor="app-billing-select" className="sr-only">
+              Select App
+            </label>
+            <select
+              id="app-billing-select"
+              value={selectedApp?.ulid || ""}
+              onChange={(e) => setSelectedAppUlid(e.target.value)}
+              className="px-4 py-2.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-white text-slate-800 text-xs font-bold shadow-2xs outline-none focus:ring-2 focus:ring-[#78593D] cursor-pointer min-w-[220px]"
+            >
+              {apps.map((app: any) => (
+                <option key={app.ulid} value={app.ulid}>
+                  {app.name} ({app.status || "active"})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      ) : apps.length === 1 && selectedApp ? (
+        <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#78593D] text-white flex items-center justify-center font-bold text-sm shadow-xs flex-shrink-0">
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#78593D] bg-[#EFEAE2] px-2 py-0.5 rounded-md border border-[#D6C8B8]">
+                  Single Application
+                </span>
+                <span className="text-xs text-slate-500">{selectedApp.site_url || selectedApp.website_url || ""}</span>
+              </div>
+              <h2 className="text-base font-bold text-slate-900 mt-0.5">{selectedApp.name}</h2>
+            </div>
+          </div>
+          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+            {selectedApp.status || "active"}
+          </span>
+        </div>
+      ) : apps.length === 0 ? (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+          <Smartphone className="w-4 h-4 text-amber-700 flex-shrink-0" />
+          <span>No apps found. Create your first mobile application to begin subscription and billing.</span>
+        </div>
+      ) : null}
+
+      {/* App-Wise Financial KPI Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
+            Selected App
+          </span>
+          <span className="text-base font-black text-slate-900 mt-1 block truncate">
+            {selectedApp?.name || "All Applications"}
+          </span>
+          <span className="text-[11px] text-slate-500 truncate block mt-0.5">
+            {selectedApp?.site_url || selectedApp?.website_url || "Workspace Primary"}
+          </span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
+            Total Amount Paid
+          </span>
+          <span className="text-xl font-black text-emerald-700 mt-1 block">
+            ₹{totalPaidRupees.toLocaleString("en-IN")}
+          </span>
+          <span className="text-[11px] text-emerald-600 block mt-0.5 font-medium">
+            {paidOrders.length} successful payment{paidOrders.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
+            Pending Balance
+          </span>
+          <span className="text-xl font-black text-slate-900 mt-1 block">
+            {totalPendingRupees > 0 ? `₹${totalPendingRupees.toLocaleString("en-IN")}` : "₹0"}
+          </span>
+          <span className="text-[11px] text-slate-500 block mt-0.5">
+            {totalPendingRupees > 0 ? "Pending checkout confirmation" : "All accounts settled"}
+          </span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
+            Subscription Status
+          </span>
+          <span className="text-base font-black text-slate-900 mt-1 block">
+            {activeSub?.status ? activeSub.status.toUpperCase() : "ACTIVE"}
+          </span>
+          <span className="text-[11px] text-slate-500 block mt-0.5 truncate">
+            {activeSub?.current_period_end
+              ? `Renews: ${new Date(activeSub.current_period_end).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
+              : "Continuous license"}
+          </span>
+        </div>
       </div>
 
       {switchMessage && (
@@ -218,7 +369,9 @@ export default function BillingPage() {
               </span>
             </h2>
             <p className="text-xs text-slate-300 mt-1">
-              {activeSub?.app?.name
+              {selectedApp?.name
+                ? `Assigned to Mobile App: ${selectedApp.name}`
+                : activeSub?.app?.name
                 ? `Assigned to Mobile App: ${activeSub.app.name}`
                 : "Active white-label mobile app license"}
             </p>
@@ -562,10 +715,11 @@ export default function BillingPage() {
         )}
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs min-w-[650px]">
+          <table className="w-full text-left text-xs min-w-[700px]">
             <thead>
               <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-100">
                 <th className="py-3 font-semibold">Order / Invoice ID</th>
+                <th className="py-3 font-semibold">Transaction ID</th>
                 <th className="py-3 font-semibold">Date</th>
                 <th className="py-3 font-semibold">Plan &amp; Items</th>
                 <th className="py-3 font-semibold">Amount</th>
@@ -582,6 +736,9 @@ export default function BillingPage() {
                         <FileText className="w-3.5 h-3.5 text-amber-800" />
                         <span>{order.order_number}</span>
                       </div>
+                    </td>
+                    <td className="py-3.5 font-mono text-[11px] text-slate-500">
+                      {order.transaction_id || `txn_${order.id.toString().padStart(6, "0")}`}
                     </td>
                     <td className="py-3.5 text-slate-600">
                       {order.paid_at
@@ -621,9 +778,10 @@ export default function BillingPage() {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white text-slate-800 font-bold text-xs hover:bg-slate-50 transition flex items-center gap-1.5 shadow-2xs"
+                          title="Download and print official tax invoice"
                         >
                           <Printer className="w-3 h-3 text-slate-600" />
-                          <span>View Invoice</span>
+                          <span>Download Invoice</span>
                         </a>
 
                         <button
@@ -650,31 +808,10 @@ export default function BillingPage() {
                 ))
               ) : (
                 <tr>
-                  <td className="py-3.5 font-mono font-medium text-slate-900">
-                    INV-2026-{(activeSub?.id || 1).toString().padStart(4, "0")}
-                  </td>
-                  <td className="py-3.5 text-slate-600">
-                    {activeSub?.created_at
-                      ? new Date(activeSub.created_at).toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : new Date().toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                  </td>
-                  <td className="py-3.5 font-semibold text-slate-900">{currentPlan.name} Plan</td>
-                  <td className="py-3.5 font-bold text-slate-900">{formattedActivePrice}</td>
-                  <td className="py-3.5">
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
-                      Paid
-                    </span>
-                  </td>
-                  <td className="py-3.5 text-right">
-                    <span className="text-slate-400 text-xs">Primary Plan Record</span>
+                  <td colSpan={7} className="py-12 text-center text-slate-500">
+                    <Receipt className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                    <p className="text-xs font-semibold text-slate-700">No invoice records found for this application.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">When you purchase plans or add-ons for {selectedApp?.name || "this app"}, invoices will appear here.</p>
                   </td>
                 </tr>
               )}

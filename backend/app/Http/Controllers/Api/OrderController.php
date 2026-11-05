@@ -183,10 +183,19 @@ class OrderController extends Controller
             ]);
         }
 
-        $orders = Order::where('tenant_id', $tenantId)
+        $ordersQuery = Order::where('tenant_id', $tenantId)
             ->with(['items', 'package', 'app'])
-            ->latest('id')
-            ->get()
+            ->latest('id');
+
+        if ($request->filled('app_ulid')) {
+            $ordersQuery->whereHas('app', function ($q) use ($request) {
+                $q->where('ulid', $request->query('app_ulid'));
+            });
+        } elseif ($request->filled('app_id')) {
+            $ordersQuery->where('app_id', (int) $request->query('app_id'));
+        }
+
+        $orders = $ordersQuery->get()
             ->map(function (Order $order) {
                 return [
                     'id'              => $order->id,
@@ -198,8 +207,12 @@ class OrderController extends Controller
                     'paid_at'         => $order->paid_at?->toIso8601String(),
                     'created_at'      => $order->created_at->toIso8601String(),
                     'package_name'    => $order->package?->name ?? 'Custom Order',
+                    'app_id'          => $order->app_id,
                     'app_name'        => $order->app?->name ?? 'Mobile Store',
                     'app_ulid'        => $order->app?->ulid ?? null,
+                    'transaction_id'  => $order->transaction_id ?? $order->meta['razorpay_payment_id'] ?? $order->meta['payment_id'] ?? null,
+                    'invoice_url'     => url("/api/orders/{$order->id}/invoice"),
+                    'download_invoice_url' => url("/api/orders/{$order->id}/invoice/download"),
                     'items'           => $order->items->map(fn ($item) => [
                         'name'            => $item->name,
                         'description'     => $item->description,

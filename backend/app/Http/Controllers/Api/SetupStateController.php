@@ -118,9 +118,11 @@ class SetupStateController extends Controller
         $paidAmountPaise = $activePlan ? (int) $activePlan->price_monthly : 0;
         $paidAmountRupees = (int) round($paidAmountPaise / 100);
 
-        $canDownloadApk = true;
-        $canDownloadAab = true;
-        $canDownloadIpa = $app->canDownloadIpa();
+        $pendingSteps = $app->getPendingSetupSteps();
+        $isSetupComplete = empty($pendingSteps);
+        $canDownloadApk = $isSetupComplete && ($activePlan?->can_apk ?? true);
+        $canDownloadAab = $isSetupComplete && $app->canDownloadAab();
+        $canDownloadIpa = $isSetupComplete && $app->canDownloadIpa();
         $hasAdminPanel = $app->hasAdminPanelAccess();
 
         $siteUrl = $app->connection?->site_url ?: ($app->website_url ?? null);
@@ -155,6 +157,8 @@ class SetupStateController extends Controller
             'allowed_steps'   => array_values(array_unique($allowedSteps)),
             'build_allowed'   => $app->isBuildAllowed(),
             'build_blockers'  => $app->getBuildBlockers(),
+            'pending_steps'   => $pendingSteps,
+            'is_setup_complete' => $isSetupComplete,
             'verification'    => [
                 'connection_verified' => $isConnectionVerified,
                 'data_consent'        => $hasDataConsent,

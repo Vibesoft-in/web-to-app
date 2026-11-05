@@ -103,6 +103,18 @@ class BuildController extends Controller
         $app = $query->where('ulid', $ulid)->firstOrFail();
         $build = Build::withoutTenantScope()->where('app_id', $app->id)->where('id', $id)->firstOrFail();
 
+        // Validate mandatory setup completion - strictly restrict APK download if incomplete
+        $pendingSteps = $app->getPendingSetupSteps();
+        if (! empty($pendingSteps)) {
+            return response()->json([
+                'error' => [
+                    'code'          => 'SETUP_INCOMPLETE',
+                    'message'       => 'APK download is restricted until all mandatory setup steps are completed.',
+                    'pending_steps' => $pendingSteps,
+                ],
+            ], 403);
+        }
+
         // 2. Validate readiness & auto-heal
         if ($build->status !== BuildStatus::Ready || empty($build->artifact_path)) {
             $build->update([
@@ -159,6 +171,18 @@ class BuildController extends Controller
             ->where('app_id', $app->id)
             ->where('id', $id)
             ->firstOrFail();
+
+        // Validate mandatory setup completion
+        $pendingSteps = $app->getPendingSetupSteps();
+        if (! empty($pendingSteps)) {
+            return response()->json([
+                'error' => [
+                    'code'          => 'SETUP_INCOMPLETE',
+                    'message'       => 'APK download is restricted until all mandatory setup steps are completed.',
+                    'pending_steps' => $pendingSteps,
+                ],
+            ], 403);
+        }
 
         $format = strtolower((string) $request->query('format', 'apk'));
         if (! in_array($format, ['apk', 'aab', 'ipa', 'admin'])) {

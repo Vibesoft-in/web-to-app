@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { HeaderProfileMenu } from "@/components/header-profile-menu";
 import {
   FileText,
   ShieldCheck,
@@ -61,29 +62,7 @@ export default function TermsPage() {
           </nav>
 
           <div className="header-actions flex items-center gap-3">
-            {user ? (
-              <Link
-                href="/dashboard"
-                className="px-4 py-2 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white text-xs font-bold shadow-xs transition"
-              >
-                Dashboard →
-              </Link>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="px-3.5 py-2 text-xs font-bold text-[#544D45] hover:text-[#1C1917] transition"
-                >
-                  Login
-                </Link>
-                <Link
-                  href="/signup"
-                  className="px-4 py-2 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white text-xs font-bold shadow-xs transition"
-                >
-                  Get Started
-                </Link>
-              </>
-            )}
+            <HeaderProfileMenu user={user} />
           </div>
         </div>
       </header>
@@ -325,3 +304,4 @@ export default function TermsPage() {
     </div>
   );
 }
+

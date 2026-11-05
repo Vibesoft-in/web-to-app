@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api-client";
 import { openRazorpayModal } from "@/lib/razorpay";
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowRight,
   Check,
   CheckCircle2,
@@ -67,9 +68,22 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
   // Subscription plan capabilities & standalone purchased add-ons
   const subInfo = setupState?.subscription;
   const planName = subInfo?.plan_name || setupState?.app?.active_plan?.name || "Basic";
-  const canDownloadApk = true;
-  const canDownloadAab = setupState?.app?.can_aab ?? (subInfo?.can_download_aab ?? (planName !== "Basic" && planName !== "Basic App" && planName !== "Starter App" && planName !== "Starter"));
-  const canDownloadIpa = localUnlockedIpa || Boolean(subInfo?.can_download_ipa ?? (planName === "Pro" || planName === "Premium" || planName === "Pro Growth" || planName === "Enterprise" || planName === "Pro Combo" || planName === "Enterprise Suite"));
+  const pendingSteps: Array<{ id: string; label: string; step: string }> =
+    setupState?.pending_steps || [];
+  const isSetupComplete =
+    setupState?.is_setup_complete ?? (pendingSteps.length === 0);
+  const canDownloadApk = Boolean(
+    isSetupComplete &&
+    (setupState?.subscription?.can_download_apk ?? setupState?.app?.can_apk ?? (pendingSteps.length === 0))
+  );
+  const canDownloadAab = Boolean(
+    isSetupComplete &&
+    (setupState?.app?.can_aab ?? (subInfo?.can_download_aab ?? (planName !== "Basic" && planName !== "Basic App" && planName !== "Starter App" && planName !== "Starter")))
+  );
+  const canDownloadIpa = Boolean(
+    isSetupComplete &&
+    (localUnlockedIpa || Boolean(subInfo?.can_download_ipa ?? (planName === "Pro" || planName === "Premium" || planName === "Pro Growth" || planName === "Enterprise" || planName === "Pro Combo" || planName === "Enterprise Suite")))
+  );
   const hasAdminPanel = localUnlockedAdmin || Boolean(setupState?.app?.has_admin_panel ?? (subInfo?.admin_panel_access ?? (planName === "Premium" || planName === "Premium Package" || planName === "Enterprise" || planName === "Enterprise Suite")));
   const appDisplayName = setupState?.app?.name || "app";
   const safeFileSlug = appDisplayName.toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/-+/g, "-");
@@ -519,6 +533,39 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
               </div>
             )}
 
+            {/* Pending Setup Steps Restriction Notice */}
+            {pendingSteps.length > 0 && (
+              <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200/80 text-amber-900 shadow-xs">
+                <div className="flex items-center gap-2 mb-1.5 font-bold text-xs text-amber-800">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                  <span>Setup Incomplete: APK Download Restricted</span>
+                </div>
+                <p className="text-[11px] text-amber-700 mb-3 leading-relaxed">
+                  You must complete all applicable mandatory setup steps before downloading the application packages:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {pendingSteps.map((step) => (
+                    <div
+                      key={step.id}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-white/90 border border-amber-200/60 shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        <span>{step.label}</span>
+                      </div>
+                      <Link
+                        href={`/dashboard/apps/${ulid}/setup/${step.step}`}
+                        className="text-[10px] font-bold text-[#78593D] hover:text-[#5C432D] hover:underline flex items-center gap-1 flex-shrink-0"
+                      >
+                        <span>Complete</span>
+                        <ArrowRight className="w-2.5 h-2.5" />
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* 1. Android APK (Available for all plans) */}
               <div className="p-4 sm:p-5 rounded-2xl bg-white border-2 border-emerald-500/30 shadow-sm flex flex-col justify-between">
@@ -537,14 +584,26 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
                   </p>
                 </div>
 
-                <a
-                  href={`/api/apps/${ulid}/builds/${downloadBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appDisplayName)}&version=${appVersionName}`}
-                  download={`${safeFileSlug}-v${appVersionName}.apk`}
-                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Download .APK</span>
-                </a>
+                {canDownloadApk ? (
+                  <a
+                    href={`/api/apps/${ulid}/builds/${downloadBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appDisplayName)}&version=${appVersionName}`}
+                    download={`${safeFileSlug}-v${appVersionName}.apk`}
+                    className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download .APK</span>
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="w-full py-2.5 px-4 bg-slate-100 border border-slate-200 text-slate-400 font-bold text-xs rounded-xl flex items-center justify-center gap-2 cursor-not-allowed opacity-80"
+                    title="Complete mandatory setup steps to enable download"
+                  >
+                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Download APK (Locked &mdash; Setup Incomplete)</span>
+                  </button>
+                )}
               </div>
 
               {/* 2. Google Play Bundle (.AAB) (Pro Growth & Enterprise) */}

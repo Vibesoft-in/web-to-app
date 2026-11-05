@@ -42,6 +42,7 @@ class AppController extends Controller
                     $data['status'] = 'completed';
                 }
                 $data['can_apk'] = $app->canDownloadApk();
+                $data['pending_steps'] = $app->getPendingSetupSteps();
                 $data['can_aab'] = $app->canDownloadAab();
                 $data['has_admin_panel'] = $app->hasAdminPanelAccess();
                 $data['purchased_addon_ids'] = $app->getPurchasedAddonIds();
@@ -294,6 +295,7 @@ class AppController extends Controller
             'has_admin_panel'     => $hasAccess,
             'can_aab'             => $app->canDownloadAab(),
             'can_apk'             => $app->canDownloadApk(),
+            'pending_steps'       => $app->getPendingSetupSteps(),
             'campaigns'           => $campaigns,
             'devices_count'       => $liveStoreData['active_users']['total_active'],
             'active_users'        => $liveStoreData['active_users'],

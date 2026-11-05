@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { clearUserData } from "@/lib/user-data-store";
+import { HeaderProfileMenu } from "@/components/header-profile-menu";
 
 const STEPS = [
   { id: "step-01", num: "01", name: "Enter Website", tag: "DISCOVERY & INITIATION" },
@@ -262,56 +263,7 @@ export default function HowItWorksPage() {
           </nav>
 
           <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-            {user ? (
-              <>
-                <Link href="/dashboard" className="btn-outline">
-                  <span>Dashboard</span>
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="3" y1="8" x2="13" y2="8" />
-                    <polyline points="9 4 13 8 9 12" />
-                  </svg>
-                </Link>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="btn-text"
-                  style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <Link href="/login" className="btn-text">
-                  Login
-                </Link>
-                <Link href="/signup" className="btn-outline">
-                  <span>Get Started</span>
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="3" y1="8" x2="13" y2="8" />
-                    <polyline points="9 4 13 8 9 12" />
-                  </svg>
-                </Link>
-              </>
-            )}
+            <HeaderProfileMenu user={user} onLogout={handleLogout} />
           </div>
         </div>
       </header>

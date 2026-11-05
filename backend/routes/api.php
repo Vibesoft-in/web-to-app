@@ -357,17 +357,59 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('/billing', function (Request $request) {
         $user = $request->user();
         $tenant = $user->tenant;
-        $subscriptions = \App\Models\Subscription::where('tenant_id', $tenant->id)
+        if (! $tenant) {
+            return response()->json([
+                'tenant'        => null,
+                'apps'          => [],
+                'selected_app'  => null,
+                'subscriptions' => [],
+                'active_sub'    => null,
+                'payments'      => [],
+                'plans'         => [],
+            ]);
+        }
+
+        $apps = \App\Models\App::where('tenant_id', $tenant->id)
+            ->select('id', 'ulid', 'name', 'status', 'site_url', 'website_url', 'platform')
+            ->latest('id')
+            ->get();
+
+        $appUlid = $request->query('app_ulid');
+        $appId = $request->query('app_id');
+        $targetApp = null;
+
+        if ($appUlid) {
+            $targetApp = $apps->firstWhere('ulid', $appUlid);
+        } elseif ($appId) {
+            $targetApp = $apps->firstWhere('id', (int) $appId);
+        } elseif ($apps->count() === 1) {
+            $targetApp = $apps->first();
+        }
+
+        $subsQuery = \App\Models\Subscription::where('tenant_id', $tenant->id)
             ->with(['plan', 'app'])
-            ->latest()
-            ->get();
-        $payments = \App\Models\Payment::where('tenant_id', $tenant->id)
-            ->latest()
-            ->get();
+            ->latest();
+
+        $paymentsQuery = \App\Models\Payment::where('tenant_id', $tenant->id)
+            ->latest();
+
+        if ($targetApp) {
+            $subsQuery->where('app_id', $targetApp->id);
+            $paymentsQuery->where(function ($q) use ($targetApp) {
+                $q->where('app_id', $targetApp->id)
+                  ->orWhere('meta->app_id', $targetApp->id)
+                  ->orWhere('meta->app_ulid', $targetApp->ulid);
+            });
+        }
+
+        $subscriptions = $subsQuery->get();
+        $payments = $paymentsQuery->get();
         $plans = \App\Models\Plan::where('is_active', true)->orderBy('id')->get();
 
         return response()->json([
             'tenant'        => $tenant,
+            'apps'          => $apps,
+            'selected_app'  => $targetApp,
             'subscriptions' => $subscriptions,
             'active_sub'    => $subscriptions->where('status', 'active')->first(),
             'payments'      => $payments,

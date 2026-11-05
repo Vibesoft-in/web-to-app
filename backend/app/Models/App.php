@@ -200,8 +200,79 @@ class App extends Model
         return null;
     }
 
+    /**
+     * Returns an array of human-readable pending mandatory setup steps.
+     * If empty, all mandatory steps are verified and APK download is unlocked.
+     *
+     * @return array<array{id: string, label: string, step: string}>
+     */
+    public function getPendingSetupSteps(): array
+    {
+        $pending = [];
+
+        // 1. Platform & Store Connection Verification
+        $connection = $this->connection()->first();
+        if (! $connection || $connection->status !== \App\Enums\ConnectionStatus::Verified) {
+            $pending[] = [
+                'id'    => 'connection',
+                'label' => 'Store & Platform Connection',
+                'step'  => 'connect',
+            ];
+        }
+
+        // 2. Data Collection & Permissions Acceptance
+        $hasConsent = \App\Models\UserConsent::where('app_id', $this->id)
+            ->where('consent_type', 'data_collection')
+            ->exists();
+        if (! $hasConsent && $this->setup_step->order() < \App\Enums\SetupStep::Theme->order()) {
+            $pending[] = [
+                'id'    => 'permissions',
+                'label' => 'Data Collection & Permissions',
+                'step'  => 'data-collection',
+            ];
+        }
+
+        // 3. Theme & Branding Configuration
+        $hasConfig = $this->configs()->exists();
+        if (! $hasConfig || $this->setup_step->order() < \App\Enums\SetupStep::Preview->order()) {
+            $pending[] = [
+                'id'    => 'theme',
+                'label' => 'Theme & Branding Configuration',
+                'step'  => 'theme',
+            ];
+        }
+
+        // 4. Plan Selection & Payment Completion
+        $activePlan = $this->getActivePlan();
+        if (! $activePlan) {
+            $pending[] = [
+                'id'    => 'payment',
+                'label' => 'Plan Selection & Payment Completion',
+                'step'  => 'payment',
+            ];
+        }
+
+        // 5. Successful APK Build Generation
+        $hasReadyBuild = $this->builds()
+            ->where('status', \App\Enums\BuildStatus::Ready)
+            ->exists();
+        if (! $hasReadyBuild) {
+            $pending[] = [
+                'id'    => 'build',
+                'label' => 'APK Build Compilation & Generation',
+                'step'  => 'build',
+            ];
+        }
+
+        return $pending;
+    }
+
     public function canDownloadApk(): bool
     {
+        if (! empty($this->getPendingSetupSteps())) {
+            return false;
+        }
+
         $plan = $this->getActivePlan();
         if (! $plan) {
             return false;

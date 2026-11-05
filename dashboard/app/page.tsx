@@ -7,7 +7,42 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { clearUserData } from "@/lib/user-data-store";
 import { DeleteAppModal } from "@/components/dashboard/delete-app-modal";
-import { ArrowRight, Store, Trash2 } from "lucide-react";
+import { HeaderProfileMenu } from "@/components/header-profile-menu";
+import { ArrowRight, Store, Trash2, Globe, Clock, Sparkles } from "lucide-react";
+
+const STEP_ORDER_PERCENTAGE: Record<string, number> = {
+  platform: 10,
+  connect: 20,
+  analysis: 35,
+  "data-collection": 45,
+  theme: 60,
+  branding: 70,
+  preview: 80,
+  integrations: 88,
+  payment: 95,
+  build: 100,
+};
+
+const STEP_LABELS: Record<string, string> = {
+  platform: "Platform Selection",
+  connect: "Store Connection",
+  analysis: "Compatibility Scan",
+  "data-collection": "Data & Permissions",
+  theme: "Theme Selection",
+  branding: "Branding & App Icon",
+  preview: "Live Preview",
+  integrations: "Push & Analytics",
+  payment: "Plan & Payment",
+  build: "App Compilation",
+};
+
+const MANDATORY_PIPELINE = [
+  { key: "connect", label: "Store Connection" },
+  { key: "data-collection", label: "Permissions" },
+  { key: "theme", label: "Theme & Branding" },
+  { key: "payment", label: "Plan & Payment" },
+  { key: "build", label: "APK Generation" },
+];
 
 export default function HomePage() {
   const router = useRouter();
@@ -137,78 +172,7 @@ export default function HomePage() {
           </nav>
 
           <div className="header-actions">
-            {user ? (
-              <>
-                {latestDraft && (
-                  <Link
-                    href={`/dashboard/apps/${latestDraft.ulid}/setup/${latestDraft.setup_step || "platform"}`}
-                    className="btn-action-pill"
-                    style={{
-                      padding: "8px 16px",
-                      fontSize: "12px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      background: "#78593D",
-                      color: "#FFFFFF",
-                      borderRadius: "12px",
-                      fontWeight: 700,
-                      textDecoration: "none",
-                    }}
-                  >
-                    <span>Resume {latestDraft.name || "Draft"}</span>
-                    <ArrowRight style={{ width: 13, height: 13 }} />
-                  </Link>
-                )}
-                <Link
-                  href={isAdmin ? "http://localhost:8000/admin" : hasPreviouslyBuiltApps ? "/dashboard" : "/dashboard/apps/new"}
-                  className="btn-outline"
-                >
-                  <span>
-                    {isAdmin
-                      ? "Admin Oversight"
-                      : hasPreviouslyBuiltApps
-                      ? "Dashboard"
-                      : "Create App"}
-                  </span>
-                </Link>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="btn-text"
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <Link href="/login" className="btn-text">
-                  Login
-                </Link>
-                <Link href="/signup" className="btn-outline">
-                  <span>Get Started</span>
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="3" y1="8" x2="13" y2="8" />
-                    <polyline points="9 4 13 8 9 12" />
-                  </svg>
-                </Link>
-              </>
-            )}
+            <HeaderProfileMenu user={user} onLogout={handleLogout} />
           </div>
         </div>
       </header>
@@ -218,114 +182,6 @@ export default function HomePage() {
           =================================================== */}
       <main className="page-body">
         <div className="home-page-wrapper">
-          {/* ─── UNFINISHED PROJECTS HOME BANNER ─── */}
-          {user && unfinishedProjects.length > 0 && (
-            <section style={{ maxWidth: 1100, margin: "24px auto 0", padding: "0 20px" }}>
-              {unfinishedProjects.map((draftItem: any) => (
-                <div
-                  key={draftItem.ulid || draftItem.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    flexWrap: "wrap",
-                    gap: "16px",
-                    padding: "16px 22px",
-                    borderRadius: "20px",
-                    background: "#FAF7F2",
-                    border: "1px solid #EBE6DF",
-                    boxShadow: "0 2px 8px rgba(120, 89, 61, 0.08)",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                    <div
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 14,
-                        background: "#78593D",
-                        color: "#FFFFFF",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Store style={{ width: 22, height: 22, color: "#FDF8F3" }} />
-                    </div>
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                        <span
-                          style={{
-                            fontSize: "10px",
-                            fontWeight: 800,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            background: "#EFEAE2",
-                            color: "#78593D",
-                            border: "1px solid #D6C8B8",
-                            padding: "2px 8px",
-                            borderRadius: "6px",
-                          }}
-                        >
-                          Unfinished Project
-                        </span>
-                        <span style={{ fontSize: "11px", color: "#7E756B" }}>
-                          Saved at Step: <strong style={{ textTransform: "uppercase", color: "#78593D", fontWeight: 700 }}>{draftItem.setup_step || "PLATFORM"}</strong>
-                        </span>
-                      </div>
-                      <h3 style={{ fontSize: "16px", fontWeight: 900, color: "#1C1917", margin: "4px 0 0" }}>
-                        {draftItem.name}
-                      </h3>
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <Link
-                      href={`/dashboard/apps/${draftItem.ulid}/setup/${draftItem.setup_step || "platform"}`}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        padding: "10px 20px",
-                        borderRadius: "12px",
-                        background: "#78593D",
-                        color: "#FFFFFF",
-                        fontSize: "13px",
-                        fontWeight: 700,
-                        textDecoration: "none",
-                        boxShadow: "0 2px 6px rgba(120, 89, 61, 0.2)",
-                      }}
-                    >
-                      <span>Resume Project</span>
-                      <ArrowRight style={{ width: 15, height: 15 }} />
-                    </Link>
-
-                    <button
-                      type="button"
-                      onClick={() => setAppToDelete(draftItem)}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: "10px",
-                        borderRadius: "12px",
-                        background: "#FFF1F2",
-                        border: "1px solid #FECDD3",
-                        color: "#E11D48",
-                        cursor: "pointer",
-                      }}
-                      title="Delete Unfinished Project"
-                    >
-                      <Trash2 style={{ width: 16, height: 16 }} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </section>
-          )}
-
           {/* ─── 1. HERO SECTION ─── */}
           <section className="hero-section">
             <div className="hero-container">
@@ -361,6 +217,341 @@ export default function HomePage() {
               </div>
             </div>
           </section>
+
+          {/* ─── INCOMPLETE APPS SECTION (IMMEDIATELY BELOW HERO) ─── */}
+          {user && unfinishedProjects.length > 0 && (
+            <section
+              className="incomplete-apps-section"
+              style={{
+                maxWidth: 1160,
+                margin: "32px auto 16px",
+                padding: "0 24px",
+              }}
+            >
+              <div
+                style={{
+                  marginBottom: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 8,
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "3px 10px",
+                      borderRadius: 8,
+                      background: "#EFEAE2",
+                      border: "1px solid #D6C8B8",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      color: "#78593D",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    <Clock style={{ width: 13, height: 13 }} />
+                    <span>In-Progress Setup</span>
+                  </div>
+                  <h2
+                    style={{
+                      fontSize: "20px",
+                      fontWeight: 900,
+                      color: "#1C1917",
+                      margin: "6px 0 2px",
+                    }}
+                  >
+                    Continue Your Unfinished Application Setup
+                  </h2>
+                  <p style={{ fontSize: "12px", color: "#7E756B", margin: 0 }}>
+                    Your configuration has been saved. Complete the pending steps to compile and publish your mobile app.
+                  </p>
+                </div>
+                <Link
+                  href="/dashboard"
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    color: "#78593D",
+                    textDecoration: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <span>Go to App Dashboard</span>
+                  <ArrowRight style={{ width: 13, height: 13 }} />
+                </Link>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                  gap: 16,
+                }}
+              >
+                {unfinishedProjects.map((draftItem: any) => {
+                  const rawStep = (draftItem.setup_step || "platform").toLowerCase();
+                  const progressPct = STEP_ORDER_PERCENTAGE[rawStep] || 15;
+                  const currentStepLabel = STEP_LABELS[rawStep] || rawStep;
+                  const websiteUrl =
+                    draftItem.site_url ||
+                    draftItem.website_url ||
+                    draftItem.connection?.site_url ||
+                    "Store URL not configured";
+
+                  return (
+                    <div
+                      key={draftItem.ulid || draftItem.id}
+                      style={{
+                        padding: "20px",
+                        borderRadius: "20px",
+                        background: "#FFFFFF",
+                        border: "1.5px solid #EBE6DF",
+                        boxShadow: "0 4px 16px rgba(120, 89, 61, 0.06)",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                        gap: 16,
+                      }}
+                    >
+                      <div>
+                        {/* Header row */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            gap: 12,
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div
+                              style={{
+                                width: 44,
+                                height: 44,
+                                borderRadius: 14,
+                                background: "linear-gradient(135deg, #78593D, #5A412A)",
+                                color: "#FFFFFF",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontWeight: 900,
+                                fontSize: 16,
+                                boxShadow: "0 2px 6px rgba(120, 89, 61, 0.2)",
+                                flexShrink: 0,
+                              }}
+                            >
+                              <Store style={{ width: 22, height: 22, color: "#FFFFFF" }} />
+                            </div>
+                            <div>
+                              <h3
+                                style={{
+                                  fontSize: "16px",
+                                  fontWeight: 900,
+                                  color: "#1C1917",
+                                  margin: 0,
+                                }}
+                              >
+                                {draftItem.name || "Untitled App"}
+                              </h3>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 5,
+                                  fontSize: "11px",
+                                  color: "#7E756B",
+                                  marginTop: 2,
+                                }}
+                              >
+                                <Globe style={{ width: 12, height: 12, color: "#78593D", flexShrink: 0 }} />
+                                <span
+                                  style={{
+                                    maxWidth: 180,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {websiteUrl}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Status Badge */}
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: 800,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
+                              padding: "3px 8px",
+                              borderRadius: "6px",
+                              background: "#FEF3C7",
+                              color: "#92400E",
+                              border: "1px solid #FDE68A",
+                              flexShrink: 0,
+                            }}
+                          >
+                            Setup Incomplete
+                          </span>
+                        </div>
+
+                        {/* Progress Bar & Percentage */}
+                        <div style={{ marginTop: 16 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              fontSize: "11px",
+                              marginBottom: 6,
+                            }}
+                          >
+                            <span style={{ color: "#7E756B", fontWeight: 600 }}>Setup Progress</span>
+                            <span style={{ color: "#78593D", fontWeight: 800 }}>{progressPct}% Completed</span>
+                          </div>
+                          <div
+                            style={{
+                              width: "100%",
+                              height: 8,
+                              background: "#F5F0E8",
+                              borderRadius: 999,
+                              overflow: "hidden",
+                              border: "1px solid #EBE6DF",
+                            }}
+                          >
+                            <div
+                              style={{
+                                height: "100%",
+                                width: `${progressPct}%`,
+                                background: "linear-gradient(90deg, #78593D, #96704F)",
+                                borderRadius: 999,
+                                transition: "width 0.4s ease",
+                              }}
+                            />
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#78593D",
+                              fontWeight: 700,
+                              marginTop: 5,
+                            }}
+                          >
+                            Current Step: {currentStepLabel}
+                          </div>
+                        </div>
+
+                        {/* Pending Mandatory Steps */}
+                        <div style={{ marginTop: 14 }}>
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: 800,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.05em",
+                              color: "#A8A29E",
+                              display: "block",
+                              marginBottom: 6,
+                            }}
+                          >
+                            Remaining Workflow Steps:
+                          </span>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                            {MANDATORY_PIPELINE.map((pipelineStep) => {
+                              const isDone =
+                                (STEP_ORDER_PERCENTAGE[pipelineStep.key] || 0) < progressPct;
+                              return (
+                                <span
+                                  key={pipelineStep.key}
+                                  style={{
+                                    fontSize: "10px",
+                                    fontWeight: 700,
+                                    padding: "2px 7px",
+                                    borderRadius: 6,
+                                    background: isDone ? "#ECFDF5" : "#F5F5F4",
+                                    color: isDone ? "#047857" : "#78716C",
+                                    border: `1px solid ${isDone ? "#A7F3D0" : "#E7E5E4"}`,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 3,
+                                  }}
+                                >
+                                  {isDone ? "✓" : "•"} {pipelineStep.label}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bottom Actions Row: Continue Setup & Delete */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 10,
+                          paddingTop: 12,
+                          borderTop: "1px solid #F5F0E8",
+                        }}
+                      >
+                        <Link
+                          href={`/dashboard/apps/${draftItem.ulid}/setup/${draftItem.setup_step || "platform"}`}
+                          style={{
+                            flex: 1,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8,
+                            padding: "10px 16px",
+                            borderRadius: 12,
+                            background: "#78593D",
+                            color: "#FFFFFF",
+                            fontSize: "12px",
+                            fontWeight: 800,
+                            textDecoration: "none",
+                            boxShadow: "0 2px 6px rgba(120, 89, 61, 0.25)",
+                          }}
+                        >
+                          <span>Continue Setup</span>
+                          <ArrowRight style={{ width: 14, height: 14 }} />
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => setAppToDelete(draftItem)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "10px 12px",
+                            borderRadius: 12,
+                            background: "#FFF1F2",
+                            border: "1px solid #FECDD3",
+                            color: "#E11D48",
+                            cursor: "pointer",
+                            transition: "background 0.2s",
+                          }}
+                          title="Delete Unfinished Project"
+                        >
+                          <Trash2 style={{ width: 15, height: 15 }} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* ─── 2. PLATFORMS & TRUST ECOSYSTEM SECTION ─── */}
           <section className="trust-platforms-section">

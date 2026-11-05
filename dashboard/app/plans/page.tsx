@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { clearUserData } from "@/lib/user-data-store";
+import { HeaderProfileMenu } from "@/components/header-profile-menu";
 import {
   Check,
   ChevronDown,
@@ -523,43 +524,7 @@ export default function PlansPage() {
           </nav>
 
           <div className="header-actions">
-            <Link href="/login" className="btn-text">
-              Login
-            </Link>
-            {user ? (
-              <>
-                <Link
-                  href={isAdmin ? "http://localhost:8000/admin" : dashboardHref}
-                  className="btn-outline"
-                >
-                  <span>{isAdmin ? "Admin Oversight" : apps.length > 0 ? "Dashboard" : "Create App"}</span>
-                </Link>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="btn-text"
-                  style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <Link href="/signup" className="btn-outline">
-                <span>Build Your App</span>
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 8h10M9 4l4 4-4 4" />
-                </svg>
-              </Link>
-            )}
+            <HeaderProfileMenu user={user} onLogout={handleLogout} />
           </div>
         </div>
       </header>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { HeaderProfileMenu } from "@/components/header-profile-menu";
 
 interface FaqItem {
   q: string;
@@ -127,25 +128,7 @@ export default function SupportPage() {
           </nav>
 
           <div className="header-actions">
-            <Link href="/login" className="btn-text">
-              Login
-            </Link>
-            <Link href="/signup" className="btn-outline">
-              <span>Get Started</span>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="3" y1="8" x2="13" y2="8" />
-                <polyline points="9 4 13 8 9 12" />
-              </svg>
-            </Link>
+            <HeaderProfileMenu />
           </div>
         </div>
       </header>

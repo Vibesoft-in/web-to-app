@@ -1847,7 +1847,7 @@ function UserDashboardContent() {
                                 {/* Row 1: Primary Action(s) */}
                                 {appHasAdmin ? (
                                   <div className="grid grid-cols-2 gap-2">
-                                    {appBuilds.length > 0 && appTargetBuildId ? (
+                                    {appBuilds.length > 0 && appTargetBuildId && appItem.can_apk !== false ? (
                                       <a
                                         href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
                                         download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
@@ -1857,6 +1857,16 @@ function UserDashboardContent() {
                                         <Download className="w-3.5 h-3.5 flex-shrink-0" />
                                         <span className="truncate">Download APK</span>
                                       </a>
+                                    ) : appItem.can_apk === false ? (
+                                      <button
+                                        type="button"
+                                        disabled
+                                        className="py-2 px-2 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80 truncate"
+                                        title="Complete all setup steps to enable APK download"
+                                      >
+                                        <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+                                        <span className="truncate">Locked</span>
+                                      </button>
                                     ) : (
                                       <button
                                         type="button"
@@ -1879,7 +1889,7 @@ function UserDashboardContent() {
                                     </Link>
                                   </div>
                                 ) : (
-                                  appBuilds.length > 0 && appTargetBuildId ? (
+                                  appBuilds.length > 0 && appTargetBuildId && appItem.can_apk !== false ? (
                                     <a
                                       href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
                                       download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
@@ -1888,6 +1898,16 @@ function UserDashboardContent() {
                                       <Download className="w-3.5 h-3.5" />
                                       <span>Download APK (v${appLatestBuild?.version_code || 1})</span>
                                     </a>
+                                  ) : appItem.can_apk === false ? (
+                                    <button
+                                      type="button"
+                                      disabled
+                                      className="w-full py-2 px-3 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80"
+                                      title="Complete all setup steps to enable APK download"
+                                    >
+                                      <Lock className="w-3.5 h-3.5" />
+                                      <span>Download APK (Locked &mdash; Setup Incomplete)</span>
+                                    </button>
                                   ) : (
                                     <button
                                       type="button"
