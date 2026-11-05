@@ -238,24 +238,25 @@ export function AppDetailsView({
 
   // Navigation sidebar state
   const [activeTab, setActiveTab] = useState<
-    "overview" | "billing" | "downloads" | "app_traffic" | "web_traffic" | "settings"
+    "overview" | "billing" | "downloads" | "addons" | "app_traffic" | "web_traffic" | "settings"
   >("overview");
 
   useEffect(() => {
     const sectionParam = searchParams.get("section") || searchParams.get("tab");
     if (
       sectionParam &&
-      ["overview", "billing", "downloads", "app_traffic", "web_traffic", "settings"].includes(sectionParam)
+      ["overview", "billing", "downloads", "addons", "app-addons-section", "app_traffic", "web_traffic", "settings"].includes(sectionParam)
     ) {
-      if (activeTab !== sectionParam) {
-        setActiveTab(sectionParam as any);
+      const resolvedTab = sectionParam === "app-addons-section" ? "addons" : sectionParam;
+      if (activeTab !== resolvedTab) {
+        setActiveTab(resolvedTab as any);
       }
     } else if (!sectionParam && activeTab !== "overview") {
       setActiveTab("overview");
     }
   }, [searchParams, activeTab]);
 
-  const handleSelectTab = (tabId: "overview" | "billing" | "downloads" | "app_traffic" | "web_traffic" | "settings") => {
+  const handleSelectTab = (tabId: "overview" | "billing" | "downloads" | "addons" | "app_traffic" | "web_traffic" | "settings") => {
     setActiveTab(tabId);
     if (app?.ulid || app?.id) {
       router.push(`/dashboard?app=${app.ulid || app.id}&section=${tabId}`);
@@ -475,6 +476,13 @@ export function AppDetailsView({
       icon: Download,
       description: "APK, AAB & build history",
       badge: app?.builds?.length ? `${app.builds.length} builds` : undefined,
+    },
+    {
+      id: "addons" as const,
+      label: "Add-ons",
+      icon: Sparkles,
+      description: "Modules, admin & upgrades",
+      badge: activeCount > 0 ? `${activeCount} active` : undefined,
     },
     {
       id: "app_traffic" as const,
@@ -818,7 +826,41 @@ export function AppDetailsView({
                 </div>
               </div>
 
-              {/* ── MODULAR ADD-ONS SECTION IN COMPACT EXPANDABLE HEADINGS (Task 3) ── */}
+                {/* Add-ons Overview Banner in Overview Tab */}
+                <div className="bg-white border border-[#EBE6DF] rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-11 h-11 rounded-2xl bg-[#F7F5F0] text-[#78593D] flex items-center justify-center flex-shrink-0 border border-[#EBE6DF]">
+                      <Sparkles className="w-5 h-5 text-[#78593D]" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-black text-[#1C1917]">Modular Add-ons &amp; Upgrades</h3>
+                        {activeCount > 0 && (
+                          <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800">
+                            {activeCount} Active
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-[#7E756B] mt-0.5">
+                        Enhance your app with Dedicated Admin Panel, Play Store Publishing, Push Notifications, and custom modules.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTab("addons")}
+                    className="px-4 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer flex-shrink-0"
+                  >
+                    <span>Browse All Add-ons</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+          {/* TAB: ADD-ONS (Clicked from Left Sidebar) */}
+          {activeTab === "addons" && (
+            <div className="space-y-6 animate-fadeIn">
               <div id="app-addons-section" className="bg-white border border-[#EBE6DF] rounded-3xl p-6 sm:p-8 shadow-sm space-y-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#EBE6DF]">
                   <div>

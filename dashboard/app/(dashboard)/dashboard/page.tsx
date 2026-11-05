@@ -2006,7 +2006,7 @@ function UserDashboardContent() {
 
                                   <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem, "app-addons-section"); }}
+                                    onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem, "addons"); }}
                                     className="col-span-5 py-2 px-2 bg-[#EFEAE2]/80 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-98 truncate"
                                   >
                                     <Sparkles className="w-3 h-3 text-[#78593D]" />
@@ -2232,7 +2232,7 @@ function UserDashboardContent() {
 
                               <button
                                 type="button"
-                                onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem, "app-addons-section"); }}
+                                onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem, "addons"); }}
                                 className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-[#78593D] border border-amber-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                               >
                                 <Sparkles className="w-3.5 h-3.5 text-amber-600" />
