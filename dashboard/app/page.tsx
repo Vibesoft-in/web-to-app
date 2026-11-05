@@ -8,7 +8,18 @@ import { apiClient } from "@/lib/api-client";
 import { clearUserData } from "@/lib/user-data-store";
 import { DeleteAppModal } from "@/components/dashboard/delete-app-modal";
 import { HeaderProfileMenu } from "@/components/header-profile-menu";
-import { ArrowRight, Store, Trash2, Globe, Clock, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  Store,
+  Trash2,
+  Globe,
+  Clock,
+  Sparkles,
+  Zap,
+  Database,
+  RefreshCw,
+  Smartphone,
+} from "lucide-react";
 
 const STEP_ORDER_PERCENTAGE: Record<string, number> = {
   platform: 10,
@@ -188,31 +199,50 @@ export default function HomePage() {
               <div className="hero-content">
                 <span className="eyebrow-tag">WEBSITE &rarr; MOBILE APP</span>
                 <h1 className="hero-heading">
-                  Your Website.
+                  Convert Your
                   <br />
-                  Now in an <em>App</em>.
+                  WooCommerce or
+                  <br />
+                  Shopify Website
+                  <br />
+                  to a <em>Mobile App.</em>
                 </h1>
                 <p className="hero-description">
-                  Turn your WordPress, WooCommerce or Shopify website into a beautiful
-                  mobile app &mdash; quickly, easily and without coding.
+                  Get a powerful Android &amp; iOS app for your existing WooCommerce or
+                  Shopify store &mdash; with the same products, orders, customers and database.
                 </p>
                 <div className="hero-action">
                   <Link href={convertTargetHref} className="btn-action-pill">
                     <span>Convert My Website</span>
-                    <svg
-                      width="15"
-                      height="15"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="3" y1="8" x2="13" y2="8" />
-                      <polyline points="9 4 13 8 9 12" />
-                    </svg>
+                    <ArrowRight className="w-4 h-4" />
                   </Link>
+                </div>
+              </div>
+
+              {/* Bottom Feature Strip matching Image 1 */}
+              <div className="hero-feature-strip">
+                <div className="hero-feature-item">
+                  <Zap className="hero-feature-icon" />
+                  <span>Quick Conversion</span>
+                </div>
+                <div className="hero-feature-divider" />
+                <div className="hero-feature-item">
+                  <Database className="hero-feature-icon" />
+                  <span>
+                    Single Database <span className="hero-feature-sub">(Web + App)</span>
+                  </span>
+                </div>
+                <div className="hero-feature-divider" />
+                <div className="hero-feature-item">
+                  <RefreshCw className="hero-feature-icon" />
+                  <span>
+                    Real-time Sync <span className="hero-feature-sub">(Products, Orders, Customers)</span>
+                  </span>
+                </div>
+                <div className="hero-feature-divider" />
+                <div className="hero-feature-item">
+                  <Smartphone className="hero-feature-icon" />
+                  <span>Android &amp; iOS Apps</span>
                 </div>
               </div>
             </div>
