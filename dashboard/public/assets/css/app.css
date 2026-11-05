@@ -175,12 +175,9 @@ img.img-responsive {
 .hero-section {
     position: relative;
     background-color: #F8F5EE;
-    /* Soft protective blend ensures the text area on the left is always 100% clean and never clashed by the devices */
-    background-image: 
-        linear-gradient(to right, #F8F5EE 0%, #F8F5EE 32%, rgba(248, 245, 238, 0.94) 44%, rgba(248, 245, 238, 0) 62%),
-        url('../images/hero_bg.jpg');
+    background-image: url('../images/hero_bg.jpg');
     background-repeat: no-repeat;
-    background-size: auto 100%;
+    background-size: cover;
     background-position: right center;
     min-height: 540px;
     padding: 4.5rem 2rem 4rem 2rem;
@@ -2116,7 +2113,10 @@ img.img-responsive {
    =================================================== */
 @media (max-width: 991px) {
     .hero-section {
-        background: linear-gradient(to right, rgba(248, 245, 238, 0.96) 0%, rgba(248, 245, 238, 0.92) 58%, rgba(248, 245, 238, 0.72) 100%), url('../images/hero_bg.jpg') right center / cover no-repeat;
+        background-image: url('../images/hero_bg.jpg');
+        background-repeat: no-repeat;
+        background-size: cover;
+        background-position: right center;
         min-height: auto;
         padding: 3.5rem 1.5rem 3rem 1.5rem;
     }
