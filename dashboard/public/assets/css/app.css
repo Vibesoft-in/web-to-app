@@ -8604,6 +8604,30 @@ img.img-responsive {
     margin-top: 0.65rem;
 }
 
+.btn-pricing-specs-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    width: 100%;
+    margin-top: 0.65rem;
+    padding: 0.55rem 1rem;
+    background: transparent;
+    border: 1px solid rgba(120, 89, 61, 0.3);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #78593D;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-pricing-specs-link:hover {
+    background: #FAF7F2;
+    border-color: #78593D;
+    color: #5A412A;
+}
+
 /* 3. INTERACTIVE CALCULATOR SECTION */
 .pricing-calculator-section {
     background-color: #F6F2EF;

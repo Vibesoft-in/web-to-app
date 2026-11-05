@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { clearUserData } from "@/lib/user-data-store";
+import { HeaderProfileMenu } from "@/components/header-profile-menu";
 import {
   CreditCard,
   Layers,
@@ -261,22 +262,7 @@ export default function DashboardLayout({
 
             <div className="hidden sm:block h-6 w-px bg-slate-200" />
 
-            <div className="flex items-center gap-1 sm:gap-3">
-              <div className="hidden sm:block text-right">
-                <p className="text-xs font-semibold text-slate-900 truncate max-w-[150px]">
-                  {user?.name || (isAdmin ? "Super Admin" : "Client")}
-                </p>
-                <p className="text-xs text-slate-500 truncate max-w-[150px]">{user?.email || ""}</p>
-              </div>
-
-              <button
-                onClick={handleLogout}
-                title="Log out"
-                className="p-1.5 sm:p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-              >
-                <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
-              </button>
-            </div>
+            <HeaderProfileMenu user={user} onLogout={handleLogout} />
           </div>
         </div>
       </header>

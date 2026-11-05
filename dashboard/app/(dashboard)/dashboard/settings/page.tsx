@@ -12,6 +12,7 @@ import {
   Lock,
   Save,
   Shield,
+  Camera,
   ShieldCheck,
   Store,
   User,
@@ -28,6 +29,7 @@ export default function SettingsPage() {
 
   const [name, setName] = useState("");
   const [tenantName, setTenantName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMsg, setProfileMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -46,6 +48,7 @@ export default function SettingsPage() {
     if (user) {
       if (user.name) setName(user.name);
       if (user.tenant?.name) setTenantName(user.tenant.name);
+      if (user.avatar_url) setAvatarUrl(user.avatar_url);
     }
   }, [user]);
 
@@ -57,7 +60,7 @@ export default function SettingsPage() {
     try {
       await apiClient("/api/user/profile", {
         method: "PUT",
-        body: JSON.stringify({ name, tenant_name: tenantName }),
+        body: JSON.stringify({ name, tenant_name: tenantName, avatar_url: avatarUrl }),
       });
       setProfileMsg({ type: "success", text: "Profile and workspace settings updated successfully!" });
       await refetch();
@@ -152,6 +155,48 @@ export default function SettingsPage() {
             )}
 
             <div className="space-y-4">
+            {/* Avatar & Photo Upload */}
+            <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-[#78593D] to-[#5A412A] text-white flex items-center justify-center font-bold text-base shadow-sm border border-slate-200 flex-shrink-0">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
+                ) : (
+                  <span>{(name ? name[0] : "U").toUpperCase()}</span>
+                )}
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs font-bold text-slate-800 block">Profile Avatar Image</span>
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-xs font-bold text-[#78593D] cursor-pointer shadow-2xs transition">
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Choose Photo</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        if (typeof reader.result === "string") setAvatarUrl(reader.result);
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+                {avatarUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setAvatarUrl("")}
+                    className="text-[10px] text-rose-600 hover:underline block font-semibold cursor-pointer"
+                  >
+                    Remove Photo
+                  </button>
+                )}
+              </div>
+            </div>
+
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
                   Full Name

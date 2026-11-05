@@ -33,6 +33,161 @@ interface AddonOption {
   desc: string;
 }
 
+
+interface PlanSpecRow {
+  name: string;
+  starter: string;
+  pro: string;
+  enterprise: string;
+}
+
+interface PlanSpecCategory {
+  category: string;
+  specs: PlanSpecRow[];
+}
+
+const PLAN_SPECIFICATIONS_MATRIX: PlanSpecCategory[] = [
+  {
+    category: "1. Mobile Platforms & Application Builds",
+    specs: [
+      {
+        name: "Android Production App (.aab / .apk)",
+        starter: "✓ Included (APK + AAB)",
+        pro: "✓ Included (APK + AAB)",
+        enterprise: "✓ Included (APK + AAB)",
+      },
+      {
+        name: "iOS Production App (.ipa / TestFlight)",
+        starter: "✕ Not Included (Android Only)",
+        pro: "✓ Included (Apple TestFlight + App Store)",
+        enterprise: "✓ Included (Apple TestFlight + App Store)",
+      },
+      {
+        name: "Tablet & iPad Optimized Viewport",
+        starter: "✕ Not Included (Phone only)",
+        pro: "✓ Included (Adaptive responsive)",
+        enterprise: "✓ Included (Adaptive responsive)",
+      },
+      {
+        name: "Supported Stores / Brands Connected",
+        starter: "1 Store Domain",
+        pro: "1 Store Domain",
+        enterprise: "Up to 3 Store Domains",
+      },
+    ],
+  },
+  {
+    category: "2. Design, Themes & Native UX",
+    specs: [
+      {
+        name: "Curated Mobile Theme Selection",
+        starter: "Standard Minimalist",
+        pro: "All 5 Premium Themes",
+        enterprise: "All Themes + Bespoke Styling",
+      },
+      {
+        name: "Custom Splash Screen & App Icon Design",
+        starter: "✓ Included",
+        pro: "✓ Included",
+        enterprise: "✓ Included + Custom Animation",
+      },
+      {
+        name: "Biometric Login (FaceID & TouchID)",
+        starter: "✕ Not Included",
+        pro: "✓ Included",
+        enterprise: "✓ Included",
+      },
+      {
+        name: "Offline Caching & Fast Re-engagement",
+        starter: "Basic Caching",
+        pro: "Advanced Multi-Screen Cache",
+        enterprise: "Enterprise Local Database Sync",
+      },
+    ],
+  },
+  {
+    category: "3. E-Commerce & Real-Time Data Sync",
+    specs: [
+      {
+        name: "Real-Time Two-Way Product & Order Sync",
+        starter: "✓ Included",
+        pro: "✓ Included",
+        enterprise: "✓ Included (High-Concurrency)",
+      },
+      {
+        name: "Native In-App 1-Click Fast Checkout",
+        starter: "✓ Included",
+        pro: "✓ Included",
+        enterprise: "✓ Included",
+      },
+      {
+        name: "Payment Gateways (Razorpay, Stripe, PayPal, COD)",
+        starter: "✓ Included",
+        pro: "✓ Included",
+        enterprise: "✓ Included + Custom Gateway Bridge",
+      },
+      {
+        name: "Customer Wishlist & Saved Items",
+        starter: "✕ Not Included",
+        pro: "✓ Included",
+        enterprise: "✓ Included",
+      },
+    ],
+  },
+  {
+    category: "4. Retention, Marketing & Add-Ons",
+    specs: [
+      {
+        name: "Push Notification Quota",
+        starter: "5,000 / month",
+        pro: "Unlimited Broadcasts",
+        enterprise: "Unlimited + Priority Delivery",
+      },
+      {
+        name: "Automated Abandoned Cart Push Triggers",
+        starter: "✕ Not Included",
+        pro: "✓ Included",
+        enterprise: "✓ Included",
+      },
+      {
+        name: "WhatsApp Direct Customer Support Floating Chat",
+        starter: "✕ Optional Add-on",
+        pro: "✓ Included Free",
+        enterprise: "✓ Included Free",
+      },
+      {
+        name: "Advanced In-App Analytics & Telemetry",
+        starter: "✕ Not Included",
+        pro: "Standard In-App Analytics",
+        enterprise: "✓ Full GA4 Telemetry & Funnels Included",
+      },
+    ],
+  },
+  {
+    category: "5. Publishing, Updates & Support",
+    specs: [
+      {
+        name: "App Store & Play Store Submission Guidance",
+        starter: "Step-by-step Guides",
+        pro: "Assisted Submission Review",
+        enterprise: "White-Glove Hands-off Submission",
+      },
+      {
+        name: "Apple & Google Review Approval Guarantee",
+        starter: "✓ Policy Compliant",
+        pro: "✓ Guaranteed Approval & Support",
+        enterprise: "✓ Guaranteed Approval & SLA",
+      },
+      {
+        name: "Support Window & Updates Included",
+        starter: "3 Months Email Support",
+        pro: "6 Months Priority Support",
+        enterprise: "1 Year Dedicated Account Manager & SLA",
+      },
+    ],
+  },
+];
+
 const CORE_PLANS: PlanOption[] = [
   {
     id: "starter-app",
@@ -178,6 +333,7 @@ export default function PricingPage() {
 
   // Billing Toggle State (One-Time vs Annual)
   const [isAnnual, setIsAnnual] = useState(false);
+  const [selectedPlanForSpecs, setSelectedPlanForSpecs] = useState<PlanOption | null>(null);
 
   // Calculator State
   const [selectedPlanId, setSelectedPlanId] = useState<string>("pro-combo");
@@ -389,6 +545,13 @@ export default function PricingPage() {
                         >
                           <span>Get Started With {plan.name} &rarr;</span>
                         </Link>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPlanForSpecs(plan)}
+                          className="btn-pricing-specs-link"
+                        >
+                          <span>View More Specifications &darr;</span>
+                        </button>
                         <span className="card-sub-guarantee">
                           Instant project setup &middot; Full source delivery
                         </span>

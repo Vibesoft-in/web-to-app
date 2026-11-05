@@ -441,10 +441,18 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
         $validated = $request->validate([
             'name'        => 'sometimes|string|max:255',
             'tenant_name' => 'sometimes|string|max:255',
+            'avatar_url'  => 'sometimes|nullable|string',
         ]);
 
+        $updateData = [];
         if (isset($validated['name'])) {
-            $user->update(['name' => $validated['name']]);
+            $updateData['name'] = $validated['name'];
+        }
+        if (array_key_exists('avatar_url', $validated)) {
+            $updateData['avatar_url'] = $validated['avatar_url'];
+        }
+        if (!empty($updateData)) {
+            $user->update($updateData);
         }
         if (isset($validated['tenant_name']) && $user->tenant) {
             $user->tenant->update(['name' => $validated['tenant_name']]);

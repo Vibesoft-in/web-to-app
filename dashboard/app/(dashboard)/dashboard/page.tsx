@@ -1217,6 +1217,18 @@ function UserDashboardContent() {
     }
   };
 
+  useEffect(() => {
+    const appParam = searchParams.get("app");
+    if (appParam && apps && apps.length > 0 && !viewingAppDetails) {
+      const matched = apps.find(
+        (a: any) => a.ulid === appParam || String(a.id) === String(appParam)
+      );
+      if (matched) {
+        handleOpenAppDetails(matched);
+      }
+    }
+  }, [searchParams, apps, viewingAppDetails]);
+
   if (viewingAppDetails) {
     return (
       <AppDetailsView
@@ -1662,9 +1674,10 @@ function UserDashboardContent() {
                       return (
                         <div
                           key={appItem.id || appItem.ulid}
-                          className={`bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden group ${
+                          onClick={() => handleOpenAppDetails(appItem)}
+                          className={`bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:border-[#78593D]/50 transition-all flex flex-col justify-between relative overflow-hidden group cursor-pointer ${
                             isDraft
-                              ? "border-2 border-amber-300/80 shadow-amber-500/5"
+                              ? "border-2 border-amber-300/80 shadow-amber-500/5 hover:border-amber-400"
                               : "border border-[#EBE6DF]"
                           }`}
                         >
@@ -1719,6 +1732,7 @@ function UserDashboardContent() {
                                       href={storeUrl}
                                       target="_blank"
                                       rel="noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
                                       className="text-[#78593D] hover:underline font-semibold inline-flex items-center gap-1 truncate"
                                     >
                                       <Globe className="w-2.5 h-2.5 text-slate-400 flex-shrink-0" />
@@ -1818,7 +1832,7 @@ function UserDashboardContent() {
                               <div className="grid grid-cols-12 gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenAppDetails(appItem)}
+                                  onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem); }}
                                   className="col-span-5 py-2 px-2 bg-[#EFEAE2]/80 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 truncate"
                                 >
                                   <Eye className="w-3.5 h-3.5 text-[#78593D] flex-shrink-0" />
@@ -1827,6 +1841,7 @@ function UserDashboardContent() {
 
                                 <Link
                                   href={`/dashboard/apps/${appItem.ulid}/setup/${appItem.setup_step || "platform"}`}
+                                  onClick={(e) => e.stopPropagation()}
                                   className="col-span-5 py-2 px-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs text-center active:scale-98 cursor-pointer truncate"
                                 >
                                   <span className="truncate">Continue</span>
@@ -1835,7 +1850,7 @@ function UserDashboardContent() {
 
                                 <button
                                   type="button"
-                                  onClick={() => setAppToDelete(appItem)}
+                                  onClick={(e) => { e.stopPropagation(); setAppToDelete(appItem); }}
                                   className="col-span-2 py-2 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer active:scale-98"
                                   title="Delete Draft"
                                 >
@@ -1851,6 +1866,7 @@ function UserDashboardContent() {
                                       <a
                                         href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
                                         download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
+                                        onClick={(e) => e.stopPropagation()}
                                         className="py-2 px-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5 truncate"
                                         title={`Download APK (v${appLatestBuild?.version_code || 1})`}
                                       >
@@ -1925,7 +1941,7 @@ function UserDashboardContent() {
                                 <div className="grid grid-cols-12 gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => handleOpenAppDetails(appItem)}
+                                    onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem); }}
                                     className="col-span-5 py-2 px-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98 truncate"
                                   >
                                     <Eye className="w-3.5 h-3.5 text-white flex-shrink-0" />
@@ -1934,7 +1950,7 @@ function UserDashboardContent() {
 
                                   <button
                                     type="button"
-                                    onClick={() => handleOpenAppDetails(appItem, "app-addons-section")}
+                                    onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem, "app-addons-section"); }}
                                     className="col-span-5 py-2 px-2 bg-[#EFEAE2]/80 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-98 truncate"
                                   >
                                     <Sparkles className="w-3 h-3 text-[#78593D]" />
@@ -1943,7 +1959,7 @@ function UserDashboardContent() {
 
                                   <button
                                     type="button"
-                                    onClick={() => setAppToDelete(appItem)}
+                                    onClick={(e) => { e.stopPropagation(); setAppToDelete(appItem); }}
                                     className="col-span-2 py-2 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer active:scale-98"
                                     title="Delete App"
                                   >
@@ -1991,8 +2007,9 @@ function UserDashboardContent() {
                     return (
                       <div
                         key={appItem.id || appItem.ulid}
-                        className={`bg-white rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5 relative overflow-hidden ${
-                          isDraft ? "border-2 border-amber-300/80" : "border border-[#EBE6DF]"
+                        onClick={() => handleOpenAppDetails(appItem)}
+                        className={`bg-white rounded-3xl p-5 sm:p-6 shadow-sm hover:shadow-md hover:border-[#78593D]/50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-5 relative overflow-hidden cursor-pointer ${
+                          isDraft ? "border-2 border-amber-300/80 hover:border-amber-400" : "border border-[#EBE6DF]"
                         }`}
                       >
                         <div className="flex items-start gap-4 min-w-0 flex-1">
@@ -2036,7 +2053,7 @@ function UserDashboardContent() {
                             <>
                               <button
                                 type="button"
-                                onClick={() => handleOpenAppDetails(appItem)}
+                                onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem); }}
                                 className="px-4 py-2 bg-[#EFEAE2]/80 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
                               >
                                 <Eye className="w-3.5 h-3.5 text-[#78593D]" />
@@ -2044,6 +2061,7 @@ function UserDashboardContent() {
                               </button>
                               <Link
                                 href={`/dashboard/apps/${appItem.ulid}/setup/${appItem.setup_step || "platform"}`}
+                                onClick={(e) => e.stopPropagation()}
                                 className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-50 to-[#FAF7F2] border border-amber-300/80 hover:border-amber-400 hover:shadow-xs transition group"
                                 title="Click to resume setup"
                               >
@@ -2083,6 +2101,7 @@ function UserDashboardContent() {
                                 <a
                                   href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
                                   download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
+                                  onClick={(e) => e.stopPropagation()}
                                   className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
                                 >
                                   <Download className="w-3.5 h-3.5" />
@@ -2092,6 +2111,7 @@ function UserDashboardContent() {
                               {appHasAdmin && (
                                 <Link
                                   href={`/dashboard/apps/${appItem.ulid}/admin`}
+                                  onClick={(e) => e.stopPropagation()}
                                   className="px-4 py-2 bg-gradient-to-r from-[#4A3B32] to-[#2E241E] hover:from-[#3D2F27] hover:to-[#221A15] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs border border-[#3D2F27]"
                                 >
                                   <LayoutDashboard className="w-3.5 h-3.5 text-amber-300" />
@@ -2100,7 +2120,7 @@ function UserDashboardContent() {
                               )}
                               <button
                                 type="button"
-                                onClick={() => handleOpenAppDetails(appItem)}
+                                onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem); }}
                                 className="px-4 py-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
                               >
                                 <Eye className="w-3.5 h-3.5 text-white" />
@@ -2109,7 +2129,7 @@ function UserDashboardContent() {
 
                               <button
                                 type="button"
-                                onClick={() => handleOpenAppDetails(appItem, "app-addons-section")}
+                                onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem, "app-addons-section"); }}
                                 className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-[#78593D] border border-amber-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                               >
                                 <Sparkles className="w-3.5 h-3.5 text-amber-600" />
