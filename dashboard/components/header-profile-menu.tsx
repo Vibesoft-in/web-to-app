@@ -82,6 +82,32 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
     }
   }, [isEditModalOpen]);
 
+  // Support browser Back button to dismiss modal sequentially
+  useEffect(() => {
+    const handlePopState = () => {
+      if (isEditModalOpen) {
+        setIsEditModalOpen(false);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [isEditModalOpen]);
+
+  const openEditModal = () => {
+    setIsOpen(false);
+    setIsEditModalOpen(true);
+    if (typeof window !== "undefined") {
+      window.history.pushState({ modal: "edit-profile" }, "");
+    }
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    if (typeof window !== "undefined" && window.history.state?.modal === "edit-profile") {
+      window.history.back();
+    }
+  };
+
   // Close dropdown on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -169,7 +195,7 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
 
       setSaveSuccess(true);
       setTimeout(() => {
-        setIsEditModalOpen(false);
+        closeEditModal();
         setSaveSuccess(false);
       }, 900);
     } catch (err: any) {
@@ -388,10 +414,7 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
                   <button
                     type="button"
                     role="menuitem"
-                    onClick={() => {
-                      setIsOpen(false);
-                      setIsEditModalOpen(true);
-                    }}
+                    onClick={openEditModal}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:text-[#78593D] hover:bg-[#FAF7F2] transition group cursor-pointer text-left"
                   >
                     <div className="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-[#EFEAE2] text-slate-600 group-hover:text-[#78593D] flex items-center justify-center transition-colors">
@@ -434,69 +457,71 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
       {/* ── EDIT PROFILE MODAL (PORTAL TO BODY TO PREVENT ANY CLIPPING/STACKING ISSUES) ── */}
       {isEditModalOpen && mounted && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150"
+          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setIsEditModalOpen(false);
+            if (e.target === e.currentTarget) closeEditModal();
           }}
         >
           <div
-            className="bg-white rounded-3xl border border-[#EBE6DF] shadow-2xl max-w-md w-full max-h-[min(90vh,620px)] flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200"
+            className="bg-white rounded-2xl border border-[#EBE6DF] shadow-2xl max-w-md w-full relative animate-in zoom-in-95 duration-200 p-5 sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Fixed Modal Header */}
-            <div className="flex items-center justify-between p-5 sm:p-6 pb-4 border-b border-slate-100 flex-shrink-0 bg-white">
+            {/* 1 & 2. Modal Header & Supporting Description */}
+            <div className="flex items-start justify-between gap-3 pb-3 mb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#FAF7F2] text-[#78593D] flex items-center justify-center border border-[#EBE6DF] flex-shrink-0">
-                  <User className="w-5 h-5" />
+                <div className="w-8 h-8 rounded-lg bg-[#FAF7F2] text-[#78593D] flex items-center justify-center border border-[#EBE6DF] flex-shrink-0">
+                  <User className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-900 leading-tight">Edit Account Profile</h3>
-                  <p className="text-xs text-slate-500 leading-tight mt-0.5">Update your public name and profile avatar</p>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">Edit Account Profile</h3>
+                  <p className="text-[11px] text-slate-500 leading-tight mt-0.5">Update your public name and profile avatar</p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setIsEditModalOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer flex-shrink-0"
+                onClick={closeEditModal}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Scrollable Modal Body */}
-            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
-              {saveSuccess && (
-                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
-                  <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <span>Profile updated successfully! Refreshing header...</span>
-                </div>
-              )}
+            {saveSuccess && (
+              <div className="mb-3 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold flex items-center gap-2">
+                <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                <span>Profile updated successfully! Refreshing header...</span>
+              </div>
+            )}
 
-              {saveError && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">
-                  {saveError}
-                </div>
-              )}
+            {saveError && (
+              <div className="mb-3 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold">
+                {saveError}
+              </div>
+            )}
 
-              <form id="edit-profile-form" onSubmit={handleSaveProfile} className="space-y-4">
-                {/* Avatar Preview & Upload Area */}
-                <div className="flex items-center gap-4 p-3.5 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF]">
-                  <div className="relative w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-[#78593D] to-[#5A412A] text-white flex items-center justify-center font-bold text-sm shadow-md flex-shrink-0 border-2 border-white">
-                    {editAvatarUrl ? (
-                      <img
-                        src={editAvatarUrl}
-                        alt="Avatar preview"
-                        className="w-full h-full object-cover"
-                        onError={() => setEditAvatarUrl("")}
-                      />
-                    ) : (
-                      <span>{initials}</span>
-                    )}
+            <form id="edit-profile-form" onSubmit={handleSaveProfile} className="space-y-3">
+              {/* 3 & 4. Avatar Preview & Upload Area */}
+              <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#FAF7F2] border border-[#EBE6DF]">
+                <div className="relative w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-[#78593D] to-[#5A412A] text-white flex items-center justify-center font-bold text-xs shadow-xs flex-shrink-0 border border-white">
+                  {editAvatarUrl ? (
+                    <img
+                      src={editAvatarUrl}
+                      alt="Avatar preview"
+                      className="w-full h-full object-cover"
+                      onError={() => setEditAvatarUrl("")}
+                    />
+                  ) : (
+                    <span>{initials}</span>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block leading-tight">Profile Avatar</span>
+                    <span className="text-[10px] text-slate-400 block leading-tight">JPG, PNG, GIF or WebP</span>
                   </div>
-
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <span className="text-xs font-bold text-slate-800 block">Profile Avatar</span>
-                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#EBE6DF] hover:bg-slate-50 text-[11px] font-bold text-[#78593D] cursor-pointer shadow-2xs transition">
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-[#EBE6DF] hover:bg-slate-50 text-[11px] font-bold text-[#78593D] cursor-pointer shadow-2xs transition">
                       <Camera className="w-3.5 h-3.5" />
                       <span>Upload Image</span>
                       <input
@@ -510,86 +535,85 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
                       <button
                         type="button"
                         onClick={() => setEditAvatarUrl("")}
-                        className="text-[10px] text-rose-600 hover:underline block font-semibold cursor-pointer"
+                        className="px-2 py-1.5 text-[10px] text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg font-bold transition cursor-pointer"
                       >
-                        Remove Avatar
+                        Remove
                       </button>
                     )}
                   </div>
                 </div>
+              </div>
 
-                {/* Full Name */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    required
-                    placeholder="e.g. John Doe"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-[#78593D] focus:outline-none focus:ring-2 focus:ring-[#78593D]/20 transition"
-                  />
-                </div>
+              {/* 5. Full Name */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                  placeholder="e.g. John Doe"
+                  className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs sm:text-sm focus:border-[#78593D] focus:outline-none focus:ring-1 focus:ring-[#78593D]/30 transition"
+                />
+              </div>
 
-                {/* Email Address (Read-only) */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={user.email || ""}
-                    disabled
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-500 text-sm cursor-not-allowed"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">
-                    Email is linked to your login credentials and cannot be changed here.
-                  </span>
-                </div>
+              {/* 6 & 7. Email Address (Read-only) + Restriction Notice */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={user.email || ""}
+                  disabled
+                  className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-500 text-xs sm:text-sm cursor-not-allowed"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block leading-tight">
+                  Email is linked to your login credentials and cannot be changed here.
+                </span>
+              </div>
 
-                {/* Avatar URL alternative */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Or Image Web URL (Optional)
-                  </label>
-                  <input
-                    type="url"
-                    value={editAvatarUrl.startsWith("data:") ? "" : editAvatarUrl}
-                    onChange={(e) => setEditAvatarUrl(e.target.value)}
-                    placeholder="https://example.com/avatar.jpg"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-[#78593D] focus:outline-none focus:ring-2 focus:ring-[#78593D]/20 transition"
-                  />
-                </div>
-              </form>
-            </div>
+              {/* 8. Avatar URL alternative (Optional) */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Or Image Web URL (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={editAvatarUrl.startsWith("data:") ? "" : editAvatarUrl}
+                  onChange={(e) => setEditAvatarUrl(e.target.value)}
+                  placeholder="https://example.com/avatar.jpg"
+                  className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs sm:text-sm focus:border-[#78593D] focus:outline-none focus:ring-1 focus:ring-[#78593D]/30 transition"
+                />
+              </div>
 
-            {/* Fixed Modal Footer */}
-            <div className="flex items-center justify-end gap-2.5 p-4 sm:px-6 border-t border-slate-100 bg-slate-50/70 flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200/60 transition cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                form="edit-profile-form"
-                disabled={isSavingProfile}
-                className="px-5 py-2 rounded-xl text-xs font-extrabold text-white bg-[#78593D] hover:bg-[#634932] disabled:opacity-50 transition shadow-xs flex items-center gap-1.5 cursor-pointer"
-              >
-                {isSavingProfile ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Saving...</span>
-                  </>
-                ) : (
-                  <span>Save Changes</span>
-                )}
-              </button>
-            </div>
+              {/* 9 & 10. Modal Actions (Cancel & Save Changes) */}
+              <div className="flex items-center justify-end gap-2 pt-3 mt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingProfile}
+                  className="px-4 py-1.5 rounded-lg text-xs font-bold text-white bg-[#78593D] hover:bg-[#624730] transition flex items-center gap-1.5 disabled:opacity-60 cursor-pointer shadow-xs"
+                >
+                  {isSavingProfile ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>Save Changes</span>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>,
         document.body

@@ -287,16 +287,9 @@ export default function HomePage() {
                 </Link>
               </div>
 
-              {/* Compact Horizontal Grid / Flex Container */}
-              <div
-                className="unfinished-apps-grid"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
-                  gap: 12,
-                }}
-              >
-                {unfinishedProjects.map((draftItem: any) => {
+              {/* Conditional Layout: 1 App = Full-Width Horizontal Bar; >1 Apps = Responsive Multi-Column Grid */}
+              {(() => {
+                const renderDraftCard = (draftItem: any, isFullWidth = false) => {
                   const rawStep = (draftItem.setup_step || "platform").toLowerCase();
                   const progressPct = STEP_ORDER_PERCENTAGE[rawStep] || 15;
                   const websiteUrl =
@@ -311,7 +304,8 @@ export default function HomePage() {
                       key={draftItem.ulid || draftItem.id}
                       className="unfinished-app-tab"
                       style={{
-                        padding: "10px 14px",
+                        width: isFullWidth ? "100%" : undefined,
+                        padding: isFullWidth ? "10px 18px" : "10px 14px",
                         borderRadius: "14px",
                         background: "#FFFFFF",
                         border: "1px solid #EBE6DF",
@@ -319,7 +313,7 @@ export default function HomePage() {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        gap: 12,
+                        gap: isFullWidth ? 18 : 12,
                         transition: "all 0.2s ease",
                       }}
                     >
@@ -403,7 +397,7 @@ export default function HomePage() {
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
-                                maxWidth: 160,
+                                maxWidth: isFullWidth ? 380 : 160,
                               }}
                             >
                               {websiteUrl}
@@ -415,7 +409,7 @@ export default function HomePage() {
                       {/* Middle: Progress Bar & Percentage */}
                       <div
                         style={{
-                          width: 80,
+                          width: isFullWidth ? 130 : 80,
                           flexShrink: 0,
                           display: "flex",
                           flexDirection: "column",
@@ -468,7 +462,7 @@ export default function HomePage() {
                             display: "inline-flex",
                             alignItems: "center",
                             gap: 5,
-                            padding: "6px 11px",
+                            padding: "6px 12px",
                             borderRadius: 9,
                             background: "#78593D",
                             color: "#FFFFFF",
@@ -506,8 +500,30 @@ export default function HomePage() {
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                };
+
+                if (unfinishedProjects.length === 1) {
+                  return (
+                    <div className="unfinished-apps-single" style={{ width: "100%" }}>
+                      {renderDraftCard(unfinishedProjects[0], true)}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    className="unfinished-apps-grid"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
+                      gap: 12,
+                      width: "100%",
+                    }}
+                  >
+                    {unfinishedProjects.map((draftItem: any) => renderDraftCard(draftItem, false))}
+                  </div>
+                );
+              })()}
             </section>
           )}
 

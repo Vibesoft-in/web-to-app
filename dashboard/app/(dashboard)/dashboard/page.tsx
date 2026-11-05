@@ -139,15 +139,24 @@ function UserDashboardContent() {
     "apps" | "builds" | "purchases" | "plans" | "addons" | "custom_features"
   >("apps");
 
+  const handleTabChange = (newTab: "apps" | "builds" | "purchases" | "plans" | "addons" | "custom_features") => {
+    setActiveTab(newTab);
+    router.push(newTab === "apps" ? "/dashboard" : `/dashboard?tab=${newTab}`);
+  };
+
   useEffect(() => {
     const tabParam = searchParams.get("tab");
     if (
       tabParam &&
       ["apps", "builds", "purchases", "plans", "addons", "custom_features"].includes(tabParam)
     ) {
-      setActiveTab(tabParam as any);
+      if (activeTab !== tabParam) {
+        setActiveTab(tabParam as any);
+      }
+    } else if (!tabParam && !searchParams.get("app") && activeTab !== "apps") {
+      setActiveTab("apps");
     }
-  }, [searchParams]);
+  }, [searchParams, activeTab]);
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [appToDelete, setAppToDelete] = useState<any | null>(null);
@@ -1192,8 +1201,12 @@ function UserDashboardContent() {
     }
   };
 
-  const handleOpenAppDetails = async (app: any, initialSection?: string) => {
+  const handleOpenAppDetails = async (app: any, initialSection?: string, pushHistory = true) => {
     setViewingAppDetails(app);
+    if (pushHistory) {
+      const targetUrl = `/dashboard?app=${app.ulid || app.id}${initialSection ? `&section=${initialSection}` : ''}`;
+      router.push(targetUrl);
+    }
     setIsLoadingConfig(true);
     try {
       const res = await apiClient(`/api/apps/${app.ulid}/config/draft`);
@@ -1219,13 +1232,19 @@ function UserDashboardContent() {
 
   useEffect(() => {
     const appParam = searchParams.get("app");
-    if (appParam && apps && apps.length > 0 && !viewingAppDetails) {
-      const matched = apps.find(
-        (a: any) => a.ulid === appParam || String(a.id) === String(appParam)
-      );
-      if (matched) {
-        handleOpenAppDetails(matched);
+    if (appParam && apps && apps.length > 0) {
+      if (!viewingAppDetails || (viewingAppDetails.ulid !== appParam && String(viewingAppDetails.id) !== String(appParam))) {
+        const matched = apps.find(
+          (a: any) => a.ulid === appParam || String(a.id) === String(appParam)
+        );
+        if (matched) {
+          handleOpenAppDetails(matched, searchParams.get("section") || undefined, false);
+        }
       }
+    } else if (!appParam && viewingAppDetails) {
+      // User clicked browser Back button to return to dashboard app list
+      setViewingAppDetails(null);
+      setAppConfigData(null);
     }
   }, [searchParams, apps, viewingAppDetails]);
 
@@ -1239,11 +1258,12 @@ function UserDashboardContent() {
         onBack={() => {
           setViewingAppDetails(null);
           setAppConfigData(null);
+          router.push(activeTab === "apps" ? "/dashboard" : `/dashboard?tab=${activeTab}`);
         }}
         onNavigateToTab={(tab) => {
           setViewingAppDetails(null);
           setAppConfigData(null);
-          setActiveTab(tab as any);
+          handleTabChange(tab as any);
         }}
         onRebuild={handleRebuild}
         isRebuilding={isRebuilding}
@@ -1317,14 +1337,14 @@ function UserDashboardContent() {
 
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={() => setActiveTab("plans")}
+              onClick={() => handleTabChange("plans")}
               className="px-4 py-2.5 rounded-xl border border-[#78593D] bg-[#EFEAE2]/60 hover:bg-[#EFEAE2] text-[#78593D] text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
             >
               <Package className="w-4 h-4 text-[#78593D]" />
               <span>All Plans &amp; Packages</span>
             </button>
             <button
-              onClick={() => setActiveTab("addons")}
+              onClick={() => handleTabChange("addons")}
               className="px-4 py-2.5 rounded-xl border border-[#EBE6DF] bg-white hover:bg-[#F7F5F0] text-[#57514B] text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
             >
               <Sparkles className="w-4 h-4 text-[#78593D]" />
@@ -1411,7 +1431,7 @@ function UserDashboardContent() {
       {/* ── DASHBOARD NAVIGATION TABS ── */}
       <div className="flex items-center gap-2 border-b border-[#EBE6DF] pb-2 overflow-x-auto scrollbar-none">
         <button
-          onClick={() => setActiveTab("apps")}
+          onClick={() => handleTabChange("apps")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
             activeTab === "apps"
               ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
@@ -1423,7 +1443,7 @@ function UserDashboardContent() {
         </button>
 
         <button
-          onClick={() => setActiveTab("builds")}
+          onClick={() => handleTabChange("builds")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
             activeTab === "builds"
               ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
@@ -1435,7 +1455,7 @@ function UserDashboardContent() {
         </button>
 
         <button
-          onClick={() => setActiveTab("purchases")}
+          onClick={() => handleTabChange("purchases")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
             activeTab === "purchases"
               ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
@@ -1447,7 +1467,7 @@ function UserDashboardContent() {
         </button>
 
         <button
-          onClick={() => setActiveTab("plans")}
+          onClick={() => handleTabChange("plans")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
             activeTab === "plans"
               ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
@@ -1459,7 +1479,7 @@ function UserDashboardContent() {
         </button>
 
         <button
-          onClick={() => setActiveTab("addons")}
+          onClick={() => handleTabChange("addons")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
             activeTab === "addons"
               ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
@@ -1471,7 +1491,7 @@ function UserDashboardContent() {
         </button>
 
         <button
-          onClick={() => setActiveTab("custom_features")}
+          onClick={() => handleTabChange("custom_features")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
             activeTab === "custom_features"
               ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"

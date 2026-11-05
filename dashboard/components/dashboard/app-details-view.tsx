@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DeleteAppModal } from "@/components/dashboard/delete-app-modal";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -232,10 +233,34 @@ export function AppDetailsView({
   appHasAddon,
   user,
 }: AppDetailsViewProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   // Navigation sidebar state
   const [activeTab, setActiveTab] = useState<
     "overview" | "billing" | "downloads" | "app_traffic" | "web_traffic" | "settings"
   >("overview");
+
+  useEffect(() => {
+    const sectionParam = searchParams.get("section") || searchParams.get("tab");
+    if (
+      sectionParam &&
+      ["overview", "billing", "downloads", "app_traffic", "web_traffic", "settings"].includes(sectionParam)
+    ) {
+      if (activeTab !== sectionParam) {
+        setActiveTab(sectionParam as any);
+      }
+    } else if (!sectionParam && activeTab !== "overview") {
+      setActiveTab("overview");
+    }
+  }, [searchParams, activeTab]);
+
+  const handleSelectTab = (tabId: "overview" | "billing" | "downloads" | "app_traffic" | "web_traffic" | "settings") => {
+    setActiveTab(tabId);
+    if (app?.ulid || app?.id) {
+      router.push(`/dashboard?app=${app.ulid || app.id}&section=${tabId}`);
+    }
+  };
 
   // Add-ons state
   const [addonFilter, setAddonFilter] = useState<"all" | "available" | "active">("all");
@@ -589,7 +614,7 @@ export function AppDetailsView({
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setActiveTab(item.id)}
+                    onClick={() => handleSelectTab(item.id)}
                     className={`w-full flex items-center justify-between p-3 rounded-2xl text-left transition-all cursor-pointer ${
                       isActive
                         ? "bg-[#FAF7F2] text-[#78593D] font-extrabold shadow-xs border-l-4 border-[#78593D]"
@@ -819,8 +844,8 @@ export function AppDetailsView({
                   </div>
                 </div>
 
-                {/* ── COMPACT EXPANDABLE HEADINGS LIST ── */}
-                <div className="space-y-2.5">
+                {/* ── RESPONSIVE MULTI-COLUMN ADD-ONS GRID ── */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filteredAddons.map((addon) => {
                     const isActive = checkIsAddonActive(addon);
                     const isExpanded = expandedAddonId === addon.id;
@@ -828,132 +853,132 @@ export function AppDetailsView({
                     return (
                       <div
                         key={addon.id}
-                        className={`rounded-2xl border transition-all overflow-hidden ${
+                        className={`rounded-2xl border transition-all overflow-hidden flex flex-col justify-between ${
                           isExpanded
-                            ? "border-[#78593D] bg-[#FAF7F2] shadow-sm"
+                            ? "border-[#78593D] bg-[#FAF7F2] shadow-md ring-1 ring-[#78593D]/30"
                             : "border-[#EBE6DF] bg-white hover:border-[#78593D]/40 hover:bg-[#FAF7F2]/40"
                         }`}
                       >
-                        {/* Compact Heading Row */}
-                        <div
-                          onClick={() => setExpandedAddonId(isExpanded ? null : addon.id)}
-                          className="flex items-center justify-between p-3.5 sm:p-4 cursor-pointer select-none gap-3"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div
-                              className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
-                                isActive
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-[#F7F5F0] text-[#78593D]"
-                              }`}
-                            >
-                              <Sparkles className="w-4 h-4" />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
+                        {/* Compact Card Content */}
+                        <div className="p-4 space-y-3 flex-1">
+                          <div className="flex items-start justify-between gap-2.5">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
+                                  isActive
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-[#F7F5F0] text-[#78593D]"
+                                }`}
+                              >
+                                <Sparkles className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0">
                                 <h3 className="text-xs sm:text-sm font-extrabold text-[#1C1917] truncate">
                                   {addon.shortName || addon.name}
                                 </h3>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-[#EFEAE2] text-[#78593D]">
+                                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-[#EFEAE2] text-[#78593D] inline-block mt-0.5">
                                   {addon.category || "Feature"}
                                 </span>
                               </div>
                             </div>
-                          </div>
 
-                          <div className="flex items-center gap-3 flex-shrink-0">
-                            <span className="text-xs sm:text-sm font-black text-[#1C1917]">
-                              {addon.price_formatted || formatPrice(addon.price)}
-                            </span>
-
-                            {isActive ? (
-                              <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                                <Check className="w-3 h-3 stroke-[3]" />
-                                <span>Active</span>
-                              </span>
-                            ) : (
-                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#F7F5F0] text-[#7E756B] border border-[#EBE6DF]">
-                                Available
-                              </span>
-                            )}
-
-                            <ChevronDown
-                              className={`w-4 h-4 text-[#7E756B] transition-transform duration-200 ${
-                                isExpanded ? "rotate-180 text-[#78593D]" : ""
-                              }`}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Expanded Details Section */}
-                        {isExpanded && (
-                          <div className="p-4 sm:p-5 pt-0 border-t border-[#EBE6DF]/70 mt-1 space-y-4 animate-fadeIn">
-                            <p className="text-xs sm:text-sm text-[#57514B] leading-relaxed">
-                              {addon.description}
-                            </p>
-
-                            {addon.features && addon.features.length > 0 && (
-                              <div className="bg-white p-3.5 rounded-xl border border-[#EBE6DF]">
-                                <span className="text-[10px] font-black uppercase tracking-wider text-[#7E756B] block mb-2">
-                                  Key Features &amp; Inclusions
+                            <div>
+                              {isActive ? (
+                                <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                                  <Check className="w-3 h-3 stroke-[3]" />
+                                  <span>Active</span>
                                 </span>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-[#2A241F]">
-                                  {addon.features.map((feat: string, idx: number) => (
-                                    <div key={idx} className="flex items-center gap-2">
-                                      <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                                      <span>{feat}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-                              <div className="text-xs text-[#7E756B]">
-                                <span>License: </span>
-                                <strong className="text-[#1C1917]">{addon.licenseType || "Lifetime App License"}</strong>
-                                <span className="mx-2">&bull;</span>
-                                <span>Status: </span>
-                                <strong className={isActive ? "text-emerald-700" : "text-[#78593D]"}>
-                                  {isActive ? "Active & Linked to App" : "Ready to Purchase"}
-                                </strong>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                {isActive ? (
-                                  hasAdminPanel ? (
-                                    <Link
-                                      href={`/dashboard/apps/${app?.ulid}/admin`}
-                                      className="px-4 py-2 bg-gradient-to-r from-[#4A3B32] to-[#2E241E] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
-                                    >
-                                      <LayoutDashboard className="w-3.5 h-3.5 text-amber-300" />
-                                      <span>Open Module in Admin Panel</span>
-                                    </Link>
-                                  ) : (
-                                    <span className="px-3.5 py-2 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-200 flex items-center gap-1.5">
-                                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                                      <span>Active on App</span>
-                                    </span>
-                                  )
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleExecutePurchase(addon)}
-                                    disabled={isProcessingCheckout || isPurchasingAddon}
-                                    className="px-5 py-2 bg-[#78593D] hover:bg-[#634932] disabled:opacity-50 text-white rounded-xl text-xs font-black transition shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-98"
-                                  >
-                                    <Sparkles className="w-3.5 h-3.5" />
-                                    <span>
-                                      {isProcessingCheckout
-                                        ? "Opening Checkout..."
-                                        : `Buy Add-on (${addon.price_formatted || formatPrice(addon.price)})`}
-                                    </span>
-                                  </button>
-                                )}
-                              </div>
+                              ) : (
+                                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#F7F5F0] text-[#7E756B] border border-[#EBE6DF]">
+                                  Available
+                                </span>
+                              )}
                             </div>
                           </div>
-                        )}
+
+                          <div className="flex items-baseline justify-between pt-1">
+                            <span className="text-sm font-black text-[#1C1917]">
+                              {addon.price_formatted || formatPrice(addon.price)}
+                            </span>
+                            <span className="text-[10px] text-[#7E756B]">
+                              {addon.licenseType || "Lifetime App License"}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-[#57514B] leading-relaxed line-clamp-2">
+                            {addon.description}
+                          </p>
+                        </div>
+
+                        {/* Card Bottom / Toggle & Action */}
+                        <div className="p-4 pt-0 space-y-3">
+                          <div className="flex items-center justify-between gap-2 pt-3 border-t border-[#EBE6DF]/70">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedAddonId(isExpanded ? null : addon.id)}
+                              className="text-xs font-bold text-[#78593D] hover:text-[#5A412A] flex items-center gap-1 cursor-pointer select-none"
+                            >
+                              <span>{isExpanded ? "Hide Details" : "View Details"}</span>
+                              <ChevronDown
+                                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                  isExpanded ? "rotate-180" : ""
+                                }`}
+                              />
+                            </button>
+
+                            <div>
+                              {isActive ? (
+                                hasAdminPanel ? (
+                                  <Link
+                                    href={`/dashboard/apps/${app?.ulid}/admin`}
+                                    className="px-3 py-1.5 bg-gradient-to-r from-[#4A3B32] to-[#2E241E] text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-xs"
+                                  >
+                                    <LayoutDashboard className="w-3 h-3 text-amber-300" />
+                                    <span>Admin</span>
+                                  </Link>
+                                ) : (
+                                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-200 flex items-center gap-1">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span>Active</span>
+                                  </span>
+                                )
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleExecutePurchase(addon)}
+                                  disabled={isProcessingCheckout || isPurchasingAddon}
+                                  className="px-3 py-1.5 bg-[#78593D] hover:bg-[#634932] disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1 cursor-pointer active:scale-98"
+                                >
+                                  <Sparkles className="w-3 h-3" />
+                                  <span>
+                                    {isProcessingCheckout ? "Opening..." : "Buy"}
+                                  </span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Expanded Details inside card */}
+                          {isExpanded && (
+                            <div className="pt-3 border-t border-[#EBE6DF]/70 space-y-2.5 animate-fadeIn text-xs">
+                              {addon.features && addon.features.length > 0 && (
+                                <div className="bg-white p-2.5 rounded-xl border border-[#EBE6DF] space-y-1">
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-[#7E756B] block">
+                                    Key Features
+                                  </span>
+                                  <div className="space-y-1 text-xs text-[#2A241F]">
+                                    {addon.features.slice(0, 3).map((feat: string, idx: number) => (
+                                      <div key={idx} className="flex items-start gap-1.5">
+                                        <Check className="w-3 h-3 text-emerald-600 flex-shrink-0 mt-0.5" />
+                                        <span className="text-[11px] leading-tight">{feat}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1225,7 +1250,7 @@ export function AppDetailsView({
                     ) : (
                       <button
                         type="button"
-                        onClick={() => setActiveTab("overview")}
+                        onClick={() => handleSelectTab("overview")}
                         className="px-4 py-2 border border-[#78593D]/30 bg-[#FAF7F2] hover:bg-[#EFEAE2] text-[#78593D] rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
                       >
                         <Sparkles className="w-3.5 h-3.5" />
