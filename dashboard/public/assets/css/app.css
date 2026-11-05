@@ -10241,39 +10241,32 @@ body.auth-layout {
 .app-stage-window {
     position: relative;
     width: 100%;
-    min-height: 580px;
+    min-height: 600px;
     background-color: #FFFFFF;
     border: 1px solid #EBE6DF;
     border-radius: 24px;
     box-shadow: 0 4px 24px rgba(44, 38, 33, 0.04);
-    overflow: hidden;
     box-sizing: border-box;
 }
 
 @media (min-width: 1024px) {
     .app-stage-window {
-        height: calc(100vh - 205px);
-        min-height: 600px;
-        max-height: 880px;
+        min-height: 650px;
+        height: auto;
     }
 }
 
 .app-stage-panel {
-    position: absolute;
-    inset: 0;
+    width: 100%;
+    min-height: 600px;
     padding: 1.75rem 2rem;
     box-sizing: border-box;
-    display: flex;
+    display: none;
     flex-direction: column;
     background-color: #FFFFFF;
+    border-radius: 24px;
     opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transform: translateY(16px);
-    transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.28s;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: #DDD8D3 transparent;
+    transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .app-stage-panel::-webkit-scrollbar {

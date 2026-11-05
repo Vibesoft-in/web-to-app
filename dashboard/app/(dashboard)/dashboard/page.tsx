@@ -1214,6 +1214,7 @@ function UserDashboardContent() {
 
   const handleOpenAppDetails = async (app: any, initialSection?: string, pushHistory = true) => {
     setViewingAppDetails(app);
+    setAppConfigData(null);
     if (pushHistory) {
       const targetUrl = `/dashboard?app=${app.ulid || app.id}${initialSection ? `&section=${initialSection}` : ''}`;
       router.push(targetUrl);
@@ -1870,7 +1871,7 @@ function UserDashboardContent() {
                                   className="col-span-5 py-2 px-2 bg-[#EFEAE2]/80 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 truncate"
                                 >
                                   <Eye className="w-3.5 h-3.5 text-[#78593D] flex-shrink-0" />
-                                  <span className="truncate">Details</span>
+                                  <span className="truncate">App Dashboard</span>
                                 </button>
 
                                 <Link
@@ -2001,7 +2002,7 @@ function UserDashboardContent() {
                                     className="col-span-5 py-2 px-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98 truncate"
                                   >
                                     <Eye className="w-3.5 h-3.5 text-white flex-shrink-0" />
-                                    <span className="truncate">Details</span>
+                                    <span className="truncate">App Dashboard</span>
                                   </button>
 
                                   <button
@@ -2116,7 +2117,7 @@ function UserDashboardContent() {
                                 className="px-4 py-2 bg-[#EFEAE2]/80 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
                               >
                                 <Eye className="w-3.5 h-3.5 text-[#78593D]" />
-                                <span>View Details</span>
+                                <span>App Dashboard</span>
                               </button>
                               <Link
                                 href={`/dashboard/apps/${appItem.ulid}/setup/${currentStepKey}`}
@@ -2227,7 +2228,7 @@ function UserDashboardContent() {
                                 className="px-4 py-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
                               >
                                 <Eye className="w-3.5 h-3.5 text-white" />
-                                <span>View App Details</span>
+                                <span>App Dashboard</span>
                               </button>
 
                               <button

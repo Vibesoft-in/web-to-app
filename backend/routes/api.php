@@ -643,6 +643,17 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
         ->name('api.apps.whatsapp.test')
         ->middleware('throttle:5,1');
 
+    // ── App Integrations (Push, Email, WhatsApp) ───────────────────────────────
+    Route::get('/apps/{ulid}/integrations', [\App\Http\Controllers\Api\IntegrationController::class, 'index'])
+        ->name('api.apps.integrations.index');
+    Route::get('/apps/{ulid}/integrations/{type}', [\App\Http\Controllers\Api\IntegrationController::class, 'show'])
+        ->name('api.apps.integrations.show');
+    Route::post('/apps/{ulid}/integrations/{type}', [\App\Http\Controllers\Api\IntegrationController::class, 'update'])
+        ->name('api.apps.integrations.update');
+    Route::post('/apps/{ulid}/integrations/{type}/test', [\App\Http\Controllers\Api\IntegrationController::class, 'test'])
+        ->name('api.apps.integrations.test')
+        ->middleware('throttle:10,1');
+
     // ── Admin Panel Oversight Routes ─────────────────────────────────────────
     Route::prefix('admin')->group(function () {
         Route::get('/overview', function (Request $request) {

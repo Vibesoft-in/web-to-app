@@ -450,41 +450,237 @@ export default function PricingPage() {
                 <p className="pricing-hero-subheading">
                   Turn your WordPress, WooCommerce, or Shopify store into high-converting native iOS &amp; Android apps. No recurring sales commissions, no hidden publishing penalties.
                 </p>
+              </div>
+            </div>
+          </section>
 
-                {/* Billing Cycle Selector Switch */}
-                <div className="pricing-billing-switch-wrap">
-                  <span
-                    className={`billing-label ${!isAnnual ? "is-active" : ""}`}
-                    onClick={() => setIsAnnual(false)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    One-Time License
-                  </span>
-                  <button
-                    type="button"
-                    className={`pricing-billing-toggle ${isAnnual ? "active" : ""}`}
-                    onClick={() => setIsAnnual(!isAnnual)}
-                    aria-label="Toggle annual support plan"
-                    role="switch"
-                    aria-checked={isAnnual}
-                  >
-                    <span className="billing-toggle-thumb" />
-                  </button>
-                  <span
-                    className={`billing-label ${isAnnual ? "is-active" : ""}`}
-                    onClick={() => setIsAnnual(true)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    Annual Care Plan <span className="billing-save-tag">Save 20%</span>
-                  </span>
+          {/* 2. FULL CAPABILITIES MATRIX / COMPARE ALL PLAN SPECIFICATIONS */}
+          <section className="pricing-comparison-table-section" id="capabilitiesMatrix">
+            <div className="pricing-page-container">
+              <div className="comparison-header text-center">
+                <span className="pricing-eyebrow-pill">FULL CAPABILITIES MATRIX</span>
+                <h2 className="comp-title">Compare All Plan Specifications</h2>
+                <p className="comp-sub">
+                  A clear, side-by-side feature comparison to help you choose with confidence.
+                </p>
+              </div>
+
+              <div className="pricing-matrix-card">
+                <div className="table-responsive-wrap">
+                  <table className="pricing-matrix-table">
+                    <thead>
+                      <tr>
+                        <th className="col-feature-spec">Features &amp; Capabilities</th>
+                        <th className="col-plan text-center">
+                          <div className="th-plan-name">Starter App</div>
+                          <div className="th-plan-price">₹4,999</div>
+                        </th>
+                        <th className="col-plan text-center th-highlight">
+                          <div className="th-featured-pill">POPULAR</div>
+                          <div className="th-plan-name">Pro Combo</div>
+                          <div className="th-plan-price">₹8,999</div>
+                        </th>
+                        <th className="col-plan text-center">
+                          <div className="th-plan-name">Enterprise Suite</div>
+                          <div className="th-plan-price">₹14,999</div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Category: Platforms & Builds */}
+                      <tr className="matrix-cat-row">
+                        <td colSpan={4}>1. Mobile Platforms &amp; Application Builds</td>
+                      </tr>
+                      <tr>
+                        <td>Android Production App (.aab / .apk)</td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                      </tr>
+                      <tr>
+                        <td>iOS Production App (.ipa / TestFlight)</td>
+                        <td className="text-center"><span className="matrix-cross">&times;</span></td>
+                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                      </tr>
+                      <tr>
+                        <td>Tablet &amp; iPad Optimized Viewport</td>
+                        <td className="text-center"><span className="matrix-cross">&times;</span></td>
+                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                      </tr>
+                      <tr>
+                        <td>Supported Stores / Brands Connected</td>
+                        <td className="text-center">1 Store</td>
+                        <td className="text-center highlight-cell">1 Store</td>
+                        <td className="text-center">Up to 3 Stores</td>
+                      </tr>
+
+                      {/* Category: Design & Mobile UX */}
+                      <tr className="matrix-cat-row">
+                        <td colSpan={4}>2. Design, Themes &amp; Native UX</td>
+                      </tr>
+                      <tr>
+                        <td>Curated Mobile Theme Selection</td>
+                        <td className="text-center">Standard Minimalist</td>
+                        <td className="text-center highlight-cell">All 5 Premium Themes</td>
+                        <td className="text-center">All Themes + Bespoke Styling</td>
+                      </tr>
+                      <tr>
+                        <td>Custom Splash Screen &amp; App Icon Design</td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                      </tr>
+                      <tr>
+                        <td>Biometric Login (FaceID &amp; TouchID)</td>
+                        <td className="text-center"><span className="matrix-cross">&times;</span></td>
+                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                      </tr>
+                      <tr>
+                        <td>Offline Caching &amp; Fast Re-engagement</td>
+                        <td className="text-center">Basic</td>
+                        <td className="text-center highlight-cell">Advanced</td>
+                        <td className="text-center">Enterprise Local Sync</td>
+                      </tr>
+
+                      {/* Category: Commerce & Sync */}
+                      <tr className="matrix-cat-row">
+                        <td colSpan={4}>3. E-Commerce &amp; Real-Time Data Sync</td>
+                      </tr>
+                      <tr>
+                        <td>Real-Time Two-Way Product &amp; Order Sync</td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                      </tr>
+                      <tr>
+                        <td>Native In-App 1-Click Fast Checkout</td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                      </tr>
+                      <tr>
+                        <td>Payment Gateways (Razorpay, Stripe, PayPal, COD)</td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                      </tr>
+                      <tr>
+                        <td>Customer Wishlist &amp; Saved Items</td>
+                        <td className="text-center"><span className="matrix-cross">&times;</span></td>
+                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                      </tr>
+
+                      {/* Category: Marketing & Growth */}
+                      <tr className="matrix-cat-row">
+                        <td colSpan={4}>4. Retention, Marketing &amp; Add-Ons</td>
+                      </tr>
+                      <tr>
+                        <td>Push Notification Quota</td>
+                        <td className="text-center">5,000 / mo</td>
+                        <td className="text-center highlight-cell"><strong>Unlimited</strong></td>
+                        <td className="text-center"><strong>Unlimited</strong> + Priority Delivery</td>
+                      </tr>
+                      <tr>
+                        <td>Automated Abandoned Cart Push Triggers</td>
+                        <td className="text-center"><span className="matrix-cross">&times;</span></td>
+                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                      </tr>
+                      <tr>
+                        <td>WhatsApp Direct Customer Support Floating Chat</td>
+                        <td className="text-center"><span className="matrix-cross">&times;</span> (Optional Add-on)</td>
+                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span> Included</td>
+                        <td className="text-center"><span className="matrix-check">✓</span> Included</td>
+                      </tr>
+                      <tr>
+                        <td>Advanced In-App Analytics &amp; User Drop-off</td>
+                        <td className="text-center"><span className="matrix-cross">&times;</span></td>
+                        <td className="text-center highlight-cell">Standard Analytics</td>
+                        <td className="text-center"><span className="matrix-check">✓</span> Full Telemetry Included</td>
+                      </tr>
+
+                      {/* Category: Publishing & Support */}
+                      <tr className="matrix-cat-row">
+                        <td colSpan={4}>5. Publishing, Updates &amp; Support</td>
+                      </tr>
+                      <tr>
+                        <td>App Store &amp; Play Store Submission Guidance</td>
+                        <td className="text-center">Step-by-step Guides</td>
+                        <td className="text-center highlight-cell">Assisted Submission</td>
+                        <td className="text-center"><strong>White-Glove Submission</strong></td>
+                      </tr>
+                      <tr>
+                        <td>Apple &amp; Google Review Approval Guarantee</td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
+                        <td className="text-center"><span className="matrix-check">✓</span></td>
+                      </tr>
+                      <tr>
+                        <td>Support Window &amp; Updates Included</td>
+                        <td className="text-center">3 Months Email Support</td>
+                        <td className="text-center highlight-cell">6 Months Priority Support</td>
+                        <td className="text-center">1 Year Dedicated Manager &amp; SLA</td>
+                      </tr>
+                      <tr>
+                        <td>Action</td>
+                        <td className="text-center">
+                          <Link href={getGetStartedHref("starter-app")} className="btn-matrix-action">
+                            Choose Starter
+                          </Link>
+                        </td>
+                        <td className="text-center highlight-cell">
+                          <Link href={getGetStartedHref("pro-combo")} className="btn-matrix-action is-primary">
+                            Choose Pro Combo
+                          </Link>
+                        </td>
+                        <td className="text-center">
+                          <Link href={getGetStartedHref("enterprise-suite")} className="btn-matrix-action">
+                            Choose Enterprise
+                          </Link>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* 2. CORE PLANS GRID */}
+          {/* 3. CORE PLANS GRID WITH BILLING SWITCH */}
           <section className="pricing-cards-section" id="plansCatalog">
             <div className="pricing-page-container">
+              {/* Billing Cycle Selector Switch */}
+              <div className="pricing-billing-switch-wrap" style={{ margin: "0 auto 2.5rem", display: "flex", justifyContent: "center" }}>
+                <span
+                  className={`billing-label ${!isAnnual ? "is-active" : ""}`}
+                  onClick={() => setIsAnnual(false)}
+                  style={{ cursor: "pointer" }}
+                >
+                  One-Time License
+                </span>
+                <button
+                  type="button"
+                  className={`pricing-billing-toggle ${isAnnual ? "active" : ""}`}
+                  onClick={() => setIsAnnual(!isAnnual)}
+                  aria-label="Toggle annual support plan"
+                  role="switch"
+                  aria-checked={isAnnual}
+                >
+                  <span className="billing-toggle-thumb" />
+                </button>
+                <span
+                  className={`billing-label ${isAnnual ? "is-active" : ""}`}
+                  onClick={() => setIsAnnual(true)}
+                  style={{ cursor: "pointer" }}
+                >
+                  Annual Care Plan <span className="billing-save-tag">Save 20%</span>
+                </span>
+              </div>
+
               <div className="pricing-grid-cards">
                 {CORE_PLANS.map((plan) => {
                   const currentPrice = isAnnual ? plan.priceAnnual : plan.priceOnetime;
@@ -768,201 +964,7 @@ export default function PricingPage() {
             </div>
           </section>
 
-          {/* 4. DETAILED FEATURE COMPARISON TABLE */}
-          <section className="pricing-comparison-table-section">
-            <div className="pricing-page-container">
-              <div className="comparison-header text-center">
-                <span className="pricing-eyebrow-pill">FULL CAPABILITIES MATRIX</span>
-                <h2 className="comp-title">Compare All Plan Specifications</h2>
-                <p className="comp-sub">
-                  A clear, side-by-side feature comparison to help you choose with confidence.
-                </p>
-              </div>
 
-              <div className="pricing-matrix-card">
-                <div className="table-responsive-wrap">
-                  <table className="pricing-matrix-table">
-                    <thead>
-                      <tr>
-                        <th className="col-feature-spec">Features &amp; Capabilities</th>
-                        <th className="col-plan text-center">
-                          <div className="th-plan-name">Starter App</div>
-                          <div className="th-plan-price">₹4,999</div>
-                        </th>
-                        <th className="col-plan text-center th-highlight">
-                          <div className="th-featured-pill">POPULAR</div>
-                          <div className="th-plan-name">Pro Combo</div>
-                          <div className="th-plan-price">₹8,999</div>
-                        </th>
-                        <th className="col-plan text-center">
-                          <div className="th-plan-name">Enterprise Suite</div>
-                          <div className="th-plan-price">₹14,999</div>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {/* Category: Platforms & Builds */}
-                      <tr className="matrix-cat-row">
-                        <td colSpan={4}>1. Mobile Platforms &amp; Application Builds</td>
-                      </tr>
-                      <tr>
-                        <td>Android Production App (.aab / .apk)</td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                      </tr>
-                      <tr>
-                        <td>iOS Production App (.ipa / TestFlight)</td>
-                        <td className="text-center"><span className="matrix-cross">&times;</span></td>
-                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                      </tr>
-                      <tr>
-                        <td>Tablet &amp; iPad Optimized Viewport</td>
-                        <td className="text-center"><span className="matrix-cross">&times;</span></td>
-                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                      </tr>
-                      <tr>
-                        <td>Supported Stores / Brands Connected</td>
-                        <td className="text-center">1 Store</td>
-                        <td className="text-center highlight-cell">1 Store</td>
-                        <td className="text-center">Up to 3 Stores</td>
-                      </tr>
-
-                      {/* Category: Design & Mobile UX */}
-                      <tr className="matrix-cat-row">
-                        <td colSpan={4}>2. Design, Themes &amp; Native UX</td>
-                      </tr>
-                      <tr>
-                        <td>Curated Mobile Theme Selection</td>
-                        <td className="text-center">Standard Minimalist</td>
-                        <td className="text-center highlight-cell">All 5 Premium Themes</td>
-                        <td className="text-center">All Themes + Bespoke Styling</td>
-                      </tr>
-                      <tr>
-                        <td>Custom Splash Screen &amp; App Icon Design</td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                      </tr>
-                      <tr>
-                        <td>Biometric Login (FaceID &amp; TouchID)</td>
-                        <td className="text-center"><span className="matrix-cross">&times;</span></td>
-                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                      </tr>
-                      <tr>
-                        <td>Offline Caching &amp; Fast Re-engagement</td>
-                        <td className="text-center">Basic</td>
-                        <td className="text-center highlight-cell">Advanced</td>
-                        <td className="text-center">Enterprise Local Sync</td>
-                      </tr>
-
-                      {/* Category: Commerce & Sync */}
-                      <tr className="matrix-cat-row">
-                        <td colSpan={4}>3. E-Commerce &amp; Real-Time Data Sync</td>
-                      </tr>
-                      <tr>
-                        <td>Real-Time Two-Way Product &amp; Order Sync</td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                      </tr>
-                      <tr>
-                        <td>Native In-App 1-Click Fast Checkout</td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                      </tr>
-                      <tr>
-                        <td>Payment Gateways (Razorpay, Stripe, PayPal, COD)</td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                      </tr>
-                      <tr>
-                        <td>Customer Wishlist &amp; Saved Items</td>
-                        <td className="text-center"><span className="matrix-cross">&times;</span></td>
-                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                      </tr>
-
-                      {/* Category: Marketing & Growth */}
-                      <tr className="matrix-cat-row">
-                        <td colSpan={4}>4. Retention, Marketing &amp; Add-Ons</td>
-                      </tr>
-                      <tr>
-                        <td>Push Notification Quota</td>
-                        <td className="text-center">5,000 / mo</td>
-                        <td className="text-center highlight-cell"><strong>Unlimited</strong></td>
-                        <td className="text-center"><strong>Unlimited</strong> + Priority Delivery</td>
-                      </tr>
-                      <tr>
-                        <td>Automated Abandoned Cart Push Triggers</td>
-                        <td className="text-center"><span className="matrix-cross">&times;</span></td>
-                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                      </tr>
-                      <tr>
-                        <td>WhatsApp Direct Customer Support Floating Chat</td>
-                        <td className="text-center"><span className="matrix-cross">&times;</span> (Optional Add-on)</td>
-                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span> Included</td>
-                        <td className="text-center"><span className="matrix-check">✓</span> Included</td>
-                      </tr>
-                      <tr>
-                        <td>Advanced In-App Analytics &amp; User Drop-off</td>
-                        <td className="text-center"><span className="matrix-cross">&times;</span></td>
-                        <td className="text-center highlight-cell">Standard Analytics</td>
-                        <td className="text-center"><span className="matrix-check">✓</span> Full Telemetry Included</td>
-                      </tr>
-
-                      {/* Category: Publishing & Support */}
-                      <tr className="matrix-cat-row">
-                        <td colSpan={4}>5. Publishing, Updates &amp; Support</td>
-                      </tr>
-                      <tr>
-                        <td>App Store &amp; Play Store Submission Guidance</td>
-                        <td className="text-center">Step-by-step Guides</td>
-                        <td className="text-center highlight-cell">Assisted Submission</td>
-                        <td className="text-center"><strong>White-Glove Submission</strong></td>
-                      </tr>
-                      <tr>
-                        <td>Apple &amp; Google Review Approval Guarantee</td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                        <td className="text-center highlight-cell"><span className="matrix-check">✓</span></td>
-                        <td className="text-center"><span className="matrix-check">✓</span></td>
-                      </tr>
-                      <tr>
-                        <td>Support Window &amp; Updates Included</td>
-                        <td className="text-center">3 Months Email Support</td>
-                        <td className="text-center highlight-cell">6 Months Priority Support</td>
-                        <td className="text-center">1 Year Dedicated Manager &amp; SLA</td>
-                      </tr>
-                      <tr>
-                        <td>Action</td>
-                        <td className="text-center">
-                          <Link href={getGetStartedHref("starter-app")} className="btn-matrix-action">
-                            Choose Starter
-                          </Link>
-                        </td>
-                        <td className="text-center highlight-cell">
-                          <Link href={getGetStartedHref("pro-combo")} className="btn-matrix-action is-primary">
-                            Choose Pro Combo
-                          </Link>
-                        </td>
-                        <td className="text-center">
-                          <Link href={getGetStartedHref("enterprise-suite")} className="btn-matrix-action">
-                            Choose Enterprise
-                          </Link>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </section>
 
           {/* 5. APPIFYHUB VS TRADITIONAL DEVELOPMENT */}
           <section className="pricing-comparison-agency-section">

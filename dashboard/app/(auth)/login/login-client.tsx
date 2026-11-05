@@ -32,6 +32,7 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
     message: "The provided credentials are incorrect. Please verify your email and password and try again.",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [shakeCard, setShakeCard] = useState(false);
 
@@ -73,14 +74,22 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
   useEffect(() => {
     let isMounted = true;
     const checkActiveSession = async () => {
-      if (searchParams.get("switch") === "true") return;
+      if (searchParams.get("switch") === "true") {
+        if (isMounted) setIsCheckingSession(false);
+        return;
+      }
 
       try {
         const meRes = await apiClient("/api/auth/me");
         if (meRes?.user && isMounted) {
           navigateByAccountState(meRes.user, queryRedirect);
+          return;
         }
       } catch {}
+
+      if (isMounted) {
+        setIsCheckingSession(false);
+      }
     };
 
     checkActiveSession();
@@ -115,7 +124,9 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
         router.push(queryRedirect || "/dashboard");
         router.refresh();
       }
+      // Keep isSubmitting = true during redirection to prevent flashing back to unsubmitted form
     } catch (err: any) {
+      setIsSubmitting(false);
       const msg = err.message || "The provided credentials are incorrect. Please verify your email and password and try again.";
       setErrorMessage(msg);
 
@@ -137,8 +148,6 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
       // Trigger tactile shake animation on the card
       setShakeCard(true);
       setTimeout(() => setShakeCard(false), 500);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -427,22 +436,31 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
 
                 {/* Submit */}
                 <div className="auth-actions">
-                  <button type="submit" disabled={isSubmitting} className="btn-auth-submit">
-                    <span>{isSubmitting ? "Signing in..." : "Sign In to Dashboard"}</span>
-                    <svg
-                      className="btn-arrow"
-                      width="15"
-                      height="15"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="3" y1="8" x2="13" y2="8" />
-                      <polyline points="9 4 13 8 9 12" />
-                    </svg>
+                  <button type="submit" disabled={isSubmitting} className="btn-auth-submit flex items-center justify-center gap-2">
+                    {isSubmitting ? (
+                      <>
+                        <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0" />
+                        <span>Signing in &amp; redirecting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Sign In to Dashboard</span>
+                        <svg
+                          className="btn-arrow"
+                          width="15"
+                          height="15"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <line x1="3" y1="8" x2="13" y2="8" />
+                          <polyline points="9 4 13 8 9 12" />
+                        </svg>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
