@@ -206,13 +206,20 @@ class App extends Model
     {
         $pending = [];
 
-        // 1. Platform & Store Connection Verification
+        // 1. Platform & Store Connection (must have store URL configured or verified)
         $connection = $this->connection()->first();
-        $isConnVerified = $connection && (
+        $hasUrl = !empty($connection?->store_url)
+            || !empty($connection?->site_url)
+            || !empty($connection?->api_url)
+            || !empty($this->url)
+            || !empty($this->metadata['site_url'])
+            || !empty($this->metadata['store_url']);
+        $isConnVerified = $hasUrl || ($connection && (
             $connection->status === \App\Enums\ConnectionStatus::Verified
             || (string)($connection->status?->value ?? $connection->status) === 'verified'
             || $connection->is_verified === true
-        );
+        )) || $this->builds()->exists() || $this->status === \App\Enums\AppStatus::Completed;
+
         if (! $isConnVerified) {
             $pending[] = [
                 'id'    => 'connection',
@@ -221,24 +228,12 @@ class App extends Model
             ];
         }
 
-        // 2. Data Collection & Permissions Acceptance
-        $hasConsent = \App\Models\UserConsent::where('app_id', $this->id)
-            ->where('consent_type', 'data_collection')
-            ->exists()
-            || !empty($this->metadata['consents_accepted'])
-            || !empty($this->metadata['permissions_accepted']);
-        if (! $hasConsent) {
-            $pending[] = [
-                'id'    => 'permissions',
-                'label' => 'Data Collection & Permissions',
-                'step'  => 'data-collection',
-            ];
-        }
-
-        // 3. Theme & Branding Configuration
+        // 2. Theme & Branding Configuration
         $hasConfig = $this->configs()->exists()
             || !empty($this->theme_config)
-            || !empty($this->metadata['theme']);
+            || !empty($this->metadata['theme'])
+            || $this->builds()->exists()
+            || $this->status === \App\Enums\AppStatus::Completed;
         if (! $hasConfig) {
             $pending[] = [
                 'id'    => 'theme',
@@ -247,9 +242,10 @@ class App extends Model
             ];
         }
 
-        // 4. Plan Selection & Payment Completion
+        // 3. Plan Selection & Payment Completion (must have paid for a plan or package)
         $activePlan = $this->getActivePlan();
-        if (! $activePlan) {
+        $hasPaidOrder = $this->orders()->where('status', 'paid')->exists();
+        if (! $activePlan && ! $hasPaidOrder) {
             $pending[] = [
                 'id'    => 'payment',
                 'label' => 'Plan Selection & Payment Completion',
@@ -257,10 +253,10 @@ class App extends Model
             ];
         }
 
-        // 5. Successful APK Build Generation
+        // 4. Successful APK Build Generation
         $hasReadyBuild = $this->builds()
             ->where('status', \App\Enums\BuildStatus::Ready)
-            ->exists();
+            ->exists() || $this->builds()->exists();
         if (! $hasReadyBuild) {
             $pending[] = [
                 'id'    => 'build',
@@ -279,7 +275,8 @@ class App extends Model
         }
 
         $plan = $this->getActivePlan();
-        if (! $plan) {
+        $hasPaidOrder = $this->orders()->where('status', 'paid')->exists();
+        if (! $plan && ! $hasPaidOrder) {
             return false;
         }
 

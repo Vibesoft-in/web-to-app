@@ -262,16 +262,31 @@ function UserDashboardContent() {
     if (!appItem) return false;
     const statusStr = (typeof appItem.status === "string" ? appItem.status : appItem.status?.value || "").toLowerCase();
     const stepStr = (typeof appItem.setup_step === "string" ? appItem.setup_step : appItem.setup_step?.value || "").toLowerCase();
+    const builds = appItem.builds || [];
+    const hasBuild = builds.length > 0;
+    const hasPaidPlan = Boolean(
+      (appItem.active_plan && appItem.active_plan.id !== "free" && appItem.active_plan.name !== "Free Plan" && appItem.active_plan.name !== "None") ||
+      appItem.can_apk === true
+    );
 
-    // If explicitly completed or live or active
+    // If explicitly completed or live or active in database and has builds
     if (
-      Boolean(appItem.is_completed) ||
-      statusStr === "completed" ||
-      statusStr === "live" ||
-      statusStr === "active"
+      (Boolean(appItem.is_completed) || statusStr === "completed" || statusStr === "live" || statusStr === "active") &&
+      hasBuild
     ) {
       return false;
     }
+
+    // If the app has builds and has a paid plan, it is an active/completed app
+    if (hasBuild && hasPaidPlan) {
+      return false;
+    }
+
+    // If the app has builds
+    if (hasBuild) {
+      return false;
+    }
+
     // If the app has reached or completed step 10 (build)
     if (
       stepStr === "build" ||
@@ -280,11 +295,7 @@ function UserDashboardContent() {
     ) {
       return false;
     }
-    // If the app has any builds
-    const builds = appItem.builds || [];
-    if (builds.length > 0) {
-      return false;
-    }
+
     // Otherwise it is an in-progress draft (steps 1 through 9)
     return true;
   };
@@ -1673,12 +1684,15 @@ function UserDashboardContent() {
                       const appLatestBuild = appReadyBuild || appBuilds[0];
                       const appTargetBuildId = appLatestBuild?.id;
                       const isDraft = isAppDraft(appItem);
-                      const currentStepKey = appItem.setup_step || "platform";
+                      const pendingStepObj = Array.isArray(appItem.pending_steps) && appItem.pending_steps.length > 0
+                        ? appItem.pending_steps[0]
+                        : null;
+                      const currentStepKey = pendingStepObj?.step || appItem.setup_step || "platform";
                       const stepInfo = SETUP_STEP_DETAILS[currentStepKey] || {
                         stepNumber: 1,
-                        title: "Platform Selection",
+                        title: pendingStepObj?.label || "Platform Selection",
                         description: "Configure your store platform and credentials.",
-                        nextAction: "Select Platform",
+                        nextAction: pendingStepObj?.label || "Select Platform",
                       };
                       const isAppRebuilding = Boolean(rebuildingAppUlids[appItem.ulid]);
                       const isStep10OrBuild = stepInfo.stepNumber >= 10 || currentStepKey === "build";
@@ -1736,7 +1750,7 @@ function UserDashboardContent() {
                                         </span>
                                       )}
                                       <span className="px-2 py-0.5 rounded-full text-[9.5px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                        {appItem.status || "Completed"}
+                                        {appItem.status && appItem.status !== "draft" ? appItem.status : "Active"}
                                       </span>
                                     </div>
                                   )}
@@ -1860,7 +1874,7 @@ function UserDashboardContent() {
                                 </button>
 
                                 <Link
-                                  href={`/dashboard/apps/${appItem.ulid}/setup/${appItem.setup_step || "platform"}`}
+                                  href={`/dashboard/apps/${appItem.ulid}/setup/${currentStepKey}`}
                                   onClick={(e) => e.stopPropagation()}
                                   className="col-span-5 py-2 px-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs text-center active:scale-98 cursor-pointer truncate"
                                 >
@@ -1880,14 +1894,18 @@ function UserDashboardContent() {
                             ) : (
                               <div className="space-y-2">
                                 {(() => {
+                                  const hasPaidPlan = Boolean(
+                                    (appPlan && appPlan.id !== "free" && appPlan.name !== "Free Plan" && appPlan.name !== "None") ||
+                                    appItem.active_plan ||
+                                    appItem.can_apk === true
+                                  );
+                                  const hasReadyBuild = Boolean(
+                                    appBuilds.length > 0 && appTargetBuildId
+                                  );
                                   const isApkDownloadUnlocked = Boolean(
-                                    appItem.can_apk === true &&
-                                    (!appItem.pending_steps || appItem.pending_steps.length === 0) &&
-                                    appItem.is_completed !== false &&
-                                    appItem.is_draft !== true &&
-                                    (appItem.status === "completed" || appItem.status === "live" || appItem.status === "active") &&
-                                    appBuilds.length > 0 &&
-                                    appTargetBuildId
+                                    hasPaidPlan &&
+                                    hasReadyBuild &&
+                                    (appItem.can_apk !== false)
                                   );
 
                                   return (
@@ -1906,17 +1924,26 @@ function UserDashboardContent() {
                                               <Download className="w-3.5 h-3.5 flex-shrink-0" />
                                               <span className="truncate">Download APK</span>
                                             </a>
-                                          ) : (
-                                            <button
-                                              type="button"
-                                              disabled
+                                          ) : !hasPaidPlan ? (
+                                            <Link
+                                              href={`/dashboard/apps/${appItem.ulid}/setup/payment`}
                                               onClick={(e) => e.stopPropagation()}
-                                              className="py-2 px-2 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80 truncate"
-                                              title="Complete all setup steps to enable APK download"
+                                              className="py-2 px-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs truncate"
+                                              title="Choose a plan or package to unlock APK download"
                                             >
-                                              <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-                                              <span className="truncate">APK Locked</span>
-                                            </button>
+                                              <Lock className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                                              <span className="truncate">Plan Required</span>
+                                            </Link>
+                                          ) : (
+                                            <Link
+                                              href={`/dashboard/apps/${appItem.ulid}/setup/${currentStepKey}`}
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="py-2 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs truncate"
+                                              title="Complete setup steps to unlock APK download"
+                                            >
+                                              <Lock className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                                              <span className="truncate">Setup Incomplete</span>
+                                            </Link>
                                           )}
 
                                           <Link
@@ -1938,19 +1965,28 @@ function UserDashboardContent() {
                                             className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5"
                                           >
                                             <Download className="w-3.5 h-3.5" />
-                                            <span>Download APK (v${appLatestBuild?.version_code || 1})</span>
+                                            <span>Download APK (v{appLatestBuild?.version_code || 1}.0.0)</span>
                                           </a>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            disabled
+                                        ) : !hasPaidPlan ? (
+                                          <Link
+                                            href={`/dashboard/apps/${appItem.ulid}/setup/payment`}
                                             onClick={(e) => e.stopPropagation()}
-                                            className="w-full py-2 px-3 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80"
-                                            title="Complete all setup steps to enable APK download"
+                                            className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                                            title="Choose a plan or package to unlock APK download"
                                           >
-                                            <Lock className="w-3.5 h-3.5" />
+                                            <Lock className="w-3.5 h-3.5 text-amber-600" />
+                                            <span>Download APK (Locked &mdash; Plan Payment Required)</span>
+                                          </Link>
+                                        ) : (
+                                          <Link
+                                            href={`/dashboard/apps/${appItem.ulid}/setup/${currentStepKey}`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                                            title="Complete setup steps to unlock APK download"
+                                          >
+                                            <Lock className="w-3.5 h-3.5 text-slate-500" />
                                             <span>Download APK (Locked &mdash; Setup Incomplete)</span>
-                                          </button>
+                                          </Link>
                                         )
                                       )}
                                     </>
@@ -2006,12 +2042,15 @@ function UserDashboardContent() {
                     const appLatestBuild = appReadyBuild || appBuilds[0];
                     const appTargetBuildId = appLatestBuild?.id;
                     const isDraft = isAppDraft(appItem);
-                    const currentStepKey = appItem.setup_step || "platform";
+                    const pendingStepObj = Array.isArray(appItem.pending_steps) && appItem.pending_steps.length > 0
+                      ? appItem.pending_steps[0]
+                      : null;
+                    const currentStepKey = pendingStepObj?.step || appItem.setup_step || "platform";
                     const stepInfo = SETUP_STEP_DETAILS[currentStepKey] || {
                       stepNumber: 1,
-                      title: "Platform Selection",
+                      title: pendingStepObj?.label || "Platform Selection",
                       description: "Configure your store platform and credentials.",
-                      nextAction: "Select Platform",
+                      nextAction: pendingStepObj?.label || "Select Platform",
                     };
                     const isAppRebuilding = Boolean(rebuildingAppUlids[appItem.ulid]);
                     const isStep10OrBuild = stepInfo.stepNumber >= 10 || currentStepKey === "build";
@@ -2051,7 +2090,7 @@ function UserDashboardContent() {
                                 </span>
                               ) : (
                                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                  Completed
+                                  {appItem.status && appItem.status !== "draft" ? appItem.status : "Active"}
                                 </span>
                               )}
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#EFEAE2] text-[#78593D]">
@@ -2080,7 +2119,7 @@ function UserDashboardContent() {
                                 <span>View Details</span>
                               </button>
                               <Link
-                                href={`/dashboard/apps/${appItem.ulid}/setup/${appItem.setup_step || "platform"}`}
+                                href={`/dashboard/apps/${appItem.ulid}/setup/${currentStepKey}`}
                                 onClick={(e) => e.stopPropagation()}
                                 className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-50 to-[#FAF7F2] border border-amber-300/80 hover:border-amber-400 hover:shadow-xs transition group"
                                 title="Click to resume setup"
@@ -2118,14 +2157,18 @@ function UserDashboardContent() {
                           ) : (
                             <>
                               {(() => {
+                                const hasPaidPlan = Boolean(
+                                  (appPlan && appPlan.id !== "free" && appPlan.name !== "Free Plan" && appPlan.name !== "None") ||
+                                  appItem.active_plan ||
+                                  appItem.can_apk === true
+                                );
+                                const hasReadyBuild = Boolean(
+                                  appBuilds.length > 0 && appTargetBuildId
+                                );
                                 const isListApkUnlocked = Boolean(
-                                  appItem.can_apk === true &&
-                                  (!appItem.pending_steps || appItem.pending_steps.length === 0) &&
-                                  appItem.is_completed !== false &&
-                                  appItem.is_draft !== true &&
-                                  (appItem.status === "completed" || appItem.status === "live" || appItem.status === "active") &&
-                                  appBuilds.length > 0 &&
-                                  appTargetBuildId
+                                  hasPaidPlan &&
+                                  hasReadyBuild &&
+                                  (appItem.can_apk !== false)
                                 );
 
                                 if (isListApkUnlocked) {
@@ -2134,7 +2177,7 @@ function UserDashboardContent() {
                                       href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
                                       download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
                                       onClick={(e) => e.stopPropagation()}
-                                      className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                                      className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                                     >
                                       <Download className="w-3.5 h-3.5" />
                                       <span>Download APK</span>
@@ -2142,17 +2185,30 @@ function UserDashboardContent() {
                                   );
                                 }
 
+                                if (!hasPaidPlan) {
+                                  return (
+                                    <Link
+                                      href={`/dashboard/apps/${appItem.ulid}/setup/payment`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                      title="Choose a plan or package to unlock APK download"
+                                    >
+                                      <Lock className="w-3.5 h-3.5 text-amber-600" />
+                                      <span>Plan Required</span>
+                                    </Link>
+                                  );
+                                }
+
                                 return (
-                                  <button
-                                    type="button"
-                                    disabled
+                                  <Link
+                                    href={`/dashboard/apps/${appItem.ulid}/setup/${currentStepKey}`}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="px-4 py-2 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-not-allowed opacity-80"
-                                    title="Complete all setup steps to enable APK download"
+                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                    title="Complete setup steps to unlock APK download"
                                   >
-                                    <Lock className="w-3.5 h-3.5" />
-                                    <span>APK Locked</span>
-                                  </button>
+                                    <Lock className="w-3.5 h-3.5 text-slate-500" />
+                                    <span>Setup Incomplete</span>
+                                  </Link>
                                 );
                               })()}
                               {appHasAdmin && (

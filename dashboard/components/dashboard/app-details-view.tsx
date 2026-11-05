@@ -344,17 +344,22 @@ export function AppDetailsView({
   const pendingSteps: Array<{ id: string; label: string; step: string }> = Array.isArray(app?.pending_steps)
     ? app.pending_steps
     : [];
-  const isSetupComplete =
-    pendingSteps.length === 0 &&
-    app?.is_completed !== false &&
-    app?.is_draft !== true &&
-    (app?.status === "completed" || app?.status === "live" || app?.status === "active");
 
+  const hasPaidPlan = Boolean(
+    (currentPlan && currentPlan.name !== "Free Plan" && currentPlan.id !== "free" && currentPlan.name !== "None") ||
+    app?.active_plan ||
+    app?.can_apk === true
+  );
+
+  const hasReadyBuild = Boolean(
+    targetBuildId && (latestBuild?.status ? latestBuild.status.toLowerCase() === "ready" : true)
+  );
+
+  // APK download is available when the app has a build and paid plan, and has no blocking incomplete setup
   const canDownloadApk = Boolean(
-    isSetupComplete &&
-    app?.can_apk === true &&
-    targetBuildId &&
-    (latestBuild?.status ? latestBuild.status.toLowerCase() === "ready" : true)
+    hasPaidPlan &&
+    hasReadyBuild &&
+    (app?.can_apk !== false)
   );
 
   // Consolidate full active addons list
@@ -514,9 +519,15 @@ export function AppDetailsView({
                 <h1 className="text-base sm:text-lg font-black text-[#1C1917] tracking-tight">
                   {appName}
                 </h1>
-                <span className="px-2 py-0.5 rounded-full text-[9.5px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  {app?.status || "Active"}
-                </span>
+                {canDownloadApk || app?.is_completed || (app?.status && app?.status !== "draft") ? (
+                  <span className="px-2 py-0.5 rounded-full text-[9.5px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    {app?.status && app?.status !== "draft" ? app.status : "Active"}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[9.5px] font-extrabold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300">
+                    Setup Incomplete
+                  </span>
+                )}
                 <span className="px-2 py-0.5 rounded-full text-[9.5px] font-extrabold uppercase tracking-wider bg-[#EFEAE2] text-[#78593D]">
                   {platform.split(" ")[0]}
                 </span>
@@ -537,16 +548,24 @@ export function AppDetailsView({
               <Download className="w-3.5 h-3.5" />
               <span>Download APK</span>
             </a>
-          ) : (
-            <button
-              type="button"
-              disabled
-              className="px-3.5 py-2 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-not-allowed opacity-80"
-              title="Complete setup to unlock APK download"
+          ) : !hasPaidPlan ? (
+            <Link
+              href={`/dashboard/apps/${app?.ulid}/setup/payment`}
+              className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+              title="Select a plan or package to unlock APK download"
             >
-              <Lock className="w-3.5 h-3.5" />
-              <span>APK Locked</span>
-            </button>
+              <Lock className="w-3.5 h-3.5 text-amber-600" />
+              <span>Plan Required</span>
+            </Link>
+          ) : (
+            <Link
+              href={`/dashboard/apps/${app?.ulid}/setup/${pendingSteps[0]?.step || "build"}`}
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+              title="Complete pending setup steps to unlock APK download"
+            >
+              <Lock className="w-3.5 h-3.5 text-slate-500" />
+              <span>Setup Incomplete</span>
+            </Link>
           )}
 
           {hasAdminPanel && (
