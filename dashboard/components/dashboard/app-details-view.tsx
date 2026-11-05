@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DeleteAppModal } from "@/components/dashboard/delete-app-modal";
 import Link from "next/link";
@@ -236,10 +236,22 @@ export function AppDetailsView({
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Navigation sidebar state
-  const [activeTab, setActiveTab] = useState<
-    "overview" | "billing" | "downloads" | "addons" | "app_traffic" | "web_traffic" | "settings"
-  >("overview");
+  // Navigation sidebar state & How-It-Works stage transitions (click-driven)
+  const TAB_KEYS = [
+    "overview",
+    "billing",
+    "downloads",
+    "addons",
+    "app_traffic",
+    "web_traffic",
+    "settings",
+  ] as const;
+  type TabKey = (typeof TAB_KEYS)[number];
+
+  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [direction, setDirection] = useState<"down" | "up">("down");
+  const [exitingTab, setExitingTab] = useState<TabKey | null>(null);
+  const isTransitioningRef = useRef(false);
 
   useEffect(() => {
     const sectionParam = searchParams.get("section") || searchParams.get("tab");
@@ -247,20 +259,96 @@ export function AppDetailsView({
       sectionParam &&
       ["overview", "billing", "downloads", "addons", "app-addons-section", "app_traffic", "web_traffic", "settings"].includes(sectionParam)
     ) {
-      const resolvedTab = sectionParam === "app-addons-section" ? "addons" : sectionParam;
+      const resolvedTab = (sectionParam === "app-addons-section" ? "addons" : sectionParam) as TabKey;
       if (activeTab !== resolvedTab) {
-        setActiveTab(resolvedTab as any);
+        const currentIdx = TAB_KEYS.indexOf(activeTab);
+        const nextIdx = TAB_KEYS.indexOf(resolvedTab);
+        setDirection(nextIdx > currentIdx ? "down" : "up");
+        setExitingTab(activeTab);
+        setActiveTab(resolvedTab);
+        setTimeout(() => {
+          setExitingTab(null);
+        }, 290);
       }
     } else if (!sectionParam && activeTab !== "overview") {
+      setDirection("up");
+      setExitingTab(activeTab);
       setActiveTab("overview");
+      setTimeout(() => {
+        setExitingTab(null);
+      }, 290);
     }
   }, [searchParams, activeTab]);
 
-  const handleSelectTab = (tabId: "overview" | "billing" | "downloads" | "addons" | "app_traffic" | "web_traffic" | "settings") => {
-    setActiveTab(tabId);
-    if (app?.ulid || app?.id) {
-      router.push(`/dashboard?app=${app.ulid || app.id}&section=${tabId}`);
+  const handleSelectTab = useCallback(
+    (tabId: TabKey) => {
+      if (tabId === activeTab || isTransitioningRef.current) return;
+
+      const currentIdx = TAB_KEYS.indexOf(activeTab);
+      const nextIdx = TAB_KEYS.indexOf(tabId);
+      const dir: "down" | "up" = nextIdx > currentIdx ? "down" : "up";
+
+      isTransitioningRef.current = true;
+      setDirection(dir);
+      setExitingTab(activeTab);
+      setActiveTab(tabId);
+
+      if (app?.ulid || app?.id) {
+        router.push(`/dashboard?app=${app.ulid || app.id}&section=${tabId}`);
+      }
+
+      setTimeout(() => {
+        setExitingTab(null);
+        isTransitioningRef.current = false;
+      }, 290);
+    },
+    [activeTab, app?.ulid, app?.id, router]
+  );
+
+  const getPanelClass = (tabKey: TabKey) => {
+    const isActive = activeTab === tabKey;
+    const isExiting = exitingTab === tabKey;
+
+    if (isActive) {
+      return "app-stage-panel is-active";
     }
+    if (isExiting) {
+      return direction === "down"
+        ? "app-stage-panel is-exiting-up"
+        : "app-stage-panel is-exiting-down";
+    }
+    return "app-stage-panel";
+  };
+
+  const getPanelStyle = (tabKey: TabKey) => {
+    const isActive = activeTab === tabKey;
+    const isExiting = exitingTab === tabKey;
+
+    if (isActive) {
+      return {
+        visibility: "visible" as const,
+        opacity: 1,
+        pointerEvents: "auto" as const,
+        transform: "translateY(0)",
+        zIndex: 2,
+      };
+    }
+    if (isExiting) {
+      return {
+        visibility: "hidden" as const,
+        opacity: 0,
+        pointerEvents: "none" as const,
+        transform: direction === "down" ? "translateY(-16px)" : "translateY(16px)",
+        zIndex: 1,
+      };
+    }
+    return {
+      visibility: "hidden" as const,
+      opacity: 0,
+      pointerEvents: "none" as const,
+      transform: "translateY(16px)",
+      zIndex: 0,
+    };
   };
 
   // Add-ons state
@@ -622,18 +710,18 @@ export function AppDetailsView({
         </div>
       )}
 
-      {/* ── TWO-COLUMN APPLICATION MANAGEMENT LAYOUT ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* ── LEFT SIDEBAR NAVIGATION (STICKY ON DESKTOP) ── */}
-        <aside className="lg:col-span-3 space-y-4 lg:sticky lg:top-6 self-start max-h-[calc(100vh-2rem)] overflow-y-auto scrollbar-none">
-          <div className="bg-white border border-[#EBE6DF] rounded-3xl p-3 sm:p-4 shadow-sm">
-            <div className="px-3 py-2 mb-2 border-b border-[#EBE6DF]">
+      {/* ── TWO-COLUMN APPLICATION MANAGEMENT LAYOUT (HOW-IT-WORKS STAGE ARCHITECTURE) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        {/* ── LEFT SIDEBAR NAVIGATION ── */}
+        <aside className="lg:col-span-3 flex flex-col justify-between gap-4 lg:h-[calc(100vh-205px)] lg:min-h-[600px] lg:max-h-[880px]">
+          <div className="bg-white border border-[#EBE6DF] rounded-3xl p-3 sm:p-4 shadow-sm flex-1 flex flex-col overflow-hidden">
+            <div className="px-3 py-2 mb-2 border-b border-[#EBE6DF] flex-shrink-0">
               <span className="text-[10px] font-black uppercase tracking-wider text-[#7E756B]">
                 App Management
               </span>
             </div>
 
-            <nav className="space-y-1">
+            <nav className="space-y-1 overflow-y-auto pr-0.5 flex-1 scrollbar-thin">
               {sidebarNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -680,7 +768,7 @@ export function AppDetailsView({
           </div>
 
           {/* Plan Summary Card in Sidebar */}
-          <div className="bg-[#FAF7F2] border border-[#EBE6DF] rounded-3xl p-4 sm:p-5 text-xs space-y-2.5">
+          <div className="bg-[#FAF7F2] border border-[#EBE6DF] rounded-3xl p-4 sm:p-5 text-xs space-y-2.5 flex-shrink-0">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#78593D]">
                 Subscription Plan
@@ -712,13 +800,12 @@ export function AppDetailsView({
           </div>
         </aside>
 
-        {/* ── RIGHT CONTENT PANEL ── */}
-        <section className="lg:col-span-9 space-y-6">
-          {/* TAB 1: OVERVIEW */}
-          {activeTab === "overview" && (
-            <div className="space-y-6 animate-fadeIn">
-              {/* Basic App Details Card */}
-              <div className="bg-white border border-[#EBE6DF] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+        {/* ── RIGHT SINGLE STAGE CONTENT WINDOW (HOW-IT-WORKS ARCHITECTURE) ── */}
+        <section className="lg:col-span-9 h-full min-h-[580px]">
+          <div className="app-stage-window" id="appDetailsStageWindow" aria-live="polite">
+            {/* TAB 1: OVERVIEW */}
+            <article className={getPanelClass("overview")} style={getPanelStyle("overview")}>
+              <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#EBE6DF]">
                   <div>
                     <h2 className="text-lg font-black text-[#1C1917]">App Information &amp; Specs</h2>
@@ -825,13 +912,11 @@ export function AppDetailsView({
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            </article>
 
-          {/* TAB: ADD-ONS (Clicked from Left Sidebar) */}
-          {activeTab === "addons" && (
-            <div className="space-y-6 animate-fadeIn">
-              <div id="app-addons-section" className="bg-white border border-[#EBE6DF] rounded-3xl p-6 sm:p-8 shadow-sm space-y-5">
+            {/* TAB: ADD-ONS (Clicked from Left Sidebar) */}
+            <article className={getPanelClass("addons")} style={getPanelStyle("addons")}>
+              <div id="app-addons-section" className="space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#EBE6DF]">
                   <div>
                     <h2 className="text-lg font-black text-[#1C1917] flex items-center gap-2">
@@ -1001,12 +1086,11 @@ export function AppDetailsView({
                   })}
                 </div>
               </div>
-            </div>
-          )}
+            </article>
 
-          {/* TAB 2: BILLING & INVOICES */}
-          {activeTab === "billing" && (
-            <div className="space-y-6 animate-fadeIn">
+            {/* TAB 2: BILLING & INVOICES */}
+            <article className={getPanelClass("billing")} style={getPanelStyle("billing")}>
+              <div className="space-y-6">
               {/* Billing KPIs for this App */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-white border border-[#EBE6DF] rounded-3xl p-5 shadow-sm">
@@ -1132,11 +1216,11 @@ export function AppDetailsView({
                 )}
               </div>
             </div>
-          )}
+          </article>
 
-          {/* TAB 3: DOWNLOADS & BUILDS */}
-          {activeTab === "downloads" && (
-            <div className="space-y-6 animate-fadeIn">
+            {/* TAB 3: DOWNLOADS & BUILDS */}
+            <article className={getPanelClass("downloads")} style={getPanelStyle("downloads")}>
+              <div className="space-y-6">
               <div className="bg-white border border-[#EBE6DF] rounded-3xl p-6 sm:p-8 shadow-sm space-y-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#EBE6DF]">
                   <div>
@@ -1310,11 +1394,11 @@ export function AppDetailsView({
                 </div>
               </div>
             </div>
-          )}
+          </article>
 
-          {/* TAB 4: APP TRAFFIC (Real analytics with authentic empty states, no fake numbers) */}
-          {activeTab === "app_traffic" && (
-            <div className="space-y-6 animate-fadeIn">
+            {/* TAB 5: APP TRAFFIC */}
+            <article className={getPanelClass("app_traffic")} style={getPanelStyle("app_traffic")}>
+              <div className="space-y-6">
               <div className="bg-white border border-[#EBE6DF] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
                 <div>
                   <h2 className="text-lg font-black text-[#1C1917]">App Traffic &amp; Installation Telemetry</h2>
@@ -1376,11 +1460,11 @@ export function AppDetailsView({
                 </div>
               </div>
             </div>
-          )}
+          </article>
 
-          {/* TAB 5: WEB TRAFFIC */}
-          {activeTab === "web_traffic" && (
-            <div className="space-y-6 animate-fadeIn">
+            {/* TAB 6: WEB TRAFFIC */}
+            <article className={getPanelClass("web_traffic")} style={getPanelStyle("web_traffic")}>
+              <div className="space-y-6">
               <div className="bg-white border border-[#EBE6DF] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
                 <div>
                   <h2 className="text-lg font-black text-[#1C1917]">Store Website Traffic &amp; API Health</h2>
@@ -1446,11 +1530,11 @@ export function AppDetailsView({
                 </div>
               </div>
             </div>
-          )}
+          </article>
 
-          {/* TAB 6: SETTINGS & DANGER ZONE */}
-          {activeTab === "settings" && (
-            <div className="space-y-6 animate-fadeIn">
+            {/* TAB 7: SETTINGS & DANGER ZONE */}
+            <article className={getPanelClass("settings")} style={getPanelStyle("settings")}>
+              <div className="space-y-6">
               <div className="bg-white border border-[#EBE6DF] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
                 <div>
                   <h2 className="text-lg font-black text-[#1C1917]">Application Configuration &amp; Settings</h2>
@@ -1520,7 +1604,8 @@ export function AppDetailsView({
                 </div>
               </div>
             </div>
-          )}
+          </article>
+          </div>
         </section>
       </div>
 
