@@ -165,14 +165,24 @@ class BuildController extends Controller
      */
     public function downloadFile(string $ulid, string $id, Request $request): BinaryFileResponse|JsonResponse
     {
-        // Validates signature automatically when routed with 'signed' middleware
+        // 1. Authenticate user and enforce tenant ownership
+        $user = $request->user() ?? auth('sanctum')->user();
         $app = App::withoutTenantScope()->where('ulid', $ulid)->firstOrFail();
+        if ($user && $user->tenant_id && $app->tenant_id !== $user->tenant_id) {
+            return response()->json([
+                'error' => [
+                    'code'    => 'FORBIDDEN',
+                    'message' => 'You do not have permission to download builds for this application.',
+                ],
+            ], 403);
+        }
+
         $build = Build::withoutTenantScope()
             ->where('app_id', $app->id)
             ->where('id', $id)
             ->firstOrFail();
 
-        // Validate mandatory setup completion
+        // 2. Validate mandatory setup completion strictly
         $pendingSteps = $app->getPendingSetupSteps();
         if (! empty($pendingSteps)) {
             return response()->json([

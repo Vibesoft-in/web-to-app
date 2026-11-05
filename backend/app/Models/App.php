@@ -63,11 +63,7 @@ class App extends Model
 
     public function isCompleted(): bool
     {
-        return in_array($this->status?->value ?? (string) $this->status, ['completed', 'live', 'active'], true)
-            || ($this->setup_step?->value ?? (string) $this->setup_step) === 'build'
-            || ($this->setup_step?->value ?? (string) $this->setup_step) === 'completed'
-            || $this->builds()->where('status', \App\Enums\BuildStatus::Ready)->exists()
-            || $this->builds()->exists();
+        return empty($this->getPendingSetupSteps());
     }
 
     public function markCompleted(): void
@@ -212,7 +208,12 @@ class App extends Model
 
         // 1. Platform & Store Connection Verification
         $connection = $this->connection()->first();
-        if (! $connection || $connection->status !== \App\Enums\ConnectionStatus::Verified) {
+        $isConnVerified = $connection && (
+            $connection->status === \App\Enums\ConnectionStatus::Verified
+            || (string)($connection->status?->value ?? $connection->status) === 'verified'
+            || $connection->is_verified === true
+        );
+        if (! $isConnVerified) {
             $pending[] = [
                 'id'    => 'connection',
                 'label' => 'Store & Platform Connection',
@@ -223,8 +224,10 @@ class App extends Model
         // 2. Data Collection & Permissions Acceptance
         $hasConsent = \App\Models\UserConsent::where('app_id', $this->id)
             ->where('consent_type', 'data_collection')
-            ->exists();
-        if (! $hasConsent && $this->setup_step->order() < \App\Enums\SetupStep::Theme->order()) {
+            ->exists()
+            || !empty($this->metadata['consents_accepted'])
+            || !empty($this->metadata['permissions_accepted']);
+        if (! $hasConsent) {
             $pending[] = [
                 'id'    => 'permissions',
                 'label' => 'Data Collection & Permissions',
@@ -233,8 +236,10 @@ class App extends Model
         }
 
         // 3. Theme & Branding Configuration
-        $hasConfig = $this->configs()->exists();
-        if (! $hasConfig || $this->setup_step->order() < \App\Enums\SetupStep::Preview->order()) {
+        $hasConfig = $this->configs()->exists()
+            || !empty($this->theme_config)
+            || !empty($this->metadata['theme']);
+        if (! $hasConfig) {
             $pending[] = [
                 'id'    => 'theme',
                 'label' => 'Theme & Branding Configuration',

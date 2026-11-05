@@ -1859,83 +1859,83 @@ function UserDashboardContent() {
                               </div>
                             ) : (
                               <div className="space-y-2">
-                                {/* Row 1: Primary Action(s) */}
-                                {appHasAdmin ? (
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {appBuilds.length > 0 && appTargetBuildId && appItem.can_apk !== false ? (
-                                      <a
-                                        href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
-                                        download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="py-2 px-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5 truncate"
-                                        title={`Download APK (v${appLatestBuild?.version_code || 1})`}
-                                      >
-                                        <Download className="w-3.5 h-3.5 flex-shrink-0" />
-                                        <span className="truncate">Download APK</span>
-                                      </a>
-                                    ) : appItem.can_apk === false ? (
-                                      <button
-                                        type="button"
-                                        disabled
-                                        className="py-2 px-2 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80 truncate"
-                                        title="Complete all setup steps to enable APK download"
-                                      >
-                                        <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-                                        <span className="truncate">Locked</span>
-                                      </button>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRebuildForApp(appItem)}
-                                        disabled={isAppRebuilding}
-                                        className="py-2 px-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer truncate"
-                                      >
-                                        <RefreshCw className={`w-3.5 h-3.5 flex-shrink-0 ${isAppRebuilding ? "animate-spin" : ""}`} />
-                                        <span className="truncate">Compile APK</span>
-                                      </button>
-                                    )}
+                                {(() => {
+                                  const isApkDownloadUnlocked = Boolean(
+                                    appItem.can_apk === true &&
+                                    (!appItem.pending_steps || appItem.pending_steps.length === 0) &&
+                                    appItem.is_completed !== false &&
+                                    appItem.is_draft !== true &&
+                                    (appItem.status === "completed" || appItem.status === "live" || appItem.status === "active") &&
+                                    appBuilds.length > 0 &&
+                                    appTargetBuildId
+                                  );
 
-                                    <Link
-                                      href={`/dashboard/apps/${appItem.ulid}/admin`}
-                                      className="py-2 px-2 bg-gradient-to-r from-[#4A3B32] to-[#2E241E] hover:from-[#3D2F27] hover:to-[#221A15] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98 border border-[#3D2F27] truncate"
-                                      title="Open App Admin Panel"
-                                    >
-                                      <LayoutDashboard className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
-                                      <span className="truncate">Admin Panel</span>
-                                    </Link>
-                                  </div>
-                                ) : (
-                                  appBuilds.length > 0 && appTargetBuildId && appItem.can_apk !== false ? (
-                                    <a
-                                      href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
-                                      download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
-                                      className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5"
-                                    >
-                                      <Download className="w-3.5 h-3.5" />
-                                      <span>Download APK (v${appLatestBuild?.version_code || 1})</span>
-                                    </a>
-                                  ) : appItem.can_apk === false ? (
-                                    <button
-                                      type="button"
-                                      disabled
-                                      className="w-full py-2 px-3 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80"
-                                      title="Complete all setup steps to enable APK download"
-                                    >
-                                      <Lock className="w-3.5 h-3.5" />
-                                      <span>Download APK (Locked &mdash; Setup Incomplete)</span>
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRebuildForApp(appItem)}
-                                      disabled={isAppRebuilding}
-                                      className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
-                                    >
-                                      <RefreshCw className={`w-3.5 h-3.5 ${isAppRebuilding ? "animate-spin" : ""}`} />
-                                      <span>Compile APK</span>
-                                    </button>
-                                  )
-                                )}
+                                  return (
+                                    <>
+                                      {/* Row 1: Primary Action(s) */}
+                                      {appHasAdmin ? (
+                                        <div className="grid grid-cols-2 gap-2">
+                                          {isApkDownloadUnlocked ? (
+                                            <a
+                                              href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
+                                              download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="py-2 px-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5 truncate"
+                                              title={`Download APK (v${appLatestBuild?.version_code || 1})`}
+                                            >
+                                              <Download className="w-3.5 h-3.5 flex-shrink-0" />
+                                              <span className="truncate">Download APK</span>
+                                            </a>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              disabled
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="py-2 px-2 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80 truncate"
+                                              title="Complete all setup steps to enable APK download"
+                                            >
+                                              <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+                                              <span className="truncate">APK Locked</span>
+                                            </button>
+                                          )}
+
+                                          <Link
+                                            href={`/dashboard/apps/${appItem.ulid}/admin`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="py-2 px-2 bg-gradient-to-r from-[#4A3B32] to-[#2E241E] hover:from-[#3D2F27] hover:to-[#221A15] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98 border border-[#3D2F27] truncate"
+                                            title="Open App Admin Panel"
+                                          >
+                                            <LayoutDashboard className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
+                                            <span className="truncate">Admin Panel</span>
+                                          </Link>
+                                        </div>
+                                      ) : (
+                                        isApkDownloadUnlocked ? (
+                                          <a
+                                            href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
+                                            download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5"
+                                          >
+                                            <Download className="w-3.5 h-3.5" />
+                                            <span>Download APK (v${appLatestBuild?.version_code || 1})</span>
+                                          </a>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            disabled
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="w-full py-2 px-3 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80"
+                                            title="Complete all setup steps to enable APK download"
+                                          >
+                                            <Lock className="w-3.5 h-3.5" />
+                                            <span>Download APK (Locked &mdash; Setup Incomplete)</span>
+                                          </button>
+                                        )
+                                      )}
+                                    </>
+                                  );
+                                })()}
 
                                 {/* Row 2: Secondary Actions (Details & Add-ons & Delete) */}
                                 <div className="grid grid-cols-12 gap-2">
@@ -2097,17 +2097,44 @@ function UserDashboardContent() {
                             </>
                           ) : (
                             <>
-                              {appBuilds.length > 0 && appTargetBuildId && (
-                                <a
-                                  href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
-                                  download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-                                >
-                                  <Download className="w-3.5 h-3.5" />
-                                  <span>Download APK</span>
-                                </a>
-                              )}
+                              {(() => {
+                                const isListApkUnlocked = Boolean(
+                                  appItem.can_apk === true &&
+                                  (!appItem.pending_steps || appItem.pending_steps.length === 0) &&
+                                  appItem.is_completed !== false &&
+                                  appItem.is_draft !== true &&
+                                  (appItem.status === "completed" || appItem.status === "live" || appItem.status === "active") &&
+                                  appBuilds.length > 0 &&
+                                  appTargetBuildId
+                                );
+
+                                if (isListApkUnlocked) {
+                                  return (
+                                    <a
+                                      href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
+                                      download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                                    >
+                                      <Download className="w-3.5 h-3.5" />
+                                      <span>Download APK</span>
+                                    </a>
+                                  );
+                                }
+
+                                return (
+                                  <button
+                                    type="button"
+                                    disabled
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="px-4 py-2 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-not-allowed opacity-80"
+                                    title="Complete all setup steps to enable APK download"
+                                  >
+                                    <Lock className="w-3.5 h-3.5" />
+                                    <span>APK Locked</span>
+                                  </button>
+                                );
+                              })()}
                               {appHasAdmin && (
                                 <Link
                                   href={`/dashboard/apps/${appItem.ulid}/admin`}

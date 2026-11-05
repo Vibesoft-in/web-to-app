@@ -217,19 +217,20 @@ export default function HomePage() {
             </div>
           </section>
 
-          {/* ─── INCOMPLETE APPS SECTION (IMMEDIATELY BELOW HERO) ─── */}
+          {/* ─── INCOMPLETE APPS SECTION (COMPACT HORIZONTAL TABS) ─── */}
           {user && unfinishedProjects.length > 0 && (
             <section
               className="incomplete-apps-section"
               style={{
-                maxWidth: 1160,
-                margin: "32px auto 16px",
+                maxWidth: 1260,
+                margin: "24px auto 12px",
                 padding: "0 24px",
               }}
             >
+              {/* Compact Header Bar */}
               <div
                 style={{
-                  marginBottom: 16,
+                  marginBottom: 12,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
@@ -237,43 +238,42 @@ export default function HomePage() {
                   gap: 8,
                 }}
               >
-                <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
-                      gap: 6,
-                      padding: "3px 10px",
-                      borderRadius: 8,
+                      gap: 5,
+                      padding: "3px 8px",
+                      borderRadius: 6,
                       background: "#EFEAE2",
                       border: "1px solid #D6C8B8",
-                      fontSize: "11px",
+                      fontSize: "10px",
                       fontWeight: 800,
                       color: "#78593D",
                       textTransform: "uppercase",
+                      letterSpacing: "0.04em",
                     }}
                   >
-                    <Clock style={{ width: 13, height: 13 }} />
-                    <span>In-Progress Setup</span>
+                    <Clock style={{ width: 12, height: 12 }} />
+                    <span>In-Progress Setup ({unfinishedProjects.length})</span>
                   </div>
-                  <h2
+                  <h3
                     style={{
-                      fontSize: "20px",
-                      fontWeight: 900,
+                      fontSize: "15px",
+                      fontWeight: 800,
                       color: "#1C1917",
-                      margin: "6px 0 2px",
+                      margin: 0,
                     }}
                   >
-                    Continue Your Unfinished Application Setup
-                  </h2>
-                  <p style={{ fontSize: "12px", color: "#7E756B", margin: 0 }}>
-                    Your configuration has been saved. Complete the pending steps to compile and publish your mobile app.
-                  </p>
+                    Continue Your Application Setup
+                  </h3>
                 </div>
+
                 <Link
                   href="/dashboard"
                   style={{
-                    fontSize: "12px",
+                    fontSize: "11px",
                     fontWeight: 700,
                     color: "#78593D",
                     textDecoration: "none",
@@ -283,246 +283,204 @@ export default function HomePage() {
                   }}
                 >
                   <span>Go to App Dashboard</span>
-                  <ArrowRight style={{ width: 13, height: 13 }} />
+                  <ArrowRight style={{ width: 12, height: 12 }} />
                 </Link>
               </div>
 
+              {/* Compact Horizontal Grid / Flex Container */}
               <div
+                className="unfinished-apps-grid"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-                  gap: 16,
+                  gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
+                  gap: 12,
                 }}
               >
                 {unfinishedProjects.map((draftItem: any) => {
                   const rawStep = (draftItem.setup_step || "platform").toLowerCase();
                   const progressPct = STEP_ORDER_PERCENTAGE[rawStep] || 15;
-                  const currentStepLabel = STEP_LABELS[rawStep] || rawStep;
                   const websiteUrl =
                     draftItem.site_url ||
                     draftItem.website_url ||
                     draftItem.connection?.site_url ||
                     "Store URL not configured";
+                  const continueHref = `/dashboard/apps/${draftItem.ulid}/setup/${draftItem.setup_step || "platform"}`;
 
                   return (
                     <div
                       key={draftItem.ulid || draftItem.id}
+                      className="unfinished-app-tab"
                       style={{
-                        padding: "20px",
-                        borderRadius: "20px",
+                        padding: "10px 14px",
+                        borderRadius: "14px",
                         background: "#FFFFFF",
-                        border: "1.5px solid #EBE6DF",
-                        boxShadow: "0 4px 16px rgba(120, 89, 61, 0.06)",
+                        border: "1px solid #EBE6DF",
+                        boxShadow: "0 2px 8px rgba(120, 89, 61, 0.04)",
                         display: "flex",
-                        flexDirection: "column",
+                        alignItems: "center",
                         justifyContent: "space-between",
-                        gap: 16,
+                        gap: 12,
+                        transition: "all 0.2s ease",
                       }}
                     >
-                      <div>
-                        {/* Header row */}
+                      {/* Left: Icon & App Name & URL */}
+                      <Link
+                        href={continueHref}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          minWidth: 0,
+                          flex: "1 1 auto",
+                          textDecoration: "none",
+                        }}
+                        title={`Continue setup for ${draftItem.name || "Untitled App"}`}
+                      >
                         <div
                           style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 10,
+                            background: "linear-gradient(135deg, #78593D, #5A412A)",
+                            color: "#FFFFFF",
                             display: "flex",
-                            alignItems: "flex-start",
-                            justifyContent: "space-between",
-                            gap: 12,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: 800,
+                            fontSize: 13,
+                            flexShrink: 0,
+                            boxShadow: "0 2px 4px rgba(120, 89, 61, 0.2)",
                           }}
                         >
-                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            <div
+                          <Store style={{ width: 18, height: 18, color: "#FFFFFF" }} />
+                        </div>
+
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <h4
                               style={{
-                                width: 44,
-                                height: 44,
-                                borderRadius: 14,
-                                background: "linear-gradient(135deg, #78593D, #5A412A)",
-                                color: "#FFFFFF",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontWeight: 900,
-                                fontSize: 16,
-                                boxShadow: "0 2px 6px rgba(120, 89, 61, 0.2)",
+                                fontSize: "13px",
+                                fontWeight: 800,
+                                color: "#1C1917",
+                                margin: 0,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {draftItem.name || "Untitled App"}
+                            </h4>
+                            <span
+                              style={{
+                                fontSize: "9px",
+                                fontWeight: 800,
+                                textTransform: "uppercase",
+                                padding: "2px 6px",
+                                borderRadius: 4,
+                                background: "#FEF3C7",
+                                color: "#92400E",
+                                border: "1px solid #FDE68A",
                                 flexShrink: 0,
                               }}
                             >
-                              <Store style={{ width: 22, height: 22, color: "#FFFFFF" }} />
-                            </div>
-                            <div>
-                              <h3
-                                style={{
-                                  fontSize: "16px",
-                                  fontWeight: 900,
-                                  color: "#1C1917",
-                                  margin: 0,
-                                }}
-                              >
-                                {draftItem.name || "Untitled App"}
-                              </h3>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 5,
-                                  fontSize: "11px",
-                                  color: "#7E756B",
-                                  marginTop: 2,
-                                }}
-                              >
-                                <Globe style={{ width: 12, height: 12, color: "#78593D", flexShrink: 0 }} />
-                                <span
-                                  style={{
-                                    maxWidth: 180,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  {websiteUrl}
-                                </span>
-                              </div>
-                            </div>
+                              Incomplete
+                            </span>
                           </div>
 
-                          {/* Status Badge */}
-                          <span
-                            style={{
-                              fontSize: "10px",
-                              fontWeight: 800,
-                              textTransform: "uppercase",
-                              letterSpacing: "0.04em",
-                              padding: "3px 8px",
-                              borderRadius: "6px",
-                              background: "#FEF3C7",
-                              color: "#92400E",
-                              border: "1px solid #FDE68A",
-                              flexShrink: 0,
-                            }}
-                          >
-                            Setup Incomplete
-                          </span>
-                        </div>
-
-                        {/* Progress Bar & Percentage */}
-                        <div style={{ marginTop: 16 }}>
                           <div
                             style={{
                               display: "flex",
-                              justifyContent: "space-between",
                               alignItems: "center",
+                              gap: 4,
                               fontSize: "11px",
-                              marginBottom: 6,
+                              color: "#7E756B",
+                              marginTop: 2,
                             }}
                           >
-                            <span style={{ color: "#7E756B", fontWeight: 600 }}>Setup Progress</span>
-                            <span style={{ color: "#78593D", fontWeight: 800 }}>{progressPct}% Completed</span>
-                          </div>
-                          <div
-                            style={{
-                              width: "100%",
-                              height: 8,
-                              background: "#F5F0E8",
-                              borderRadius: 999,
-                              overflow: "hidden",
-                              border: "1px solid #EBE6DF",
-                            }}
-                          >
-                            <div
+                            <Globe style={{ width: 11, height: 11, color: "#78593D", flexShrink: 0 }} />
+                            <span
                               style={{
-                                height: "100%",
-                                width: `${progressPct}%`,
-                                background: "linear-gradient(90deg, #78593D, #96704F)",
-                                borderRadius: 999,
-                                transition: "width 0.4s ease",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                maxWidth: 160,
                               }}
-                            />
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "11px",
-                              color: "#78593D",
-                              fontWeight: 700,
-                              marginTop: 5,
-                            }}
-                          >
-                            Current Step: {currentStepLabel}
+                            >
+                              {websiteUrl}
+                            </span>
                           </div>
                         </div>
+                      </Link>
 
-                        {/* Pending Mandatory Steps */}
-                        <div style={{ marginTop: 14 }}>
-                          <span
+                      {/* Middle: Progress Bar & Percentage */}
+                      <div
+                        style={{
+                          width: 80,
+                          flexShrink: 0,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 3,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            fontSize: "10px",
+                          }}
+                        >
+                          <span style={{ color: "#78593D", fontWeight: 800 }}>{progressPct}%</span>
+                        </div>
+                        <div
+                          style={{
+                            width: "100%",
+                            height: 5,
+                            background: "#F5F0E8",
+                            borderRadius: 999,
+                            overflow: "hidden",
+                            border: "1px solid #EBE6DF",
+                          }}
+                        >
+                          <div
                             style={{
-                              fontSize: "10px",
-                              fontWeight: 800,
-                              textTransform: "uppercase",
-                              letterSpacing: "0.05em",
-                              color: "#A8A29E",
-                              display: "block",
-                              marginBottom: 6,
+                              height: "100%",
+                              width: `${progressPct}%`,
+                              background: "linear-gradient(90deg, #78593D, #96704F)",
+                              borderRadius: 999,
                             }}
-                          >
-                            Remaining Workflow Steps:
-                          </span>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                            {MANDATORY_PIPELINE.map((pipelineStep) => {
-                              const isDone =
-                                (STEP_ORDER_PERCENTAGE[pipelineStep.key] || 0) < progressPct;
-                              return (
-                                <span
-                                  key={pipelineStep.key}
-                                  style={{
-                                    fontSize: "10px",
-                                    fontWeight: 700,
-                                    padding: "2px 7px",
-                                    borderRadius: 6,
-                                    background: isDone ? "#ECFDF5" : "#F5F5F4",
-                                    color: isDone ? "#047857" : "#78716C",
-                                    border: `1px solid ${isDone ? "#A7F3D0" : "#E7E5E4"}`,
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 3,
-                                  }}
-                                >
-                                  {isDone ? "✓" : "•"} {pipelineStep.label}
-                                </span>
-                              );
-                            })}
-                          </div>
+                          />
                         </div>
                       </div>
 
-                      {/* Bottom Actions Row: Continue Setup & Delete */}
+                      {/* Right: Continue Setup & Delete Buttons */}
                       <div
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 10,
-                          paddingTop: 12,
-                          borderTop: "1px solid #F5F0E8",
+                          gap: 6,
+                          flexShrink: 0,
                         }}
                       >
                         <Link
-                          href={`/dashboard/apps/${draftItem.ulid}/setup/${draftItem.setup_step || "platform"}`}
+                          href={continueHref}
                           style={{
-                            flex: 1,
                             display: "inline-flex",
                             alignItems: "center",
-                            justifyContent: "center",
-                            gap: 8,
-                            padding: "10px 16px",
-                            borderRadius: 12,
+                            gap: 5,
+                            padding: "6px 11px",
+                            borderRadius: 9,
                             background: "#78593D",
                             color: "#FFFFFF",
-                            fontSize: "12px",
-                            fontWeight: 800,
+                            fontSize: "11px",
+                            fontWeight: 700,
                             textDecoration: "none",
-                            boxShadow: "0 2px 6px rgba(120, 89, 61, 0.25)",
+                            boxShadow: "0 2px 4px rgba(120, 89, 61, 0.2)",
+                            whiteSpace: "nowrap",
                           }}
                         >
-                          <span>Continue Setup</span>
-                          <ArrowRight style={{ width: 14, height: 14 }} />
+                          <span>Continue</span>
+                          <ArrowRight style={{ width: 12, height: 12 }} />
                         </Link>
 
                         <button
@@ -532,8 +490,9 @@ export default function HomePage() {
                             display: "inline-flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            padding: "10px 12px",
-                            borderRadius: 12,
+                            width: 28,
+                            height: 28,
+                            borderRadius: 8,
                             background: "#FFF1F2",
                             border: "1px solid #FECDD3",
                             color: "#E11D48",
@@ -542,7 +501,7 @@ export default function HomePage() {
                           }}
                           title="Delete Unfinished Project"
                         >
-                          <Trash2 style={{ width: 15, height: 15 }} />
+                          <Trash2 style={{ width: 13, height: 13 }} />
                         </button>
                       </div>
                     </div>

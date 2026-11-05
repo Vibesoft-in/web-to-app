@@ -316,7 +316,21 @@ export function AppDetailsView({
         app.purchased_addon_slugs.includes("admin_panel")))
   );
 
-  const canDownloadApk = app?.can_apk !== false;
+  const pendingSteps: Array<{ id: string; label: string; step: string }> = Array.isArray(app?.pending_steps)
+    ? app.pending_steps
+    : [];
+  const isSetupComplete =
+    pendingSteps.length === 0 &&
+    app?.is_completed !== false &&
+    app?.is_draft !== true &&
+    (app?.status === "completed" || app?.status === "live" || app?.status === "active");
+
+  const canDownloadApk = Boolean(
+    isSetupComplete &&
+    app?.can_apk === true &&
+    targetBuildId &&
+    (latestBuild?.status ? latestBuild.status.toLowerCase() === "ready" : true)
+  );
 
   // Consolidate full active addons list
   const availableAddons = (addons && addons.length > 0 ? addons : fallbackCommercialAddons)
@@ -1099,6 +1113,36 @@ export function AppDetailsView({
                     <span>Compile New Build</span>
                   </button>
                 </div>
+
+                {/* Incomplete Setup Alert Banner */}
+                {!canDownloadApk && (
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Lock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <strong className="text-[#1C1917] font-extrabold block">
+                          APK Download Restricted &mdash; Mandatory Setup Incomplete
+                        </strong>
+                        <p className="text-amber-900/80 mt-0.5">
+                          {pendingSteps.length > 0
+                            ? `Pending steps required: ${pendingSteps.map((s) => s.label).join(", ")}`
+                            : "You must complete all mandatory setup steps and build compilation before downloading the APK."}
+                        </p>
+                      </div>
+                    </div>
+                    {app?.ulid && (
+                      <Link
+                        href={`/dashboard/apps/${app.ulid}/setup/${app.setup_step || "connect"}`}
+                        className="px-3.5 py-1.5 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white font-bold text-xs transition shadow-2xs whitespace-nowrap self-start sm:self-auto flex items-center gap-1.5"
+                      >
+                        <span>Complete Setup</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    )}
+                  </div>
+                )}
 
                 {/* Primary APK Download Card */}
                 <div className="p-5 sm:p-6 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] flex flex-col md:flex-row md:items-center justify-between gap-5">
