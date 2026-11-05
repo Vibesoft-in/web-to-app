@@ -175,15 +175,18 @@ img.img-responsive {
 .hero-section {
     position: relative;
     background-color: #F8F5EE;
-    background-image: url('../images/hero_bg.jpg');
+    /* Soft protective blend ensures the text area on the left is always 100% clean and never clashed by the devices */
+    background-image: 
+        linear-gradient(to right, #F8F5EE 0%, #F8F5EE 32%, rgba(248, 245, 238, 0.94) 44%, rgba(248, 245, 238, 0) 62%),
+        url('../images/hero_bg.jpg');
     background-repeat: no-repeat;
-    background-size: cover;
+    background-size: auto 100%;
     background-position: right center;
-    min-height: 640px;
-    padding: 4.5rem 2rem 2.5rem 2rem;
+    min-height: 540px;
+    padding: 4.5rem 2rem 4rem 2rem;
     display: flex;
-    flex-direction: column;
-    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(120, 89, 61, 0.12);
     overflow: hidden;
 }
 
@@ -192,17 +195,17 @@ img.img-responsive {
     width: 100%;
     margin: 0 auto;
     display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    flex: 1;
-    min-height: 540px;
+    align-items: center;
+    justify-content: flex-start;
+    position: relative;
+    z-index: 2;
 }
 
 .hero-content {
-    max-width: 530px;
+    max-width: 440px;
+    width: 100%;
     position: relative;
     z-index: 2;
-    padding-top: 1rem;
 }
 
 .eyebrow-tag {
@@ -212,17 +215,17 @@ img.img-responsive {
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: #9E7145;
-    margin-bottom: 1.15rem;
+    margin-bottom: 1rem;
 }
 
 .hero-heading {
     font-family: var(--font-serif);
-    font-size: 3.5rem;
-    line-height: 1.14;
+    font-size: 3.35rem;
+    line-height: 1.12;
     color: #1A1715;
     font-weight: 500;
     letter-spacing: -0.025em;
-    margin-bottom: 1.35rem;
+    margin-bottom: 1.25rem;
 }
 
 .hero-heading em {
@@ -236,8 +239,8 @@ img.img-responsive {
     font-size: 1.05rem;
     line-height: 1.65;
     color: #59524A;
-    max-width: 480px;
-    margin-bottom: 2rem;
+    max-width: 410px;
+    margin-bottom: 1.85rem;
 }
 
 .btn-action-pill {
@@ -264,46 +267,12 @@ img.img-responsive {
     color: #FFFFFF;
 }
 
-.hero-feature-strip {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1.25rem;
-    padding-top: 1.75rem;
-    margin-top: 3.5rem;
-    border-top: 1px solid rgba(120, 89, 61, 0.16);
-    width: 100%;
-    position: relative;
-    z-index: 2;
-    flex-wrap: wrap;
-}
-
-.hero-feature-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.55rem;
-    font-size: 0.82rem;
-    font-weight: 700;
-    color: #26211C;
-    letter-spacing: -0.01em;
-}
-
-.hero-feature-item .hero-feature-sub {
-    font-weight: 500;
-    color: #7E756B;
-}
-
-.hero-feature-icon {
-    width: 1.05rem;
-    height: 1.05rem;
-    color: #78593D;
-    flex-shrink: 0;
-}
-
-.hero-feature-divider {
-    width: 1px;
-    height: 20px;
-    background: rgba(120, 89, 61, 0.2);
+@media (min-width: 1440px) {
+    .hero-section {
+        background-size: cover;
+        background-position: right center;
+        min-height: 560px;
+    }
 }
 
 /* ===================================================
@@ -2147,21 +2116,18 @@ img.img-responsive {
    =================================================== */
 @media (max-width: 991px) {
     .hero-section {
-        background: linear-gradient(to right, rgba(248, 245, 238, 0.96) 0%, rgba(248, 245, 238, 0.92) 58%, rgba(248, 245, 238, 0.7) 100%), url('../images/hero_bg.jpg') right center / cover no-repeat;
+        background: linear-gradient(to right, rgba(248, 245, 238, 0.96) 0%, rgba(248, 245, 238, 0.92) 58%, rgba(248, 245, 238, 0.72) 100%), url('../images/hero_bg.jpg') right center / cover no-repeat;
         min-height: auto;
-        padding: 3.5rem 1.5rem 2rem 1.5rem;
+        padding: 3.5rem 1.5rem 3rem 1.5rem;
     }
     .hero-heading {
-        font-size: 2.85rem;
+        font-size: 2.75rem;
     }
     .hero-container {
         min-height: auto;
     }
-    .hero-feature-strip {
-        gap: 0.85rem;
-    }
-    .hero-feature-divider {
-        display: none;
+    .hero-content {
+        max-width: 100%;
     }
     .platforms-cards-strip {
         grid-template-columns: 1fr;
