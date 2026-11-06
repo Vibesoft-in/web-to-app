@@ -666,7 +666,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                 <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-[11px] truncate max-w-[280px]">
                   {googlePageSpeed.tested_url}
                 </span>
-                <span className="text-slate-300">â€¢</span>
+                <span className="text-slate-300">•</span>
                 <span className="text-slate-500">Google Lighthouse v12 Engine</span>
               </p>
             </div>
@@ -676,7 +676,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
           <div className="flex items-center gap-2 flex-shrink-0 self-start md:self-auto">
             <div className={`px-3.5 py-1.5 rounded-xl border text-xs font-bold ${totalStyle.badgeBg} ${totalStyle.badgeText} ${totalStyle.badgeBorder} flex items-center gap-1.5 shadow-xs`}>
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Total Score: {totalScore} / 100 â€¢ {totalStyle.status}</span>
+              <span>Total Score: {totalScore} / 100 • {totalStyle.status}</span>
             </div>
           </div>
         </div>
@@ -722,7 +722,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   ? "Strong Mobile Performance!"
                   : totalScore >= 50
                   ? "Good Mobile Performance"
-                  : "Low Score â€” Store Optimization Required"}
+                  : "Low Score — Store Optimization Required"}
               </h4>
               <p className="text-xs text-slate-500 max-w-md leading-relaxed">
                 Score calculated directly from Google PageSpeed Insights Mobile audit for your store.
@@ -811,7 +811,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   {style.status}
                 </span>
                 <span className="text-[10px] text-slate-400 mt-1">
-                  FCP: {googlePageSpeed.fcp} â€¢ LCP: {googlePageSpeed.lcp} â€¢ TBT: {googlePageSpeed.tbt}
+                  FCP: {googlePageSpeed.fcp} • LCP: {googlePageSpeed.lcp} • TBT: {googlePageSpeed.tbt}
                 </span>
               </div>
             );
@@ -851,7 +851,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   {style.status}
                 </span>
                 <span className="text-[10px] text-slate-400 mt-1">
-                  Contrast â€¢ Screen Reader â€¢ Tap Targets
+                  Contrast • Screen Reader • Tap Targets
                 </span>
               </div>
             );
@@ -891,7 +891,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   {style.status}
                 </span>
                 <span className="text-[10px] text-slate-400 mt-1">
-                  HTTPS SSL â€¢ Modern APIs â€¢ UTF-8
+                  HTTPS SSL • Modern APIs • UTF-8
                 </span>
               </div>
             );
@@ -931,7 +931,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   {style.status}
                 </span>
                 <span className="text-[10px] text-slate-400 mt-1">
-                  Meta Tags â€¢ Title â€¢ Crawlability
+                  Meta Tags • Title • Crawlability
                 </span>
               </div>
             );
@@ -940,7 +940,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
 
       </div>
 
-      {/* â”€â”€ REQ 3: COMPACT IN-DEPTH WEBSITE & STORE DIAGNOSTICS GRID WITH CIRCULAR CHARTS â”€â”€ */}
+      {/* ── REQ 3: COMPACT IN-DEPTH WEBSITE & STORE DIAGNOSTICS GRID WITH 3-COLUMN LAYOUT ── */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
@@ -982,14 +982,14 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
               percentage: Number(googlePageSpeed.performance || 0),
               displayValue: `${Number(googlePageSpeed.performance || 0)}%`,
               benchmarkVal: 80,
-              benchmarkLabel: "Benchmark: â‰¥ 80%",
+              benchmarkLabel: "Benchmark: ≥ 80%",
               statusLabel:
                 Number(googlePageSpeed.performance || 0) >= 80
                   ? "Optimal"
                   : Number(googlePageSpeed.performance || 0) >= 50
                   ? "Acceptable"
                   : "Needs Attention",
-              subtext: `FCP: ${googlePageSpeed.fcp || "1.2s"} â€¢ TBT: ${googlePageSpeed.tbt || "120ms"}`,
+              subtext: `FCP: ${googlePageSpeed.fcp || "1.2s"} • TBT: ${googlePageSpeed.tbt || "120ms"}`,
               tooltip:
                 "Evaluates real Core Web Vitals including First Contentful Paint (FCP) and Total Blocking Time (TBT). High performance guarantees smooth app screen transitions.",
             },
@@ -1000,14 +1000,14 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
               percentage: Number(googlePageSpeed.seo || 0),
               displayValue: `${Number(googlePageSpeed.seo || 0)}%`,
               benchmarkVal: 80,
-              benchmarkLabel: "Benchmark: â‰¥ 80%",
+              benchmarkLabel: "Benchmark: ≥ 80%",
               statusLabel:
                 Number(googlePageSpeed.seo || 0) >= 80
                   ? "Optimal"
                   : Number(googlePageSpeed.seo || 0) >= 50
                   ? "Acceptable"
                   : "Needs Attention",
-              subtext: "Meta â€¢ Headings â€¢ Crawlability",
+              subtext: "Meta • Headings • Crawlability",
               tooltip:
                 "Checks search engine indexability, OpenGraph tags, and mobile viewport metadata for social sharing and app deep-linking.",
             },
@@ -1018,16 +1018,16 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
               percentage: Number(googlePageSpeed.accessibility || 0),
               displayValue: `${Number(googlePageSpeed.accessibility || 0)}%`,
               benchmarkVal: 80,
-              benchmarkLabel: "Benchmark: â‰¥ 80%",
+              benchmarkLabel: "Benchmark: ≥ 80%",
               statusLabel:
                 Number(googlePageSpeed.accessibility || 0) >= 80
                   ? "Optimal"
                   : Number(googlePageSpeed.accessibility || 0) >= 50
                   ? "Acceptable"
                   : "Needs Attention",
-              subtext: "Contrast â€¢ Alt Tags â€¢ Tap Targets",
+              subtext: "Contrast • Alt Tags • Tap Targets",
               tooltip:
-                "Measures color contrast, touch target sizes (â‰¥48x48dp), and readable font scales essential for native mobile usability.",
+                "Measures color contrast, touch target sizes (≥48x48dp), and readable font scales essential for native mobile usability.",
             },
             {
               id: "mobile",
@@ -1056,7 +1056,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
               benchmarkVal: 85,
               benchmarkLabel: "Benchmark: SSL Active",
               statusLabel: securityScore >= 85 ? "Optimal" : "Needs Attention",
-              subtext: isHttps ? "TLS 1.3 Active â€¢ HSTS" : "Insecure HTTP Protocol",
+              subtext: isHttps ? "TLS 1.3 Active • HSTS" : "Insecure HTTP Protocol",
               tooltip:
                 "Validates HTTPS encryption and modern cipher suites required by Apple App Store and Google Play policy.",
             },
@@ -1067,14 +1067,14 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
               percentage: Number(googlePageSpeed.best_practices || 0),
               displayValue: `${Number(googlePageSpeed.best_practices || 0)}%`,
               benchmarkVal: 85,
-              benchmarkLabel: "Benchmark: â‰¥ 85%",
+              benchmarkLabel: "Benchmark: ≥ 85%",
               statusLabel:
                 Number(googlePageSpeed.best_practices || 0) >= 85
                   ? "Optimal"
                   : Number(googlePageSpeed.best_practices || 0) >= 50
                   ? "Acceptable"
                   : "Needs Attention",
-              subtext: "HTML5 â€¢ Valid Doctype â€¢ APIs",
+              subtext: "HTML5 • Valid Doctype • APIs",
               tooltip:
                 "Evaluates standard compliance, safe script loading, and modern web API compatibility used by WebIntoApp mobile webviews.",
             },
@@ -1082,7 +1082,6 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
               id: "compat",
               heading: "Store Compatibility",
               icon: ShoppingBag,
-  Smartphone,
               percentage: compatScore,
               displayValue: `${compatScore}%`,
               benchmarkVal: 80,
@@ -1108,7 +1107,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
           ];
 
           return (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {diagnosticGridItems.map((item) => {
                 const IconComponent = item.icon;
                 const score = Math.min(100, Math.max(0, item.percentage));
@@ -1191,7 +1190,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                       </div>
                     </div>
 
-                    {/* â”€â”€ RESPONSIVE HORIZONTAL BAR CHART (Requirement 5) â”€â”€ */}
+                    {/* ── RESPONSIVE HORIZONTAL BAR CHART ── */}
                     <div className="space-y-1.5 pt-1">
                       <div className="relative h-3 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200/70">
                         {/* Reference Benchmark Marker (Vertical tick on the track) */}
@@ -1214,7 +1213,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                           <span>{item.benchmarkLabel}</span>
                         </span>
                         <span className="font-semibold text-slate-500">
-                          {score >= item.benchmarkVal ? "âœ“ Meets Benchmark" : "Below Target"}
+                          {score >= item.benchmarkVal ? "✓ Meets Benchmark" : "Below Target"}
                         </span>
                       </div>
                     </div>
@@ -1387,7 +1386,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                       <span>Submit &amp; Request Growth Call</span>
                     </button>
                     <p className="text-[11px] text-slate-400 text-center mt-2">
-                      100% Free consultation â€¢ No spam â€¢ Direct WhatsApp reach out
+                      100% Free consultation • No spam • Direct WhatsApp reach out
                     </p>
                   </div>
                 </form>
