@@ -61,12 +61,12 @@ class ConnectionVerifyApiTest extends TestCase
     {
         Http::fake([
             'https://acme-organics.com/wp-json/wc/v3/system_status' => Http::response(WooFixtures::systemStatus(), 200),
-            'https://acme-organics.com/wp-json/wc/v3/products?per_page=1' => Http::response(
+            'https://acme-organics.com/wp-json/wc/v3/products*' => Http::response(
                 [WooFixtures::product(101)],
                 200,
                 ['X-WP-Total' => '50']
             ),
-            'https://acme-organics.com/wp-json/wc/v3/webhooks?per_page=1' => Http::response([], 200),
+            'https://acme-organics.com/wp-json/wc/v3/webhooks*' => Http::response([], 200),
         ]);
 
         $payload = [

@@ -239,14 +239,14 @@ class UrlGuard
      */
     private function resolveHost(string $host): array
     {
-        // If a custom DNS resolver is injected, use it (crucial for DNS rebinding & offline tests)
-        if (self::$dnsResolver !== null) {
-            return (self::$dnsResolver)($host);
-        }
-
         // If host is already an IP address
         if (filter_var($host, FILTER_VALIDATE_IP)) {
             return [$host];
+        }
+
+        // If a custom DNS resolver is injected, use it (crucial for DNS rebinding & offline tests)
+        if (self::$dnsResolver !== null) {
+            return (self::$dnsResolver)($host);
         }
 
         $ips = [];
