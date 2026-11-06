@@ -353,14 +353,14 @@ export function AppDetailsView({
     const isExiting = exitingTab === tabKey;
 
     if (isActive) {
-      return "app-stage-panel is-active";
+      return "app-stage-panel is-active !flex flex-col";
     }
     if (isExiting) {
       return direction === "down"
-        ? "app-stage-panel is-exiting-up"
-        : "app-stage-panel is-exiting-down";
+        ? "app-stage-panel is-exiting-up !hidden"
+        : "app-stage-panel is-exiting-down !hidden";
     }
-    return "app-stage-panel";
+    return "app-stage-panel !hidden";
   };
 
   // Add-ons state

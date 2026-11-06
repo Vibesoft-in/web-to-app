@@ -10266,7 +10266,6 @@ body.auth-layout {
     background-color: #FFFFFF;
     border-radius: 24px;
     opacity: 0;
-    transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .app-stage-panel::-webkit-scrollbar {
@@ -10288,28 +10287,33 @@ body.auth-layout {
     }
 }
 
+@keyframes appStageFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .app-stage-panel.is-active {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-    transform: translateY(0);
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    transform: translateY(0) !important;
     z-index: 2;
+    animation: appStageFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.app-stage-panel.is-exiting-up {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transform: translateY(-16px);
-    z-index: 1;
-}
-
+.app-stage-panel.is-exiting-up,
 .app-stage-panel.is-exiting-down {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transform: translateY(16px);
-    z-index: 1;
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
 }
 
 
