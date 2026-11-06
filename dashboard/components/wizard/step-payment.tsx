@@ -238,8 +238,8 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
   const [selectedAddonIds, setSelectedAddonIds] = useState<number[]>([]);
   const [isYearly, setIsYearly] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // Mandatory Payment Terms & Conditions Consent State
-  const [hasPaymentConsented, setHasPaymentConsented] = useState(true);
+  // Mandatory Payment Terms & Conditions Consent State (must be manually clicked by the user)
+  const [hasPaymentConsented, setHasPaymentConsented] = useState(false);
   const [isPaymentTermsModalOpen, setIsPaymentTermsModalOpen] = useState(false);
   const [selectedLearnMoreAddon, setSelectedLearnMoreAddon] = useState<AddonDetail | null>(null);
   const [consentError, setConsentError] = useState<string | null>(null);
@@ -258,15 +258,7 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
     enabled: !!ulid,
   });
 
-  useEffect(() => {
-    if (
-      consentData?.payment_terms?.consented ||
-      setupState?.verification?.payment_consent ||
-      hasActiveSubscription
-    ) {
-      setHasPaymentConsented(true);
-    }
-  }, [consentData, setupState, hasActiveSubscription]);
+  // Note: Checkbox must NOT be automatically checked. User must manually click to consent.
 
   const isSubmittingRef = useRef(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);

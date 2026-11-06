@@ -57,8 +57,8 @@ export function StepDataCollection({ ulid, app, setupState, onNext }: StepDataCo
   // Priority order for initial data: setupState.website_data, app.website_data
   const initialSiteData = setupState?.website_data || app?.website_data;
 
-  // Mandatory Data Collection Consent State
-  const [hasConsented, setHasConsented] = useState(true);
+  // Mandatory Data Collection Consent State (must be manually clicked by the user)
+  const [hasConsented, setHasConsented] = useState(false);
   const [isConsentModalOpen, setIsConsentModalOpen] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
 
@@ -76,11 +76,7 @@ export function StepDataCollection({ ulid, app, setupState, onNext }: StepDataCo
     enabled: !!ulid,
   });
 
-  useEffect(() => {
-    if (consentData?.data_collection?.consented || setupState?.verification?.data_consent) {
-      setHasConsented(true);
-    }
-  }, [consentData, setupState]);
+  // Note: Checkbox must NOT be automatically checked. User must manually click to consent.
 
   // Fetch website extracted data
   const {
