@@ -2466,7 +2466,7 @@ export function AppDetailsView({
                   {isPushActive && (
                     <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-black uppercase flex items-center gap-1 self-start sm:self-auto">
                       <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>{isPushSolelyPurchased ? "Active • Standalone License" : "Active • Included in Premium Plan"}</span>
+                      <span>Active</span>
                     </span>
                   )}
                 </div>
@@ -2673,7 +2673,7 @@ export function AppDetailsView({
                   {isEmailActive && (
                     <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-black uppercase flex items-center gap-1 self-start sm:self-auto">
                       <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>{isEmailSolelyPurchased ? "Active • Standalone License" : "Active • Included in Premium Plan"}</span>
+                      <span>Active</span>
                     </span>
                   )}
                 </div>
@@ -2911,7 +2911,7 @@ export function AppDetailsView({
                   {isWhatsAppActive && (
                     <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-black uppercase flex items-center gap-1 self-start sm:self-auto">
                       <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>{isWhatsAppSolelyPurchased ? "Active • Standalone License" : "Active • Included in Premium Plan"}</span>
+                      <span>Active</span>
                     </span>
                   )}
                 </div>
