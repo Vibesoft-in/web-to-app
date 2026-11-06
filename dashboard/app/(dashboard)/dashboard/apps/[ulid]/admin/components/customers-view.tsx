@@ -240,6 +240,26 @@ export function CustomersView({
             </tbody>
           </table>
         </div>
+
+        {/* ── TOTAL CUSTOMER COUNT SUMMARY FOOTER (Admin Change 5) ── */}
+        <div className="px-5 py-4 bg-[var(--mav-well)] border-t border-[var(--mav-line)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--mav-muted)] font-medium">
+          <div className="flex items-center gap-2">
+            <span className="font-extrabold text-[var(--mav-text)] text-sm">
+              Total Customers: {rawCustomers.length}
+            </span>
+            <span>•</span>
+            <span>Showing {filteredCustomers.length} matching store {filteredCustomers.length === 1 ? "customer" : "customers"}</span>
+          </div>
+          <div className="flex items-center gap-4 text-xs">
+            <span>
+              Orders Placed: <strong className="text-[var(--mav-text)]">{rawCustomers.reduce((acc, c) => acc + (c.orders_count || 0), 0)}</strong>
+            </span>
+            <span>•</span>
+            <span>
+              Lifetime Spend: <strong className="text-emerald-700 font-bold">{currencySymbol}{rawCustomers.reduce((acc, c) => acc + parseFloat(c.total_spent || "0"), 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* ── CUSTOMER DETAIL SLIDE-OVER DRAWER ── */}

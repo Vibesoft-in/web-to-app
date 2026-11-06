@@ -459,6 +459,18 @@ class OrderService
                 }
             }
 
+            // Assign theme key if a theme was purchased
+            if ($app) {
+                foreach ($order->items as $item) {
+                    $slug = $item->meta['slug'] ?? '';
+                    if ($slug === 'theme_premium') {
+                        $app->update(['assigned_theme_key' => 'premium']);
+                    } elseif ($slug === 'theme_ecommerce_classic') {
+                        $app->update(['assigned_theme_key' => 'ecommerce_classic']);
+                    }
+                }
+            }
+
             // 4. If this was an upgrade, update upgrade tracking
             $upgrade = PackageUpgrade::where('order_id', $order->id)->first();
             if ($upgrade) {

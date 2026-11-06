@@ -125,7 +125,7 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
     }
   };
 
-  // Close dropdown on click outside
+  // Close dropdown on click outside & Escape key (Admin Change 7)
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -135,9 +135,16 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
         setIsOpen(false);
       }
     }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
     document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
       if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
     };
   }, []);

@@ -210,5 +210,43 @@ class AdminAndPlanSeeder extends Seeder
                 'sort_order'   => 12,
             ]
         );
+
+        \App\Models\AddOn::updateOrCreate(
+            ['slug' => 'theme_premium'],
+            [
+                'name'         => 'Premium Editorial Showcase Theme',
+                'price'        => 49900,
+                'billing_type' => 'one_time',
+                'category'     => 'Themes',
+                'description'  => 'Warm bronze & gold luxury styling with editorial card layout and elevated product frames.',
+                'badge'        => 'Theme',
+                'features'     => [
+                    'Warm bronze & gold luxury styling',
+                    'Editorial card layout',
+                    'Elevated product frames',
+                ],
+                'is_active'    => true,
+                'sort_order'   => 15,
+            ]
+        );
+
+        \App\Models\AddOn::updateOrCreate(
+            ['slug' => 'theme_ecommerce_classic'],
+            [
+                'name'         => 'E-commerce Classic Retail Grid Theme',
+                'price'        => 79900,
+                'billing_type' => 'one_time',
+                'category'     => 'Themes',
+                'description'  => 'Familiar, high-converting retail layout with grid product cards, badges, and quick cart buttons.',
+                'badge'        => 'Theme',
+                'features'     => [
+                    'High-converting retail layout',
+                    'Grid product cards & badges',
+                    'Quick cart buttons',
+                ],
+                'is_active'    => true,
+                'sort_order'   => 16,
+            ]
+        );
     }
 }

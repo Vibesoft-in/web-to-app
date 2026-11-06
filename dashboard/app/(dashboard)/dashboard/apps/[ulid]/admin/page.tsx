@@ -212,8 +212,35 @@ export default function AppAdminPortalPage() {
   // ── Dropdowns and Drawers ──────────────────────────────────────────────────
   const [isNewDropdownOpen, setIsNewDropdownOpen] = useState(false);
   const [isBellOpen, setIsBellOpen] = useState(false);
+  const bellDropdownRef = useRef<HTMLDivElement>(null);
+  const newDropdownRef = useRef<HTMLDivElement>(null);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Outside click and Escape key dismissal for popups (Admin Change 7)
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (bellDropdownRef.current && !bellDropdownRef.current.contains(event.target as Node)) {
+        setIsBellOpen(false);
+      }
+      if (newDropdownRef.current && !newDropdownRef.current.contains(event.target as Node)) {
+        setIsNewDropdownOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsBellOpen(false);
+        setIsNewDropdownOpen(false);
+        setSelectedOrder(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   // ── Order status overrides synchronized across Kanban board & Slide-over drawer ──
   const [orderStatusOverrides, setOrderStatusOverrides] = useState<Record<string, string>>(() => {
@@ -1821,8 +1848,8 @@ export default function AppAdminPortalPage() {
               )}
             </button>
 
-            {/* Notifications Popover Toggle */}
-            <div className="relative">
+            {/* Notifications Popover Toggle (Admin Change 7) */}
+            <div ref={bellDropdownRef} className="relative">
               <button
                 type="button"
                 onClick={() => setIsBellOpen(!isBellOpen)}
@@ -1867,8 +1894,8 @@ export default function AppAdminPortalPage() {
               )}
             </div>
 
-            {/* "+ New" Action Button with Dropdown */}
-            <div className="relative">
+            {/* "+ New" Action Button with Dropdown (Admin Change 7) */}
+            <div ref={newDropdownRef} className="relative">
               <button
                 type="button"
                 onClick={() => setIsNewDropdownOpen(!isNewDropdownOpen)}
@@ -3210,6 +3237,8 @@ export default function AppAdminPortalPage() {
           <ProductsView
             rawProducts={rawProducts}
             rawOrders={rawOrders}
+            rawCategories={rawCategories}
+            rawSubCategories={rawSubCategories}
             currencySymbol={currencySymbol}
             storeDomain={storeDomain}
             storeUrl={storeUrl}
@@ -4579,7 +4608,7 @@ export default function AppAdminPortalPage() {
           nextButtonBg = "bg-[#16A34A] hover:bg-[#15803D] text-white";
         } else if (status === "complete" || status === "completed" || status === "shipped" || status === "delivered") {
           nextStageKey = null;
-          nextStageLabel = "Completed ✓";
+          nextStageLabel = "Completed";
           NextIcon = Check;
           nextButtonBg = "bg-[#f0fdf4] text-[#16A34A] cursor-default";
         } else if (status === "cancelled" || status === "canceled" || status === "refunded") {
@@ -4794,9 +4823,9 @@ export default function AppAdminPortalPage() {
                 </div>
               </div>
 
-              {/* Bottom Action Bar */}
-              <div className="p-5 sm:p-6 border-t border-[#F0EEE8] dark:border-[var(--mav-line)] bg-white dark:bg-[#191c16] space-y-2">
-                <div className="flex items-center gap-2">
+              {/* Bottom Action Bar (Admin Change 8: Responsive flex-wrap / grid, no overflow or cut off buttons) */}
+              <div className="p-4 sm:p-6 border-t border-[#F0EEE8] dark:border-[var(--mav-line)] bg-white dark:bg-[#191c16] space-y-2 overflow-x-hidden">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <button
                     type="button"
                     disabled={!nextStageKey}
@@ -4806,10 +4835,10 @@ export default function AppAdminPortalPage() {
                         showToast(`Order #${orderNum} status advanced!`, "success");
                       }
                     }}
-                    className={`flex-1 py-3 px-4 rounded-2xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition active:scale-[0.99] ${nextButtonBg}`}
+                    className={`col-span-2 sm:col-span-1 py-3 px-3 rounded-2xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-xs transition active:scale-[0.99] truncate ${nextButtonBg}`}
                   >
-                    <NextIcon className="w-4 h-4" />
-                    <span>{nextStageLabel}</span>
+                    <NextIcon className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">{nextStageLabel}</span>
                   </button>
 
                   <button
@@ -4817,20 +4846,20 @@ export default function AppAdminPortalPage() {
                     onClick={() => {
                       window.location.href = `mailto:${customerEmail}?subject=Order #${orderNum} Update`;
                     }}
-                    className="py-3 px-4 rounded-2xl bg-white dark:bg-[#1e221b] border border-[#ded8ce] dark:border-[var(--mav-line)] hover:bg-[#faf8f4] dark:hover:bg-[#242920] text-[#23241B] dark:text-[#eef0e6] font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-xs"
+                    className="py-3 px-3 rounded-2xl bg-white dark:bg-[#1e221b] border border-[#ded8ce] dark:border-[var(--mav-line)] hover:bg-[#faf8f4] dark:hover:bg-[#242920] text-[#23241B] dark:text-[#eef0e6] font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-xs"
                     title="Send customer an email"
                   >
-                    <Mail className="w-3.5 h-3.5 text-[#6f7060] dark:text-[#b0b4a2]" />
+                    <Mail className="w-3.5 h-3.5 text-[#6f7060] dark:text-[#b0b4a2] flex-shrink-0" />
                     <span>Message</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => window.print()}
-                    className="py-3 px-4 rounded-2xl bg-white dark:bg-[#1e221b] border border-[#ded8ce] dark:border-[var(--mav-line)] hover:bg-[#faf8f4] dark:hover:bg-[#242920] text-[#23241B] dark:text-[#eef0e6] font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-xs"
+                    className="py-3 px-3 rounded-2xl bg-white dark:bg-[#1e221b] border border-[#ded8ce] dark:border-[var(--mav-line)] hover:bg-[#faf8f4] dark:hover:bg-[#242920] text-[#23241B] dark:text-[#eef0e6] font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-xs"
                     title="Print packing slip"
                   >
-                    <Receipt className="w-3.5 h-3.5 text-[#6f7060] dark:text-[#b0b4a2]" />
+                    <Receipt className="w-3.5 h-3.5 text-[#6f7060] dark:text-[#b0b4a2] flex-shrink-0" />
                     <span>Packing slip</span>
                   </button>
 
@@ -4840,10 +4869,10 @@ export default function AppAdminPortalPage() {
                       setExternalRefundOrder(selectedOrder);
                       setActiveTab("orders");
                     }}
-                    className="py-3 px-3.5 rounded-2xl bg-white dark:bg-[#1e221b] border border-[#ded8ce] dark:border-[var(--mav-line)] hover:bg-[#eff5fc] dark:hover:bg-[#152438] text-[#2563EB] dark:text-[#60a5fa] font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-xs"
+                    className="py-3 px-3 rounded-2xl bg-white dark:bg-[#1e221b] border border-[#ded8ce] dark:border-[var(--mav-line)] hover:bg-[#eff5fc] dark:hover:bg-[#152438] text-[#2563EB] dark:text-[#60a5fa] font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-xs"
                     title="Issue TeraWallet Store Credit Refund"
                   >
-                    <Wallet className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#60a5fa]" />
+                    <Wallet className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#60a5fa] flex-shrink-0" />
                     <span>Refund</span>
                   </button>
                 </div>

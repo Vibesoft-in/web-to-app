@@ -239,7 +239,9 @@ class App extends Model
         // 2. Theme & Branding Configuration
         $hasConfig = $this->configs()->exists()
             || !empty($this->theme_config)
+            || !empty($this->assigned_theme_key)
             || !empty($this->metadata['theme'])
+            || !empty($this->metadata['brand'])
             || $this->builds()->exists()
             || $this->status === \App\Enums\AppStatus::Completed;
         if (! $hasConfig) {
@@ -247,29 +249,6 @@ class App extends Model
                 'id'    => 'theme',
                 'label' => 'Theme & Branding Configuration',
                 'step'  => 'theme',
-            ];
-        }
-
-        // 3. Plan Selection & Payment Completion (must have paid for a plan or package)
-        $activePlan = $this->getActivePlan();
-        $hasPaidOrder = $this->orders()->where('status', 'paid')->exists();
-        if (! $activePlan && ! $hasPaidOrder) {
-            $pending[] = [
-                'id'    => 'payment',
-                'label' => 'Plan Selection & Payment Completion',
-                'step'  => 'payment',
-            ];
-        }
-
-        // 4. Successful APK Build Generation
-        $hasReadyBuild = $this->builds()
-            ->where('status', \App\Enums\BuildStatus::Ready)
-            ->exists() || $this->builds()->exists();
-        if (! $hasReadyBuild) {
-            $pending[] = [
-                'id'    => 'build',
-                'label' => 'APK Build Compilation & Generation',
-                'step'  => 'build',
             ];
         }
 

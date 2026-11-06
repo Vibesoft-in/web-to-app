@@ -1477,14 +1477,29 @@ function UserDashboardContent() {
     );
   }
 
+  const cachedLocalAvatar = typeof window !== "undefined" ? localStorage.getItem("appifyhub_user_avatar") : null;
+  const userAvatar = user?.avatar_url || user?.avatar || (user as any)?.profile_photo_url || cachedLocalAvatar;
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-16 font-sans">
       {/* ── TOP HERO BAR ── */}
       <div className="bg-white border border-[#EBE6DF] rounded-3xl p-6 sm:p-8 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="flex items-center gap-4 sm:gap-5">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-[#78593D] via-[#8E6D4E] to-[#C2A88F] text-white font-extrabold text-2xl sm:text-3xl flex items-center justify-center shadow-lg shadow-[#78593D]/20 flex-shrink-0">
-              {(user?.name || primaryApp?.name || "U").charAt(0).toUpperCase()}
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-[#78593D] via-[#8E6D4E] to-[#C2A88F] text-white font-extrabold text-2xl sm:text-3xl flex items-center justify-center shadow-lg shadow-[#78593D]/20 flex-shrink-0 overflow-hidden relative">
+              {userAvatar ? (
+                <img
+                  src={userAvatar}
+                  alt={user?.name || "User"}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : null}
+              <span className={userAvatar ? "absolute inset-0 flex items-center justify-center -z-10" : ""}>
+                {(user?.name || primaryApp?.name || "U").charAt(0).toUpperCase()}
+              </span>
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1539,59 +1554,6 @@ function UserDashboardContent() {
               <Plus className="w-4 h-4" />
               <span>Build New App</span>
             </Link>
-          </div>
-        </div>
-
-        {/* Metric Row */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8 pt-6 border-t border-[#EBE6DF]">
-          <div className="p-4 rounded-2xl bg-[#F7F5F0] border border-[#EBE6DF]">
-            <span className="text-[11px] font-bold text-[#7E756B] uppercase tracking-wider">
-              Active Apps
-            </span>
-            <div className="text-xl sm:text-2xl font-black text-[#1C1917] mt-1">
-              {apps?.length ?? 0}
-            </div>
-            <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1 mt-0.5">
-              <CheckCircle2 className="w-3 h-3" /> Fully Connected
-            </span>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-[#F7F5F0] border border-[#EBE6DF]">
-            <span className="text-[11px] font-bold text-[#7E756B] uppercase tracking-wider">
-              Compiled Builds
-            </span>
-            <div className="text-xl sm:text-2xl font-black text-[#1C1917] mt-1">{totalBuildsCount}</div>
-            <span className="text-[11px] text-[#78593D] font-semibold flex items-center gap-1 mt-0.5">
-              <Package className="w-3 h-3" />
-              {totalBuildsCount > 0
-                ? `${totalBuildsCount} Production Binaries`
-                : "No builds yet"}
-            </span>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-[#F7F5F0] border border-[#EBE6DF]">
-            <span className="text-[11px] font-bold text-[#7E756B] uppercase tracking-wider">
-              App Packages
-            </span>
-            <div className="text-xl sm:text-2xl font-black text-[#1C1917] mt-1">
-              {apps?.length ?? 0} Licensed
-            </div>
-            <span className="text-[11px] text-[#78593D] font-semibold flex items-center gap-1 mt-0.5 truncate" title={appPlanSummary}>
-              <Layers className="w-3 h-3 flex-shrink-0" />
-              <span className="truncate">{appPlanSummary} (Per-App)</span>
-            </span>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-[#F7F5F0] border border-[#EBE6DF]">
-            <span className="text-[11px] font-bold text-[#7E756B] uppercase tracking-wider">
-              Commercial Orders
-            </span>
-            <div className="text-xl sm:text-2xl font-black text-emerald-700 mt-1">
-              {myOrders.length} Verified
-            </div>
-            <span className="text-[11px] text-[#7E756B] font-semibold flex items-center gap-1 mt-0.5">
-              <Receipt className="w-3 h-3" /> Invoices Ready
-            </span>
           </div>
         </div>
       </div>

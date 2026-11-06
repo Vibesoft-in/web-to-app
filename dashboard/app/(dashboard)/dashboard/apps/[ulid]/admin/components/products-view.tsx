@@ -26,6 +26,8 @@ import {
 interface ProductsViewProps {
   rawProducts: any[];
   rawOrders: any[];
+  rawCategories?: any[];
+  rawSubCategories?: any[];
   currencySymbol: string;
   storeDomain: string;
   storeUrl?: string;
@@ -36,6 +38,8 @@ interface ProductsViewProps {
 export function ProductsView({
   rawProducts,
   rawOrders,
+  rawCategories,
+  rawSubCategories,
   currencySymbol,
   storeDomain,
   storeUrl,
@@ -44,10 +48,59 @@ export function ProductsView({
 }: ProductsViewProps) {
   const [subTab, setSubTab] = useState<"catalogue" | "stock" | "collections">("catalogue");
   const [searchQuery, setSearchQuery] = useState("");
-  const [kindFilter, setKindFilter] = useState<string>("any");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [onlyLowStock, setOnlyLowStock] = useState(false);
+
+  // Available real store categories from connected WooCommerce store (Admin Change 6)
+  const availableCategories = useMemo(() => {
+    const list: Array<{ id: string; label: string; count?: number }> = [
+      { id: "all", label: "All Categories" },
+    ];
+
+    if (Array.isArray(rawCategories) && rawCategories.length > 0) {
+      rawCategories.forEach((cat: any) => {
+        const catName = cat.name || cat.title || "Category";
+        const catId = String(cat.id || cat.slug || catName);
+        list.push({
+          id: catId,
+          label: catName,
+          count: cat.items_count ?? cat.count,
+        });
+
+        // Nest children / sub-categories if present
+        if (Array.isArray(cat.children) && cat.children.length > 0) {
+          cat.children.forEach((child: any) => {
+            const childName = child.name || child.title;
+            const childId = String(child.id || child.slug || childName);
+            list.push({
+              id: childId,
+              label: `↳ ${childName}`,
+              count: child.items_count ?? child.count,
+            });
+          });
+        }
+      });
+    } else {
+      // Fallback: extract unique categories from products
+      const uniqueCats = new Set<string>();
+      (rawProducts || []).forEach((p: any) => {
+        if (typeof p.category === "string" && p.category.trim()) uniqueCats.add(p.category.trim());
+        if (Array.isArray(p.categories)) {
+          p.categories.forEach((c: any) => {
+            const name = typeof c === "string" ? c : c?.name;
+            if (name && typeof name === "string" && name.trim()) uniqueCats.add(name.trim());
+          });
+        }
+      });
+      uniqueCats.forEach((c) => {
+        list.push({ id: c, label: c });
+      });
+    }
+
+    return list;
+  }, [rawCategories, rawProducts]);
 
   // Selected product for slide-over drawer
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
@@ -83,6 +136,25 @@ export function ProductsView({
         : name.toLowerCase().includes("gift") || name.toLowerCase().includes("sub")
         ? "gift"
         : "beans";
+
+      // Actual website category data from connected store (Admin Change 6)
+      const categoryNames: string[] = [];
+      if (typeof p.category === "string" && p.category.trim()) {
+        categoryNames.push(p.category.trim());
+      }
+      if (typeof p.sub_category === "string" && p.sub_category.trim()) {
+        categoryNames.push(p.sub_category.trim());
+      }
+      if (Array.isArray(p.categories)) {
+        p.categories.forEach((cat: any) => {
+          const cName = typeof cat === "string" ? cat : cat?.name;
+          if (cName && typeof cName === "string" && !categoryNames.includes(cName.trim())) {
+            categoryNames.push(cName.trim());
+          }
+        });
+      }
+      const primaryCategory = categoryNames[0] || (typeof p.category === "string" && p.category) || "Store Product";
+
       const image =
         (typeof p.image_url === "string" && p.image_url.trim()) ||
         (typeof p.image === "string" && p.image.trim()) ||
@@ -108,10 +180,12 @@ export function ProductsView({
         reorderAt,
         status,
         kind,
+        categoryNames,
+        primaryCategory,
         image,
-        tagline: p.short_description?.replace(/<[^>]*>/g, "")?.slice(0, 70) || (kind === "beans" ? "Curated store collection · Premium quality" : "Specialty store release"),
-        notes: kind === "beans" ? ["Peach", "Bergamot", "Honey"] : ["Precision", "Specialty", "Durable"],
-        unit: kind === "beans" ? "250g bag" : "unit",
+        tagline: p.short_description?.replace(/<[^>]*>/g, "")?.slice(0, 70) || `${primaryCategory} · Official store item`,
+        notes: [primaryCategory, "Live Store Sync", "Stock Verified"],
+        unit: "item",
         collections: idx % 2 === 0 ? ["single-origin"] : ["house-espresso"],
       };
     });
@@ -120,8 +194,17 @@ export function ProductsView({
   // Filtered catalogue
   const filteredProducts = useMemo(() => {
     let list = normalizedProducts;
-    if (kindFilter !== "any") {
-      list = list.filter((p) => p.kind === kindFilter);
+    if (selectedCategory !== "all") {
+      const qCat = selectedCategory.toLowerCase().trim();
+      list = list.filter((p) => {
+        return (
+          p.categoryNames.some((c: string) => c.toLowerCase() === qCat || c.toLowerCase().includes(qCat)) ||
+          p.primaryCategory.toLowerCase() === qCat ||
+          p.primaryCategory.toLowerCase().includes(qCat) ||
+          String(p.raw?.category_id) === selectedCategory ||
+          String(p.raw?.id) === selectedCategory
+        );
+      });
     }
     if (statusFilter !== "all") {
       list = list.filter((p) => p.status === statusFilter);
@@ -132,11 +215,12 @@ export function ProductsView({
         (p) =>
           p.name.toLowerCase().includes(q) ||
           p.sku.toLowerCase().includes(q) ||
-          p.tagline.toLowerCase().includes(q)
+          p.tagline.toLowerCase().includes(q) ||
+          p.primaryCategory.toLowerCase().includes(q)
       );
     }
     return list;
-  }, [normalizedProducts, kindFilter, statusFilter, searchQuery]);
+  }, [normalizedProducts, selectedCategory, statusFilter, searchQuery]);
 
   // Stock KPI cards
   const stockMetrics = useMemo(() => {
@@ -345,26 +429,36 @@ export function ProductsView({
                 />
               </div>
 
-              {/* Type chips */}
-              <div className="flex items-center gap-1 bg-white dark:bg-[#252625] p-1 border border-[#E6E1D8] dark:border-[#2C2D2B] rounded-lg text-xs">
-                {[
-                  { id: "any", label: "Everything" },
-                  { id: "beans", label: "Coffee" },
-                  { id: "gear", label: "Brew gear" },
-                  { id: "gift", label: "Gifts & club" },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setKindFilter(item.id)}
-                    className={`px-2.5 py-1 rounded text-xs transition-colors ${
-                      kindFilter === item.id
-                        ? "bg-[#525B44] text-white font-medium"
-                        : "text-[#8A857D] dark:text-[#9A958D] hover:text-[#1A1917]"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+              {/* Dynamic Actual Store Categories Filter (Admin Change 6) */}
+              <div className="flex items-center gap-1.5 overflow-x-auto max-w-full scrollbar-none py-0.5">
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="px-2.5 py-1.5 text-xs bg-white dark:bg-[#252625] border border-[#E6E1D8] dark:border-[#2C2D2B] rounded-lg text-[#1A1917] dark:text-[#F5F2EB] font-bold focus:outline-none focus:border-[#525B44] cursor-pointer max-w-[180px] truncate"
+                >
+                  {availableCategories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.label} {cat.count !== undefined ? `(${cat.count})` : ""}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="hidden md:flex items-center gap-1 bg-white dark:bg-[#252625] p-1 border border-[#E6E1D8] dark:border-[#2C2D2B] rounded-lg text-xs overflow-x-auto scrollbar-none">
+                  {availableCategories.slice(0, 5).map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`px-2.5 py-1 rounded text-xs transition-colors whitespace-nowrap cursor-pointer ${
+                        selectedCategory === cat.id
+                          ? "bg-[#525B44] text-white font-medium shadow-xs"
+                          : "text-[#8A857D] dark:text-[#9A958D] hover:text-[#1A1917]"
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -771,7 +865,7 @@ export function ProductsView({
 
                     <button
                       onClick={() => {
-                        setKindFilter("any");
+                        setSelectedCategory("all");
                         setSubTab("catalogue");
                         setSearchQuery(coll.name.split(" ")[0]);
                       }}
