@@ -107,10 +107,9 @@ export default function NewAppPage() {
     ? draftApps
     : (latestDraft && isAppDraft(latestDraft) ? [latestDraft] : []);
 
-  // Auto-fetch data from searchParams or user data store
-  const storedData = typeof window !== "undefined" ? getUserData() : {};
-  const queryUrl = searchParams.get("url") || storedData.website_url || "";
-  const queryPlatform = (searchParams.get("platform") || storedData.platform || "").toLowerCase();
+  // Explicit parameters from URL searchParams (e.g. from homepage selection)
+  const queryUrl = searchParams.get("url") || "";
+  const queryPlatform = (searchParams.get("platform") || "").toLowerCase();
   const initialPlatform: "woo" | "shopify" | "wordpress" =
     queryPlatform === "shopify"
       ? "shopify"
@@ -118,11 +117,7 @@ export default function NewAppPage() {
       ? "wordpress"
       : "woo";
 
-  const queryName =
-    searchParams.get("name") ||
-    storedData.store_name ||
-    authData?.user?.business_name ||
-    "";
+  const queryName = searchParams.get("name") || "";
 
   const [prefilledUrl, setPrefilledUrl] = useState(queryUrl);
   const [prefilledName, setPrefilledName] = useState(queryName);
@@ -474,72 +469,6 @@ export default function NewAppPage() {
             Let's start by naming your app and choosing your website platform.
           </p>
         </div>
-
-        {(prefilledName || prefilledUrl) && (
-          <div className="prefilled-details-banner">
-            <div className="prefilled-banner-left">
-              <div className="prefilled-icon-check">✓</div>
-              <div className="prefilled-banner-text">
-                <span className="prefilled-label">Auto-Fetched Configuration</span>
-                <span className="prefilled-val">
-                  Store: <strong>{prefilledName || "Your Store"}</strong> &bull; Platform:{" "}
-                  <strong>{getPlatformLabel(selectedPlatform)}</strong>
-                  {prefilledUrl && (
-                    <>
-                      {" "}
-                      &bull; URL: <strong>{prefilledUrl}</strong>
-                    </>
-                  )}
-                </span>
-              </div>
-            </div>
-            <span className="prefilled-editable-badge">Auto-populated</span>
-          </div>
-        )}
-
-        {unfinishedProjects.length > 0 && (
-          <div className="space-y-3 mb-6">
-            {unfinishedProjects.map((draftItem: any) => (
-              <div
-                key={draftItem.ulid || draftItem.id}
-                className="p-4 sm:p-5 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-[#78593D] text-white flex items-center justify-center flex-shrink-0 shadow-xs">
-                    <Store className="w-5 h-5 text-amber-100" />
-                  </div>
-                  <div>
-                    <p className="text-xs sm:text-sm font-bold text-[#1C1917]">
-                      Unfinished Project: <span className="font-extrabold text-[#78593D]">{draftItem.name}</span>
-                    </p>
-                    <p className="text-[11px] text-[#7E756B] mt-0.5">
-                      Saved at Step: <span className="font-bold uppercase tracking-wider text-[#78593D]">{draftItem.setup_step || "PLATFORM"}</span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 self-start sm:self-auto">
-                  <Link
-                    href={`/dashboard/apps/${draftItem.ulid}/setup/${draftItem.setup_step || "platform"}`}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white font-bold text-xs shadow-xs transition active:scale-98 cursor-pointer"
-                  >
-                    <span>Resume Project</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-
-                  <button
-                    type="button"
-                    onClick={() => setDraftToDelete(draftItem)}
-                    className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 text-xs font-bold transition flex items-center justify-center cursor-pointer active:scale-95"
-                    title="Delete Unfinished Project"
-                  >
-                    <Trash2 className="w-4 h-4 text-rose-600" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
 
         {selectedPlanInfo && (
           <div className="mb-6 p-4 rounded-2xl bg-[#F7F5F0] border border-[#78593D]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">

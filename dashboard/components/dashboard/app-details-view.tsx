@@ -840,8 +840,8 @@ export function AppDetailsView({
 
       {/* ── TWO-COLUMN APPLICATION MANAGEMENT LAYOUT ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* ── LEFT SIDEBAR NAVIGATION (Requirement 3: No internal scrolling) ── */}
-        <aside className="lg:col-span-3 flex flex-col gap-4 self-start">
+        {/* ── LEFT SIDEBAR NAVIGATION (Requirement 3: No internal scrolling & sticky) ── */}
+        <aside className="lg:col-span-3 flex flex-col gap-4 self-start lg:sticky lg:top-20 z-10">
           <div className="bg-white border border-[#EBE6DF] rounded-3xl p-3 sm:p-4 shadow-sm flex flex-col">
             {/* If completed app, top bar was hidden: show Back button and app banner here */}
             {isCompletedApp && (

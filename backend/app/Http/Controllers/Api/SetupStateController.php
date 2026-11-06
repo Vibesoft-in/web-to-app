@@ -184,19 +184,48 @@ class SetupStateController extends Controller
         $app = $this->resolveApp($request, $ulid);
 
         $validated = $request->validate([
-            'platform' => ['required', 'string', 'in:woo,shopify,wordpress,wp'],
+            'platform'    => ['required', 'string', 'in:woo,shopify,wordpress,wp'],
+            'name'        => ['nullable', 'string', 'min:2', 'max:50'],
+            'website_url' => ['nullable', 'string', 'max:255'],
+            'site_url'    => ['nullable', 'string', 'max:255'],
         ]);
 
         $platStr = ($validated['platform'] === 'wp') ? 'wordpress' : $validated['platform'];
         $newPlatform = Platform::from($platStr);
 
-        DB::transaction(function () use ($app, $newPlatform, $request) {
+        DB::transaction(function () use ($app, $newPlatform, $validated, $request) {
             $isPlatformChanged = $app->platform !== $newPlatform;
 
-            if ($isPlatformChanged) {
-                // Invalidate connection and subsequent step artifacts
+            // Update App Name if provided
+            if (!empty($validated['name'])) {
+                $app->update(['name' => trim($validated['name'])]);
+            }
+
+            // Update or create Connection URL if provided
+            $rawUrl = $validated['website_url'] ?? $validated['site_url'] ?? null;
+            if (!empty($rawUrl)) {
+                $cleanUrl = trim((string) $rawUrl);
+                if (!str_starts_with($cleanUrl, 'http://') && !str_starts_with($cleanUrl, 'https://')) {
+                    $cleanUrl = 'https://' . $cleanUrl;
+                }
                 if ($app->connection) {
-                    $app->connection->delete();
+                    $app->connection->update(['site_url' => $cleanUrl]);
+                } else {
+                    \App\Models\Connection::create([
+                        'tenant_id'   => $app->tenant_id,
+                        'app_id'      => $app->id,
+                        'platform'    => $newPlatform,
+                        'site_url'    => $cleanUrl,
+                        'credentials' => [],
+                        'status'      => \App\Enums\ConnectionStatus::NotStarted,
+                    ]);
+                }
+            }
+
+            if ($isPlatformChanged) {
+                // Invalidate connection credentials and subsequent step artifacts
+                if ($app->connection) {
+                    $app->connection->update(['credentials' => [], 'status' => \App\Enums\ConnectionStatus::NotStarted]);
                 }
 
                 // Invalidate unpublished draft configs
@@ -229,6 +258,7 @@ class SetupStateController extends Controller
         return response()->json([
             'message'      => 'Platform updated successfully.',
             'platform'     => $app->platform,
+            'name'         => $app->name,
             'current_step' => $app->setup_step->value,
         ]);
     }
