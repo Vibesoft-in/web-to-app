@@ -426,14 +426,21 @@ function UserDashboardContent() {
         const itemSlug = (item.slug || item.meta?.slug || "").toLowerCase();
         const itemName = (item.name || "").toLowerCase();
         const currentAddonName = (addon.name || "").toLowerCase();
-        return (
-          item.item_type === "addon" &&
-          (item.item_id === addon.id ||
-            itemSlug === addonSlug ||
-            itemName.includes(addonSlug) ||
-            itemName.includes(currentAddonName) ||
-            currentAddonName.includes(itemName))
+
+        const hasIdMatch = Boolean(addon.id && item.item_id && String(item.item_id) === String(addon.id));
+        const hasSlugMatch = Boolean(
+          addonSlug &&
+          (itemSlug === addonSlug ||
+            (itemSlug && itemSlug.includes(addonSlug)) ||
+            (itemName && itemName.includes(addonSlug)))
         );
+        const hasNameMatch = Boolean(
+          currentAddonName &&
+          currentAddonName.length > 3 &&
+          itemName &&
+          (itemName.includes(currentAddonName) || currentAddonName.includes(itemName))
+        );
+        return item.item_type === "addon" && (hasIdMatch || hasSlugMatch || hasNameMatch);
       });
     });
     if (foundInOrders) return true;
@@ -1077,7 +1084,8 @@ function UserDashboardContent() {
             type: "addon",
             app_id: targetApp.id,
             app_ulid: targetApp.ulid,
-            addon_ids: [addon.id],
+            addon_ids: addon?.id ? [addon.id] : [],
+            addon_slugs: addon?.slug ? [addon.slug] : [],
             customer_name: user?.name || "",
             customer_email: user?.email || "",
             currency: "INR",
@@ -1125,6 +1133,7 @@ function UserDashboardContent() {
         if (err.message !== "PAYMENT_CANCELLED" && err.message !== "PAYMENT_ALREADY_IN_PROGRESS") {
           setAddonMessage(err.message || "Failed to purchase add-on.");
         }
+        throw err;
       } finally {
         isPurchasingAddonRef.current = false;
         setIsPurchasingAddon(false);
@@ -1305,7 +1314,7 @@ function UserDashboardContent() {
       return (
         <AppDetailsView
           app={viewingAppDetails}
-          currentPlan={viewingAppDetails.active_plan || viewingAppDetails.plan || currentPlan}
+          currentPlan={viewingAppDetails.active_plan || viewingAppDetails.plan || { id: 1, name: "Starter App", slug: "starter" }}
           config={appConfigData || viewingAppDetails?.configs?.[0]?.config}
           isLoadingConfig={isLoadingConfig}
           onBack={() => {

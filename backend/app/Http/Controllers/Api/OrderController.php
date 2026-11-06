@@ -93,7 +93,8 @@ class OrderController extends Controller
             $packageId,
             $addonIds,
             $appUlid,
-            $request->input('type')
+            $request->input('type'),
+            (array) $request->input('addon_slugs', [])
         );
 
         return response()->json([

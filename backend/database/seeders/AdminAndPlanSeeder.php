@@ -150,5 +150,65 @@ class AdminAndPlanSeeder extends Seeder
                 'sort_order'   => 5,
             ]
         );
+
+        \App\Models\AddOn::updateOrCreate(
+            ['slug' => 'push_notifications'],
+            [
+                'name'         => 'Push Notifications Campaign Engine',
+                'price'        => 99900,
+                'billing_type' => 'one_time',
+                'category'     => 'Marketing',
+                'description'  => 'Broadcast rich media push notifications and trigger automated abandoned cart alerts to boost customer retention.',
+                'badge'        => 'Push Notifications',
+                'features'     => [
+                    'Unlimited push notifications',
+                    'FCM and Webpush credentials',
+                    'Rich media & link attachments',
+                    'Targeted audience broadcasts',
+                ],
+                'is_active'    => true,
+                'sort_order'   => 10,
+            ]
+        );
+
+        \App\Models\AddOn::updateOrCreate(
+            ['slug' => 'email_config'],
+            [
+                'name'         => 'Branded Email Configuration Module',
+                'price'        => 99900,
+                'billing_type' => 'one_time',
+                'category'     => 'Branding & Relay',
+                'description'  => 'Custom SMTP relay integration for branded transactional purchase receipts, password recovery links, and customer notifications.',
+                'badge'        => 'Email Configuration',
+                'features'     => [
+                    'Custom SMTP relay routing',
+                    'Branded order receipt templates',
+                    'DKIM / SPF delivery alignment',
+                    'Automated transactional emails',
+                ],
+                'is_active'    => true,
+                'sort_order'   => 11,
+            ]
+        );
+
+        \App\Models\AddOn::updateOrCreate(
+            ['slug' => 'whatsapp_sync'],
+            [
+                'name'         => 'WhatsApp Automated Order Sync & Chat',
+                'price'        => 99900,
+                'billing_type' => 'one_time',
+                'category'     => 'Customer Support',
+                'description'  => 'Automate WhatsApp order confirmation notifications, parcel tracking updates, and 1-click in-app floating support chat.',
+                'badge'        => 'WhatsApp API',
+                'features'     => [
+                    'Meta WhatsApp Business Cloud API',
+                    'Automated order confirmation alerts',
+                    'Real-time parcel delivery updates',
+                    '1-click floating WhatsApp customer chat',
+                ],
+                'is_active'    => true,
+                'sort_order'   => 12,
+            ]
+        );
     }
 }

@@ -74,7 +74,7 @@ interface AppDetailsViewProps {
 
 const fallbackCommercialAddons = [
   {
-    id: 5,
+    id: 2,
     name: "Dedicated Admin Panel Access Module",
     shortName: "Admin Panel Access",
     slug: "admin_panel_addon",
@@ -112,7 +112,7 @@ const fallbackCommercialAddons = [
     ],
   },
   {
-    id: 1,
+    id: 3,
     name: "Push Notifications Campaign Engine",
     shortName: "Push Notifications Engine",
     slug: "push_notifications",
@@ -131,7 +131,7 @@ const fallbackCommercialAddons = [
     ],
   },
   {
-    id: 2,
+    id: 5,
     name: "WhatsApp Automated Order Sync & Chat",
     shortName: "WhatsApp Order Sync & Chat",
     slug: "whatsapp_sync",
@@ -150,7 +150,7 @@ const fallbackCommercialAddons = [
     ],
   },
   {
-    id: 9,
+    id: 4,
     name: "Branded Email Configuration Module",
     shortName: "Email Configuration Module",
     slug: "email_config",
@@ -653,15 +653,14 @@ export function AppDetailsView({
 
   const planSlug = (currentPlan?.slug || currentPlan?.name || app?.active_plan?.name || "").toLowerCase();
   const isStarter = planSlug.includes("starter") || planSlug.includes("basic") || planSlug.includes("free");
-  const isEnterprise = planSlug.includes("enterprise");
+  const isEnterprise = planSlug.includes("enterprise") || currentPlan?.id === 3 || app?.active_plan?.id === 3;
+  // Push Notifications, Email Configuration, and WhatsApp API are included in Enterprise Suite / Premium tier.
+  // On Starter, Pro Combo, or without an Enterprise subscription, each feature must be purchased solely as an add-on.
   const isPremiumPlan = Boolean(
     planSlug.includes("premium") ||
     planSlug.includes("enterprise") ||
-    (planSlug.includes("pro") && !planSlug.includes("starter")) ||
-    currentPlan?.id === 2 ||
     currentPlan?.id === 3 ||
-    Boolean(currentPlan?.has_admin_panel) ||
-    Boolean(app?.has_admin_panel)
+    app?.active_plan?.id === 3
   );
   const isPremiumTier = isPremiumPlan;
 
@@ -749,17 +748,17 @@ export function AppDetailsView({
   const isPushSolelyPurchased = Boolean(
     localPurchasedSlugs.includes("push_notifications") ||
     (Array.isArray(app?.purchased_addon_slugs) && app.purchased_addon_slugs.includes("push_notifications")) ||
-    (appHasAddon && appHasAddon(app, { slug: "push_notifications" }))
+    (appHasAddon && appHasAddon(app, { id: 3, slug: "push_notifications", name: "Push Notifications Campaign Engine" }))
   );
   const isEmailSolelyPurchased = Boolean(
     localPurchasedSlugs.includes("email_config") ||
     (Array.isArray(app?.purchased_addon_slugs) && app.purchased_addon_slugs.includes("email_config")) ||
-    (appHasAddon && appHasAddon(app, { slug: "email_config" }))
+    (appHasAddon && appHasAddon(app, { id: 4, slug: "email_config", name: "Branded Email Configuration Module" }))
   );
   const isWhatsAppSolelyPurchased = Boolean(
     localPurchasedSlugs.includes("whatsapp_sync") ||
     (Array.isArray(app?.purchased_addon_slugs) && app.purchased_addon_slugs.includes("whatsapp_sync")) ||
-    (appHasAddon && appHasAddon(app, { slug: "whatsapp_sync" }))
+    (appHasAddon && appHasAddon(app, { id: 5, slug: "whatsapp_sync", name: "WhatsApp Automated Order Sync & Chat" }))
   );
 
   // Requirements: These features should ONLY be available in Premium Plan, otherwise the user has to buy them solely
@@ -819,7 +818,10 @@ export function AppDetailsView({
         await onPurchaseAddon(addon, app);
       }
       if (addon.slug) {
-        setLocalPurchasedSlugs((prev) => [...prev, addon.slug.toLowerCase()]);
+        setLocalPurchasedSlugs((prev) => {
+          const s = addon.slug.toLowerCase();
+          return prev.includes(s) ? prev : [...prev, s];
+        });
       }
       setCheckoutMessage({
         text: `✓ Add-on "${addon.name}" successfully purchased and provisioned for ${appName}!`,
@@ -2624,13 +2626,17 @@ export function AppDetailsView({
                     <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
                       <button
                         type="button"
-                        onClick={() =>
-                          handleExecutePurchase({
+                        onClick={() => {
+                          const targetAddon = availableAddons.find(
+                            (a: any) => (a.slug || "").toLowerCase() === "push_notifications"
+                          ) || {
+                            id: 3,
                             slug: "push_notifications",
                             name: "Push Notifications Campaign Engine",
                             price: 99900,
-                          })
-                        }
+                          };
+                          handleExecutePurchase(targetAddon);
+                        }}
                         disabled={isProcessingCheckout}
                         className="w-full sm:w-auto px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >
@@ -2858,13 +2864,17 @@ export function AppDetailsView({
                     <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
                       <button
                         type="button"
-                        onClick={() =>
-                          handleExecutePurchase({
+                        onClick={() => {
+                          const targetAddon = availableAddons.find(
+                            (a: any) => (a.slug || "").toLowerCase() === "email_config"
+                          ) || {
+                            id: 4,
                             slug: "email_config",
                             name: "Branded Email Configuration Module",
                             price: 99900,
-                          })
-                        }
+                          };
+                          handleExecutePurchase(targetAddon);
+                        }}
                         disabled={isProcessingCheckout}
                         className="w-full sm:w-auto px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >
@@ -3095,13 +3105,17 @@ export function AppDetailsView({
                     <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
                       <button
                         type="button"
-                        onClick={() =>
-                          handleExecutePurchase({
+                        onClick={() => {
+                          const targetAddon = availableAddons.find(
+                            (a: any) => (a.slug || "").toLowerCase() === "whatsapp_sync"
+                          ) || {
+                            id: 5,
                             slug: "whatsapp_sync",
                             name: "WhatsApp Automated Order Sync & Chat",
                             price: 99900,
-                          })
-                        }
+                          };
+                          handleExecutePurchase(targetAddon);
+                        }}
                         disabled={isProcessingCheckout}
                         className="w-full sm:w-auto px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >

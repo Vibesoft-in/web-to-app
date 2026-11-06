@@ -36,7 +36,7 @@ class OrderService
      * @param ?string $type
      * @return array
      */
-    public function calculatePricing(int $packageId, array $addonIds = [], ?string $appUlid = null, ?string $type = null): array
+    public function calculatePricing(int $packageId, array $addonIds = [], ?string $appUlid = null, ?string $type = null, array $addonSlugs = []): array
     {
         $package = Plan::where('is_active', true)->find($packageId) ?? Plan::where('is_active', true)->first();
         $app = $appUlid ? App::withoutTenantScope()->where('ulid', $appUlid)->first() : null;
@@ -61,6 +61,13 @@ class OrderService
         $appliedPackageAmount = $isAddonOnly ? 0 : ($isUpgrade ? $upgradeDifference : $packagePrice);
 
         // Fetch selected add-ons from DB (never trust frontend prices)
+        if (! empty($addonSlugs)) {
+            $slugIds = AddOn::whereIn('slug', $addonSlugs)->pluck('id')->toArray();
+            $addonIds = array_values(array_unique(array_merge(array_filter($addonIds), $slugIds)));
+        } else {
+            $addonIds = array_values(array_filter($addonIds));
+        }
+
         $addons = [];
         $addonsTotal = 0;
         if (! empty($addonIds)) {
@@ -124,7 +131,11 @@ class OrderService
     {
         $type = $data['type'] ?? 'new_purchase';
         $packageId = (int) ($data['package_id'] ?? 1);
-        $addonIds = array_map('intval', (array) ($data['addon_ids'] ?? []));
+        $addonIds = array_filter(array_map('intval', (array) ($data['addon_ids'] ?? [])));
+        if (! empty($data['addon_slugs'])) {
+            $slugIds = AddOn::whereIn('slug', (array) $data['addon_slugs'])->pluck('id')->toArray();
+            $addonIds = array_values(array_unique(array_merge($addonIds, $slugIds)));
+        }
         $appUlid = $data['app_ulid'] ?? null;
         $app = null;
         if ($appUlid) {
