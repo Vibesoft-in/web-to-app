@@ -234,7 +234,7 @@ class ConfigController extends Controller
             $merged['home'] = $this->getDefaultTemplate($app)['home'];
         }
 
-        // If user selected a theme to purchase/use, persist it in the draft
+        // If user selected a theme to purchase/use, persist it in the draft and app model
         if (! empty($payload['selected_theme_key'])) {
             $merged['selected_theme_key'] = $payload['selected_theme_key'];
             $themeModel = Theme::where('key', $payload['selected_theme_key'])->first();
@@ -243,8 +243,10 @@ class ConfigController extends Controller
                 $merged['theme']['layout'] = $themeModel->key;
                 $merged['theme']['key'] = $themeModel->key;
             }
+            $app->update(['assigned_theme_key' => $payload['selected_theme_key']]);
         } elseif (! empty($payload['theme']['layout']) && $payload['theme']['layout'] !== 'theme_a') {
             $merged['selected_theme_key'] = $payload['theme']['layout'];
+            $app->update(['assigned_theme_key' => $payload['theme']['layout']]);
         } elseif (! $app->canUserChangeTheme() && empty($merged['selected_theme_key'])) {
             $assignedTheme = $app->getAssignedTheme();
             $adminThemeDefaults = $assignedTheme->defaults ?? [];

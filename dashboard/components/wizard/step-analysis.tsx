@@ -989,7 +989,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   : Number(googlePageSpeed.performance || 0) >= 50
                   ? "Acceptable"
                   : "Needs Attention",
-              subtext: `FCP: ${googlePageSpeed.fcp || "1.2s"} • TBT: ${googlePageSpeed.tbt || "120ms"}`,
+              subtext: `FCP: ${googlePageSpeed.fcp || "1.2s"} · TBT: ${googlePageSpeed.tbt || "120ms"}`,
               tooltip:
                 "Evaluates real Core Web Vitals including First Contentful Paint (FCP) and Total Blocking Time (TBT). High performance guarantees smooth app screen transitions.",
             },
@@ -1007,7 +1007,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   : Number(googlePageSpeed.seo || 0) >= 50
                   ? "Acceptable"
                   : "Needs Attention",
-              subtext: "Meta • Headings • Crawlability",
+              subtext: "Meta · Headings · Crawlability",
               tooltip:
                 "Checks search engine indexability, OpenGraph tags, and mobile viewport metadata for social sharing and app deep-linking.",
             },
@@ -1025,7 +1025,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   : Number(googlePageSpeed.accessibility || 0) >= 50
                   ? "Acceptable"
                   : "Needs Attention",
-              subtext: "Contrast • Alt Tags • Tap Targets",
+              subtext: "Contrast · Alt Tags · Tap Targets",
               tooltip:
                 "Measures color contrast, touch target sizes (≥48x48dp), and readable font scales essential for native mobile usability.",
             },
@@ -1056,7 +1056,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
               benchmarkVal: 85,
               benchmarkLabel: "Benchmark: SSL Active",
               statusLabel: securityScore >= 85 ? "Optimal" : "Needs Attention",
-              subtext: isHttps ? "TLS 1.3 Active • HSTS" : "Insecure HTTP Protocol",
+              subtext: isHttps ? "TLS 1.3 Active · HSTS" : "Insecure HTTP Protocol",
               tooltip:
                 "Validates HTTPS encryption and modern cipher suites required by Apple App Store and Google Play policy.",
             },
@@ -1074,7 +1074,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   : Number(googlePageSpeed.best_practices || 0) >= 50
                   ? "Acceptable"
                   : "Needs Attention",
-              subtext: "HTML5 • Valid Doctype • APIs",
+              subtext: "HTML5 · Valid Doctype · APIs",
               tooltip:
                 "Evaluates standard compliance, safe script loading, and modern web API compatibility used by WebIntoApp mobile webviews.",
             },
@@ -1212,8 +1212,15 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                           <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                           <span>{item.benchmarkLabel}</span>
                         </span>
-                        <span className="font-semibold text-slate-500">
-                          {score >= item.benchmarkVal ? "✓ Meets Benchmark" : "Below Target"}
+                        <span className={`font-semibold flex items-center gap-1 ${score >= item.benchmarkVal ? "text-emerald-700" : "text-slate-500"}`}>
+                          {score >= item.benchmarkVal ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                              <span>Meets Benchmark</span>
+                            </>
+                          ) : (
+                            <span>Below Target</span>
+                          )}
                         </span>
                       </div>
                     </div>

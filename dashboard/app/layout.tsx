@@ -23,6 +23,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <meta charSet="utf-8" />
         <link rel="stylesheet" href="/assets/css/app.css" />
       </head>
       <body className="antialiased site-layout">

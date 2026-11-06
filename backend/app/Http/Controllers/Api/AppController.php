@@ -271,6 +271,104 @@ class AppController extends Controller
         return response()->json($data);
     }
 
+    /**
+     * Retrieve the commercial software license details for an application.
+     *
+     * GET /api/apps/{ulid}/license
+     */
+    public function license(string $ulid, Request $request): JsonResponse
+    {
+        $user = $request->user() ?? auth('sanctum')->user();
+        $query = $user ? App::where('tenant_id', $user->tenant_id) : App::withoutTenantScope();
+
+        $app = $query->where('ulid', $ulid)
+            ->with([
+                'subscriptions.plan',
+                'orders' => fn ($q) => $q->where('status', 'paid')->latest('id'),
+                'tenant.users',
+            ])
+            ->firstOrFail();
+
+        $activePlan = $app->getActivePlan();
+        $subscription = $app->subscriptions->where('status', 'active')->first();
+        $latestOrder = $app->orders->first();
+
+        // Deterministic masked license key based on app_key and ULID
+        $rawSeed = strtoupper(hash('sha256', $app->ulid . ($app->app_key ?? 'key') . 'appify_hub_commercial_license'));
+        $seg1 = substr($rawSeed, 0, 4);
+        $seg2 = substr($rawSeed, 4, 4);
+        $seg3 = substr($rawSeed, 8, 4);
+        $seg4 = substr(strtoupper($app->ulid), -4);
+        $fullLicenseKey = "WIA-{$seg1}-{$seg2}-{$seg3}-{$seg4}";
+        $maskedLicenseKey = "WIA-{$seg1}-••••-••••-{$seg4}";
+
+        // Plan & Tier
+        $planName = $activePlan?->name 
+            ?? $latestOrder?->package?->name 
+            ?? ($app->isCompleted() ? 'Commercial Production Tier' : 'Standard Starter License');
+
+        $isLifetime = str_contains(strtolower($planName), 'lifetime') 
+            || ($latestOrder && str_contains(strtolower((string) $latestOrder->order_type), 'lifetime'))
+            || (! $subscription && $activePlan);
+
+        $licenseType = $isLifetime 
+            ? "{$planName} (Perpetual / Lifetime)" 
+            : "{$planName} (Commercial License)";
+
+        $status = ($app->isCompleted() || $subscription || $latestOrder) 
+            ? 'Active & Verified' 
+            : ($app->status === \App\Enums\AppStatus::Draft ? 'Draft / Pending Setup' : 'Active');
+
+        // Dates
+        $issuedAt = $latestOrder?->paid_at 
+            ?? $subscription?->created_at 
+            ?? $app->created_at;
+        $formattedIssuedAt = $issuedAt ? $issuedAt->format('M d, Y') : now()->format('M d, Y');
+
+        $formattedExpiresAt = 'Perpetual (No Expiration Date)';
+        if (! $isLifetime && $subscription?->current_period_end) {
+            $formattedExpiresAt = \Carbon\Carbon::parse($subscription->current_period_end)->format('M d, Y');
+        }
+
+        // Customer details
+        $customerUser = $user ?? $app->tenant?->users?->first();
+        $customerName = $customerUser?->name ?? $app->tenant?->name ?? 'Registered Customer';
+        $customerEmail = $customerUser?->email ?? ($app->tenant?->name ? strtolower(str_replace(' ', '', $app->tenant->name)) . '@customer.local' : 'customer@appifyhub.com');
+
+        // Rights & Entitlements
+        $entitlements = [
+            '1 Production Mobile Application (Android APK & Google Play AAB)',
+            'Unlimited Realtime Catalog Sync with ' . ($app->platform === 'woo' ? 'WooCommerce' : 'Connected Store'),
+            'Dedicated Push Notification Channel via Firebase Cloud Messaging',
+            'Commercial Digital Software Distribution Rights',
+            'RSA-2048 Production Signing & Zero Commission Fee Structure',
+        ];
+
+        if ($app->hasAdminPanelAccess()) {
+            $entitlements[] = 'Admin Management Portal Unlocked';
+        }
+
+        return response()->json([
+            'license_name'        => $licenseType,
+            'license_type'        => $planName,
+            'license_status'      => $status,
+            'is_valid'            => $status === 'Active & Verified' || $status === 'Active',
+            'is_lifetime'         => $isLifetime,
+            'license_key_masked'  => $maskedLicenseKey,
+            'license_key_full'    => $fullLicenseKey,
+            'issue_date'          => $formattedIssuedAt,
+            'expiry_date'         => $formattedExpiresAt,
+            'app_id'              => $app->ulid,
+            'app_name'            => $app->name,
+            'package_name'        => $app->package_name,
+            'customer_name'       => $customerName,
+            'customer_email'      => $customerEmail,
+            'tenant_name'         => $app->tenant?->name ?? 'Default Tenant',
+            'entitlements'        => $entitlements,
+            'platform'            => $app->platform,
+        ]);
+    }
+
     private function resolveAdminPortalApp(string $ulid, ?Request $request = null): App
     {
         $user = $request ? ($request->user() ?? auth('sanctum')->user()) : auth('sanctum')->user();

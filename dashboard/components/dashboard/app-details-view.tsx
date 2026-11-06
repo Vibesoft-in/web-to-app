@@ -10,12 +10,15 @@ import { AddonLearnMoreModal } from "@/components/addons/addon-learn-more-modal"
 import {
   ArrowLeft,
   ArrowRight,
+  Award,
   BarChart3,
   Bell,
   Check,
   CheckCircle2,
   ChevronDown,
   Clock,
+  Copy,
+  Cpu,
   CreditCard,
   Download,
   ExternalLink,
@@ -261,6 +264,129 @@ const PRESET_PALETTES = [
   { name: "Modern Dark", primary: "#1E293B", secondary: "#94A3B8" },
 ];
 
+export interface AppThemeConfig {
+  key: string;
+  name: string;
+  description: string;
+  styleTitle: string;
+  badge: string;
+  colors: {
+    primary: string;
+    secondary: string;
+    background: string;
+    surface: string;
+    text: string;
+  };
+  font: string;
+  radius: number;
+  nav: string;
+}
+
+export const APP_THEMES: AppThemeConfig[] = [
+  {
+    key: "modern_minimal",
+    name: "Modern Minimal",
+    description: "Clean, whitespace-focused minimalist store layout with focused typography",
+    styleTitle: "Minimalist Card Flow",
+    badge: "Official Clean",
+    colors: {
+      primary: "#18181B",
+      secondary: "#71717A",
+      background: "#FFFFFF",
+      surface: "#F4F4F5",
+      text: "#09090B",
+    },
+    font: "Inter",
+    radius: 8,
+    nav: "bottom",
+  },
+  {
+    key: "premium",
+    name: "Premium",
+    description: "Warm bronze & gold luxury styling with editorial card layout and elevated product frames",
+    styleTitle: "Editorial Showcase",
+    badge: "Most Popular",
+    colors: {
+      primary: "#78593D",
+      secondary: "#C2A88F",
+      background: "#FAF7F2",
+      surface: "#FFFFFF",
+      text: "#1C1917",
+    },
+    font: "Outfit",
+    radius: 16,
+    nav: "bottom",
+  },
+  {
+    key: "ecommerce_classic",
+    name: "E-commerce Classic",
+    description: "Familiar, high-converting retail layout with grid product cards, badges, and quick cart buttons",
+    styleTitle: "Retail Grid",
+    badge: "High Conversion",
+    colors: {
+      primary: "#2563EB",
+      secondary: "#F59E0B",
+      background: "#FFFFFF",
+      surface: "#F8FAFC",
+      text: "#1E293B",
+    },
+    font: "Poppins",
+    radius: 12,
+    nav: "bottom",
+  },
+  {
+    key: "bold_colorful",
+    name: "Bold & Colorful",
+    description: "Dynamic gradient accents, vibrant CTA buttons, and modern rounded aesthetic",
+    styleTitle: "Dynamic Mosaic",
+    badge: "Vibrant",
+    colors: {
+      primary: "#EC4899",
+      secondary: "#8B5CF6",
+      background: "#FFFFFF",
+      surface: "#FDF2F8",
+      text: "#18181B",
+    },
+    font: "Plus Jakarta Sans",
+    radius: 20,
+    nav: "bottom",
+  },
+  {
+    key: "elegant",
+    name: "Elegant",
+    description: "Soft neutral tones, subtle drop shadows, refined serifs/sans mix, and graceful spacing",
+    styleTitle: "Soft Horizon",
+    badge: "Boutique",
+    colors: {
+      primary: "#0D9488",
+      secondary: "#F43F5E",
+      background: "#F0FDFA",
+      surface: "#FFFFFF",
+      text: "#134E4A",
+    },
+    font: "Outfit",
+    radius: 14,
+    nav: "bottom",
+  },
+  {
+    key: "dark_mode",
+    name: "Dark Mode",
+    description: "Sleek obsidian dark backdrop, neon amber & emerald accents, optimized for OLED displays",
+    styleTitle: "Obsidian Cyber",
+    badge: "OLED Optimized",
+    colors: {
+      primary: "#D97706",
+      secondary: "#10B981",
+      background: "#0B0F19",
+      surface: "#151C2C",
+      text: "#F8FAFC",
+    },
+    font: "Outfit",
+    radius: 14,
+    nav: "bottom",
+  },
+];
+
 export function AppDetailsView({
   app,
   currentPlan,
@@ -279,11 +405,10 @@ export function AppDetailsView({
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Navigation sidebar state & strictly ordered 10 tabs (Requirement 5)
+  // Navigation sidebar state (Change 2: Web Traffic removed)
   const TAB_KEYS = [
     "overview",
     "app_traffic",
-    "web_traffic",
     "downloads",
     "addons",
     "branding",
@@ -306,6 +431,7 @@ export function AppDetailsView({
         "app-addons-section": "addons",
         "settings": "overview",
         "branding-section": "branding",
+        "web_traffic": "app_traffic",
       };
       const resolved = (aliasMap[sectionParam] || sectionParam) as TabKey;
       if (TAB_KEYS.includes(resolved) && activeTab !== resolved) {
@@ -436,6 +562,108 @@ export function AppDetailsView({
     if (appConfig?.theme?.font) setFontInput(appConfig.theme.font);
   }, [appConfig]);
 
+  // License Modal State (Change 1)
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
+  const [isCopiedLicenseKey, setIsCopiedLicenseKey] = useState(false);
+
+  const {
+    data: licenseData,
+    isLoading: isLoadingLicense,
+    isError: isLicenseError,
+    refetch: refetchLicense,
+  } = useQuery({
+    queryKey: ["app-license", app?.ulid],
+    queryFn: async () => {
+      if (!app?.ulid) return null;
+      return await apiClient(`/api/apps/${app.ulid}/license`);
+    },
+    enabled: Boolean(isLicenseModalOpen && app?.ulid),
+  });
+
+  const licenseDetails: any = (licenseData as any)?.license_key ? licenseData : (licenseData as any)?.data || licenseData;
+
+  // Theme Selection State (Change 4)
+  const initialThemeKey =
+    appConfig?.selected_theme_key ||
+    appConfig?.theme?.key ||
+    appConfig?.theme?.layout ||
+    app?.assigned_theme_key ||
+    "modern_minimal";
+
+  const [savedThemeKey, setSavedThemeKey] = useState<string>(initialThemeKey);
+  const [previewThemeKey, setPreviewThemeKey] = useState<string>(initialThemeKey);
+  const [isApplyingTheme, setIsApplyingTheme] = useState(false);
+  const [themeSuccessMsg, setThemeSuccessMsg] = useState<string | null>(null);
+
+  const activePreviewTheme = useMemo(() => {
+    return (
+      APP_THEMES.find((t) => t.key === previewThemeKey) ||
+      APP_THEMES.find((t) => t.key === "modern_minimal") ||
+      APP_THEMES[0]
+    );
+  }, [previewThemeKey]);
+
+  useEffect(() => {
+    const key =
+      appConfig?.selected_theme_key ||
+      appConfig?.theme?.key ||
+      appConfig?.theme?.layout ||
+      app?.assigned_theme_key;
+    if (key) {
+      setSavedThemeKey(key);
+      setPreviewThemeKey(key);
+    }
+  }, [appConfig, app?.assigned_theme_key]);
+
+  const handleApplyTheme = async (themeToApply: AppThemeConfig) => {
+    if (!app?.ulid) return;
+    setIsApplyingTheme(true);
+    setThemeSuccessMsg(null);
+    setBrandingStatusMsg(null);
+
+    try {
+      setPreviewThemeKey(themeToApply.key);
+      setPrimaryColorInput(themeToApply.colors.primary);
+      setSecondaryColorInput(themeToApply.colors.secondary);
+      setFontInput(themeToApply.font);
+
+      const payload = {
+        app: {
+          name: appNameInput,
+          logo_url: logoUrlInput,
+          banner_url: bannerUrlInput,
+          currency: "INR",
+        },
+        selected_theme_key: themeToApply.key,
+        theme: {
+          key: themeToApply.key,
+          layout: themeToApply.key,
+          logo_url: logoUrlInput,
+          banner_url: bannerUrlInput,
+          colors: themeToApply.colors,
+          font: themeToApply.font,
+          radius: themeToApply.radius,
+          nav: themeToApply.nav,
+        },
+      };
+
+      await apiClient(`/api/apps/${app.ulid}/config/draft`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+
+      setSavedThemeKey(themeToApply.key);
+      setThemeSuccessMsg(`✓ "${themeToApply.name}" theme successfully applied and saved for ${appNameInput || "app"}!`);
+    } catch (err: any) {
+      setBrandingStatusMsg({
+        text: err.message || "Failed to persist theme configuration.",
+        type: "error",
+      });
+    } finally {
+      setIsApplyingTheme(false);
+    }
+  };
+
   const appName = appNameInput || app?.name || "Mobile Application";
   const storeUrl = app?.connection?.store_url || app?.connection?.site_url || app?.website_url || "";
   const packageName = app?.package_name || "com.store.app";
@@ -518,6 +746,8 @@ export function AppDetailsView({
     (stepStr === "build" && (hasReadyBuild || Boolean(app?.active_plan))) ||
     (Array.isArray(app?.pending_steps) && app.pending_steps.length === 0)
   );
+
+  const isSetupComplete = isCompletedApp;
 
   // Consolidate full active addons list
   const availableAddons = (addons && addons.length > 0 ? addons : fallbackCommercialAddons)
@@ -608,6 +838,7 @@ export function AppDetailsView({
     if (!app?.ulid) return;
     setIsSavingBranding(true);
     setBrandingStatusMsg(null);
+    setThemeSuccessMsg(null);
 
     try {
       const payload = {
@@ -617,19 +848,21 @@ export function AppDetailsView({
           banner_url: bannerUrlInput,
           currency: "INR",
         },
+        selected_theme_key: savedThemeKey,
         theme: {
-          layout: appConfig?.theme?.layout || "theme_a",
+          key: savedThemeKey,
+          layout: savedThemeKey,
           logo_url: logoUrlInput,
           banner_url: bannerUrlInput,
           colors: {
             primary: primaryColorInput,
             secondary: secondaryColorInput,
-            background: "#FFFFFF",
-            surface: "#FAFAFA",
-            text: "#111111",
+            background: activePreviewTheme.colors.background,
+            surface: activePreviewTheme.colors.surface,
+            text: activePreviewTheme.colors.text,
           },
           font: fontInput,
-          radius: 16,
+          radius: activePreviewTheme.radius,
           nav: "bottom",
         },
       };
@@ -697,7 +930,7 @@ export function AppDetailsView({
       .reduce((sum: number, o: any) => sum + (o.amount || 0), 0);
   }, [appOrders]);
 
-  // Sidebar navigation items in strictly requested order (Requirement 5)
+  // Sidebar navigation items in strictly requested order (Change 2: Web Traffic removed)
   const sidebarNavItems = [
     {
       id: "overview" as const,
@@ -710,12 +943,6 @@ export function AppDetailsView({
       label: "App Traffic",
       icon: Smartphone,
       description: "App installs & user sessions",
-    },
-    {
-      id: "web_traffic" as const,
-      label: "Web Traffic",
-      icon: Globe,
-      description: "Store visitors & analytics",
     },
     {
       id: "downloads" as const,
@@ -735,7 +962,7 @@ export function AppDetailsView({
       id: "branding" as const,
       label: "Theme & Branding",
       icon: Palette,
-      description: "Colors, logo, fonts & preview",
+      description: "Themes, colors, logo & preview",
     },
     {
       id: "push_notifications" as const,
@@ -1033,14 +1260,21 @@ export function AppDetailsView({
                     )}
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-[#F7F5F0] border border-[#EBE6DF]">
+                  {/* ── CHANGE 1: REPLACE KEYSTORE & SECURITY WITH VIEW LICENSE ── */}
+                  <button
+                    type="button"
+                    onClick={() => setIsLicenseModalOpen(true)}
+                    className="p-4 rounded-2xl bg-[#F7F5F0] hover:bg-[#EFEAE2] border border-[#EBE6DF] hover:border-[#78593D]/40 transition text-left cursor-pointer group shadow-2xs block w-full"
+                    title="Click to view commercial license details"
+                  >
                     <span className="text-[10px] font-bold text-[#7E756B] uppercase tracking-wider block">
-                      Keystore &amp; Security
+                      Commercial License
                     </span>
-                    <span className="text-xs font-bold text-[#1C1917] mt-1 block">
-                      RSA-2048 Production Signed
-                    </span>
-                  </div>
+                    <div className="flex items-center gap-1.5 mt-1 text-[#78593D] group-hover:text-[#523B27] font-bold text-xs transition">
+                      <Eye className="w-4 h-4 text-[#78593D] flex-shrink-0" />
+                      <span className="underline decoration-[#78593D]/40 underline-offset-2">View License</span>
+                    </div>
+                  </button>
                 </div>
 
                 {/* ── CURRENT SUBSCRIPTION PLAN CARD (Requirement 4) ── */}
@@ -1228,72 +1462,6 @@ export function AppDetailsView({
               </div>
             </article>
 
-            {/* ── TAB 3: WEB TRAFFIC ── */}
-            <article className={getPanelClass("web_traffic")}>
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-lg font-black text-[#1C1917]">Store Website Traffic &amp; API Health</h2>
-                  <p className="text-xs text-[#7E756B]">
-                    Bi-directional catalog sync telemetry between your live website and mobile clients
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF]">
-                    <span className="text-[10px] font-bold text-[#7E756B] uppercase tracking-wider block">
-                      Store URL Status
-                    </span>
-                    <div className="text-sm font-black text-emerald-800 mt-1 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                      <span className="truncate">{storeUrl ? "Verified Online" : "Pending Setup"}</span>
-                    </div>
-                    <span className="text-[10px] text-[#7E756B] mt-0.5 block font-mono truncate">{storeUrl || "N/A"}</span>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF]">
-                    <span className="text-[10px] font-bold text-[#7E756B] uppercase tracking-wider block">
-                      REST API Protocol
-                    </span>
-                    <div className="text-sm font-black text-[#1C1917] mt-1">
-                      {platform.includes("Woo") ? "WooCommerce v3 REST" : "Shopify Admin API"}
-                    </div>
-                    <span className="text-[10px] text-emerald-700 font-bold mt-0.5 block">
-                      ✓ TLS 1.3 Encrypted
-                    </span>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF]">
-                    <span className="text-[10px] font-bold text-[#7E756B] uppercase tracking-wider block">
-                      Last Catalog Sync
-                    </span>
-                    <div className="text-sm font-black text-[#1C1917] mt-1">Real-Time Webhooks</div>
-                    <span className="text-[10px] text-[#7E756B] mt-0.5 block">Products &amp; stock sync</span>
-                  </div>
-                </div>
-
-                <div className="p-8 text-center rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] space-y-3">
-                  <Globe className="w-8 h-8 mx-auto text-[#78593D]" />
-                  <h3 className="text-sm font-bold text-[#1C1917]">Store Visitor Telemetry Active</h3>
-                  <p className="text-xs text-[#7E756B] max-w-md mx-auto leading-relaxed">
-                    Customer visits on your web store are routed automatically to your synced mobile app catalog. Orders placed on either platform update stock immediately across both databases.
-                  </p>
-                  {storeUrl && (
-                    <div className="pt-2">
-                      <a
-                        href={storeUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-[#EBE6DF] hover:bg-[#FAF7F2] text-xs font-bold text-[#78593D] transition shadow-2xs"
-                      >
-                        <span>Visit Live Website</span>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </article>
-
             {/* ── TAB 4: DOWNLOADS ── */}
             <article className={getPanelClass("downloads")}>
               <div className="space-y-6">
@@ -1315,8 +1483,9 @@ export function AppDetailsView({
                   </button>
                 </div>
 
-                {/* Incomplete Setup Alert Banner */}
-                {!canDownloadApk && (
+                {/* ── CHANGE 3: FOUR DISTINCT SCENARIOS IN DOWNLOADS TAB ── */}
+                {/* Scenario 3: Setup Incomplete */}
+                {!isSetupComplete && (
                   <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                     <div className="flex items-start gap-3">
                       <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -1329,19 +1498,74 @@ export function AppDetailsView({
                         <p className="text-amber-900/80 mt-0.5">
                           {pendingSteps.length > 0
                             ? `Pending steps required: ${pendingSteps.map((s) => s.label).join(", ")}`
-                            : "You must complete all mandatory setup steps and choose an active plan before downloading the APK."}
+                            : "Mandatory app configuration steps are incomplete. Complete all setup steps before downloading the production APK."}
                         </p>
                       </div>
                     </div>
                     {app?.ulid && (
                       <Link
                         href={`/dashboard/apps/${app.ulid}/setup/${app.setup_step || "connect"}`}
-                        className="px-3.5 py-1.5 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white font-bold text-xs transition shadow-2xs whitespace-nowrap self-start sm:self-auto flex items-center gap-1.5"
+                        className="px-3.5 py-1.5 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white font-bold text-xs transition shadow-2xs whitespace-nowrap self-start sm:self-auto flex items-center gap-1.5 cursor-pointer"
                       >
                         <span>Complete Setup</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
                     )}
+                  </div>
+                )}
+
+                {/* Scenario 2: Setup Complete + Inactive Plan */}
+                {isSetupComplete && !hasPaidPlan && (
+                  <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <CreditCard className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <strong className="text-[#1C1917] font-extrabold block">
+                          Commercial License / Active Plan Required
+                        </strong>
+                        <p className="text-amber-900/80 mt-0.5">
+                          Your app configuration is complete, but downloading production APKs and Google Play bundles requires an active commercial subscription or plan.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTab("billing")}
+                      className="px-3.5 py-1.5 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white font-bold text-xs transition shadow-2xs whitespace-nowrap self-start sm:self-auto flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span>Select a Plan</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Scenario 4: Setup Complete + Active Plan + Build Not Available / In Progress */}
+                {isSetupComplete && hasPaidPlan && !hasReadyBuild && (
+                  <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Cpu className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <strong className="text-blue-950 font-extrabold block">
+                          APK Build Generation Required
+                        </strong>
+                        <p className="text-blue-900/80 mt-0.5">
+                          Your application setup and plan are active. Compile your latest build to generate fresh Android APK binaries.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onRebuild}
+                      disabled={isRebuilding}
+                      className="px-3.5 py-1.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs transition shadow-2xs whitespace-nowrap self-start sm:self-auto flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isRebuilding ? "animate-spin" : ""}`} />
+                      <span>{isRebuilding ? "Compiling..." : "Compile New Build"}</span>
+                    </button>
                   </div>
                 )}
 
@@ -1370,7 +1594,8 @@ export function AppDetailsView({
                   </div>
 
                   <div className="flex items-center gap-3 self-start md:self-auto flex-shrink-0">
-                    {canDownloadApk && targetBuildId ? (
+                    {/* Scenario 1: Setup Complete + Active Plan + Ready Build -> Direct Download */}
+                    {isSetupComplete && hasPaidPlan && hasReadyBuild && targetBuildId ? (
                       <a
                         href={`/api/apps/${app?.ulid}/builds/${targetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appName)}&version=${latestBuild?.version_code || 1}`}
                         download={`${appName.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${latestBuild?.version_code || 1}.apk`}
@@ -1379,14 +1604,32 @@ export function AppDetailsView({
                         <Download className="w-4 h-4" />
                         <span>Download APK File</span>
                       </a>
+                    ) : !isSetupComplete ? (
+                      <Link
+                        href={`/dashboard/apps/${app?.ulid}/setup/${app?.setup_step || "connect"}`}
+                        className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition shadow-xs"
+                      >
+                        <Lock className="w-4 h-4" />
+                        <span>Complete Setup</span>
+                      </Link>
+                    ) : !hasPaidPlan ? (
+                      <button
+                        type="button"
+                        onClick={() => handleSelectTab("billing")}
+                        className="px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition shadow-xs"
+                      >
+                        <CreditCard className="w-4 h-4" />
+                        <span>Plan Required</span>
+                      </button>
                     ) : (
                       <button
                         type="button"
-                        disabled
-                        className="px-5 py-2.5 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold flex items-center gap-2 cursor-not-allowed opacity-80"
+                        onClick={onRebuild}
+                        disabled={isRebuilding}
+                        className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition shadow-xs disabled:opacity-60"
                       >
-                        <Lock className="w-4 h-4" />
-                        <span>Download Restricted</span>
+                        <RefreshCw className={`w-4 h-4 ${isRebuilding ? "animate-spin" : ""}`} />
+                        <span>{isRebuilding ? "Compiling..." : "Compile APK"}</span>
                       </button>
                     )}
                   </div>
@@ -1698,6 +1941,211 @@ export function AppDetailsView({
                   </div>
                 )}
 
+                {/* ── CHANGE 4: CHOOSE YOUR THEME GALLERY ── */}
+                <div className="p-5 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-[#78593D]" />
+                        <h3 className="text-sm font-black text-[#1C1917]">
+                          Choose Your Theme
+                        </h3>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-[#EFEAE2] text-[#78593D]">
+                          6 Ready Themes
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#7E756B] mt-0.5">
+                        Select a design template for your mobile store. Click Preview to view it on the emulator, or Apply to save it for your app.
+                      </p>
+                    </div>
+
+                    {savedThemeKey && (
+                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white border border-[#EBE6DF] text-xs font-bold text-[#1C1917] shadow-2xs self-start sm:self-auto">
+                        <span className="text-[#7E756B] font-normal">Active:</span>
+                        <span className="text-[#78593D]">
+                          {APP_THEMES.find((t) => t.key === savedThemeKey)?.name || savedThemeKey}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {themeSuccessMsg && (
+                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-900 flex items-center justify-between shadow-2xs animate-fadeIn">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        <span>{themeSuccessMsg}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setThemeSuccessMsg(null)}
+                        className="p-1 hover:opacity-70 transition cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {APP_THEMES.map((theme) => {
+                      const isCurrentSaved = savedThemeKey === theme.key;
+                      const isCurrentPreview = previewThemeKey === theme.key;
+
+                      return (
+                        <div
+                          key={theme.key}
+                          className={`p-4 rounded-2xl border transition-all flex flex-col justify-between relative ${
+                            isCurrentSaved
+                              ? "bg-white border-[#78593D] shadow-sm ring-2 ring-[#78593D]/20"
+                              : isCurrentPreview
+                              ? "bg-white border-[#78593D]/60 shadow-xs"
+                              : "bg-white border-[#EBE6DF] hover:border-[#78593D]/30 hover:shadow-2xs"
+                          }`}
+                        >
+                          <div className="space-y-3">
+                            {/* Card Top: Name & Badges */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <h4 className="text-sm font-black text-[#1C1917] leading-tight">
+                                  {theme.name}
+                                </h4>
+                                <span className="text-[10px] text-[#7E756B] block mt-0.5">
+                                  {theme.styleTitle}
+                                </span>
+                              </div>
+                              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                {isCurrentSaved ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                                    <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                    <span>Active</span>
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#FAF7F2] text-[#78593D] border border-[#EBE6DF]">
+                                    {theme.badge}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Mini Thumbnail Visual Preview */}
+                            <div
+                              className="w-full h-20 rounded-xl p-2 border flex flex-col justify-between overflow-hidden shadow-2xs"
+                              style={{
+                                backgroundColor: theme.colors.background,
+                                borderColor: theme.colors.surface !== theme.colors.background ? theme.colors.surface : "#E5E7EB",
+                              }}
+                            >
+                              <div
+                                className="h-4 rounded-md px-2 flex items-center justify-between shadow-2xs"
+                                style={{ backgroundColor: theme.colors.primary }}
+                              >
+                                <div className="w-8 h-1.5 rounded-full bg-white/60" />
+                                <div className="w-3 h-1.5 rounded-full bg-white/40" />
+                              </div>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div
+                                  className="h-8 rounded-md p-1 border shadow-2xs flex flex-col justify-between"
+                                  style={{
+                                    backgroundColor: theme.colors.surface,
+                                    borderColor: theme.colors.primary + "20",
+                                  }}
+                                >
+                                  <div className="w-6 h-1 rounded-full" style={{ backgroundColor: theme.colors.secondary }} />
+                                  <div className="w-4 h-1.5 rounded-full" style={{ backgroundColor: theme.colors.primary }} />
+                                </div>
+                                <div
+                                  className="h-8 rounded-md p-1 border shadow-2xs flex flex-col justify-between"
+                                  style={{
+                                    backgroundColor: theme.colors.surface,
+                                    borderColor: theme.colors.primary + "20",
+                                  }}
+                                >
+                                  <div className="w-7 h-1 rounded-full" style={{ backgroundColor: theme.colors.secondary }} />
+                                  <div className="w-5 h-1.5 rounded-full" style={{ backgroundColor: theme.colors.primary }} />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Short Description */}
+                            <p className="text-[11px] text-[#57514B] leading-relaxed line-clamp-2">
+                              {theme.description}
+                            </p>
+
+                            {/* Color Scheme Swatches */}
+                            <div className="pt-2 border-t border-[#EBE6DF]/70 flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-[#7E756B] uppercase tracking-wider">
+                                Palette
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <div
+                                  className="w-4 h-4 rounded-full border border-black/10 shadow-2xs"
+                                  title={`Primary: ${theme.colors.primary}`}
+                                  style={{ backgroundColor: theme.colors.primary }}
+                                />
+                                <div
+                                  className="w-4 h-4 rounded-full border border-black/10 shadow-2xs"
+                                  title={`Secondary: ${theme.colors.secondary}`}
+                                  style={{ backgroundColor: theme.colors.secondary }}
+                                />
+                                <div
+                                  className="w-4 h-4 rounded-full border border-black/10 shadow-2xs"
+                                  title={`Surface: ${theme.colors.surface}`}
+                                  style={{ backgroundColor: theme.colors.surface }}
+                                />
+                                <div
+                                  className="w-4 h-4 rounded-full border border-black/10 shadow-2xs"
+                                  title={`Background: ${theme.colors.background}`}
+                                  style={{ backgroundColor: theme.colors.background }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons: Preview & Apply */}
+                          <div className="pt-3 mt-3 border-t border-[#EBE6DF] grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPreviewThemeKey(theme.key);
+                                setPrimaryColorInput(theme.colors.primary);
+                                setSecondaryColorInput(theme.colors.secondary);
+                                setFontInput(theme.font);
+                              }}
+                              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer border ${
+                                isCurrentPreview
+                                  ? "bg-[#FAF7F2] text-[#78593D] border-[#78593D]/40 font-extrabold"
+                                  : "bg-white hover:bg-[#FAF7F2] text-[#57514B] border-[#EBE6DF]"
+                              }`}
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>{isCurrentPreview ? "Previewing" : "Preview"}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleApplyTheme(theme)}
+                              disabled={isApplyingTheme}
+                              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs ${
+                                isCurrentSaved
+                                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200 cursor-default"
+                                  : "bg-[#78593D] hover:bg-[#634932] text-white active:scale-98"
+                              }`}
+                            >
+                              {isApplyingTheme ? (
+                                <RefreshCw className="w-3 h-3 animate-spin" />
+                              ) : isCurrentSaved ? (
+                                <Check className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Sparkles className="w-3 h-3" />
+                              )}
+                              <span>{isCurrentSaved ? "Applied" : "Apply"}</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                   {/* Left Column: Form Controls */}
                   <div className="lg:col-span-7 space-y-5">
@@ -1845,10 +2293,17 @@ export function AppDetailsView({
                   </div>
 
                   {/* Right Column: Live Mobile Preview */}
-                  <div className="lg:col-span-5 flex flex-col items-center">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#7E756B] mb-2">
-                      Live Mobile Preview
-                    </span>
+                  <div className="lg:col-span-5 flex flex-col items-center sticky top-6">
+                    <div className="flex items-center justify-between w-[280px] mb-2 px-1">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#7E756B]">
+                        Live Mobile Emulator
+                      </span>
+                      {previewThemeKey && (
+                        <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-[#FAF7F2] border border-[#EBE6DF] text-[#78593D]">
+                          {activePreviewTheme.name}
+                        </span>
+                      )}
+                    </div>
                     <div
                       className="w-[280px] h-[520px] rounded-[36px] bg-slate-900 p-3 shadow-2xl border-4 border-slate-800 flex flex-col relative overflow-hidden"
                       style={{ fontFamily: fontInput }}
@@ -1857,7 +2312,13 @@ export function AppDetailsView({
                       <div className="w-24 h-4 bg-slate-800 rounded-full mx-auto mb-2 flex-shrink-0" />
 
                       {/* Screen content */}
-                      <div className="w-full flex-1 bg-white rounded-[24px] overflow-hidden flex flex-col text-slate-900 text-xs">
+                      <div
+                        className="w-full flex-1 rounded-[24px] overflow-hidden flex flex-col text-xs shadow-inner"
+                        style={{
+                          backgroundColor: activePreviewTheme.colors.background,
+                          color: activePreviewTheme.colors.text,
+                        }}
+                      >
                         {/* App bar */}
                         <div
                           className="px-3 py-2 text-white flex items-center justify-between shadow-xs transition-colors"
@@ -1879,12 +2340,13 @@ export function AppDetailsView({
                         {/* Banner preview */}
                         <div className="p-2.5 flex-1 space-y-2 overflow-y-auto">
                           <div
-                            className="w-full h-24 rounded-xl flex items-center justify-center text-center p-2 text-white shadow-2xs relative overflow-hidden"
+                            className="w-full h-24 flex items-center justify-center text-center p-2 text-white shadow-2xs relative overflow-hidden"
                             style={{
                               backgroundColor: secondaryColorInput,
                               backgroundImage: bannerUrlInput ? `url(${bannerUrlInput})` : undefined,
                               backgroundSize: "cover",
                               backgroundPosition: "center",
+                              borderRadius: `${activePreviewTheme.radius}px`,
                             }}
                           >
                             {!bannerUrlInput && (
@@ -1897,25 +2359,66 @@ export function AppDetailsView({
 
                           {/* Mini products grid */}
                           <div className="grid grid-cols-2 gap-2 pt-1">
-                            <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
-                              <div className="w-full h-14 bg-slate-200 rounded-lg" />
-                              <strong className="text-[10px] block truncate">Featured Item</strong>
-                              <span className="text-[10px] font-bold" style={{ color: primaryColorInput }}>₹1,499</span>
+                            <div
+                              className="p-2 border space-y-1 shadow-2xs transition-all"
+                              style={{
+                                backgroundColor: activePreviewTheme.colors.surface,
+                                borderColor: primaryColorInput + "25",
+                                borderRadius: `${activePreviewTheme.radius}px`,
+                              }}
+                            >
+                              <div
+                                className="w-full h-14 rounded-lg opacity-80"
+                                style={{ backgroundColor: secondaryColorInput + "30" }}
+                              />
+                              <strong
+                                className="text-[10px] block truncate"
+                                style={{ color: activePreviewTheme.colors.text }}
+                              >
+                                Featured Item
+                              </strong>
+                              <span className="text-[10px] font-bold" style={{ color: primaryColorInput }}>
+                                ₹1,499
+                              </span>
                             </div>
-                            <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
-                              <div className="w-full h-14 bg-slate-200 rounded-lg" />
-                              <strong className="text-[10px] block truncate">Best Seller</strong>
-                              <span className="text-[10px] font-bold" style={{ color: primaryColorInput }}>₹2,299</span>
+                            <div
+                              className="p-2 border space-y-1 shadow-2xs transition-all"
+                              style={{
+                                backgroundColor: activePreviewTheme.colors.surface,
+                                borderColor: primaryColorInput + "25",
+                                borderRadius: `${activePreviewTheme.radius}px`,
+                              }}
+                            >
+                              <div
+                                className="w-full h-14 rounded-lg opacity-80"
+                                style={{ backgroundColor: secondaryColorInput + "30" }}
+                              />
+                              <strong
+                                className="text-[10px] block truncate"
+                                style={{ color: activePreviewTheme.colors.text }}
+                              >
+                                Best Seller
+                              </strong>
+                              <span className="text-[10px] font-bold" style={{ color: primaryColorInput }}>
+                                ₹2,299
+                              </span>
                             </div>
                           </div>
                         </div>
 
                         {/* Bottom tab bar */}
-                        <div className="h-10 border-t border-slate-100 flex items-center justify-around text-[9px] font-bold text-slate-400 bg-white">
+                        <div
+                          className="h-10 border-t flex items-center justify-around text-[9px] font-bold shadow-xs"
+                          style={{
+                            backgroundColor: activePreviewTheme.colors.surface,
+                            borderColor: primaryColorInput + "20",
+                            color: activePreviewTheme.colors.text,
+                          }}
+                        >
                           <span style={{ color: primaryColorInput }}>Home</span>
-                          <span>Search</span>
-                          <span>Cart (0)</span>
-                          <span>Account</span>
+                          <span className="opacity-60">Search</span>
+                          <span className="opacity-60">Cart (0)</span>
+                          <span className="opacity-60">Account</span>
                         </div>
                       </div>
                     </div>
@@ -2721,6 +3224,190 @@ export function AppDetailsView({
           handleExecutePurchase(targetAddon);
         }}
       />
+
+      {/* ── COMMERCIAL LICENSE DETAILS POPUP MODAL (Change 1) ── */}
+      {isLicenseModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn"
+          onClick={() => setIsLicenseModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-xl bg-white rounded-3xl border border-[#EBE6DF] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-scaleUp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-5 sm:p-6 bg-gradient-to-r from-[#FAF7F2] to-[#F3EEE6] border-b border-[#EBE6DF] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#78593D] text-white flex items-center justify-center shadow-xs">
+                  <Award className="w-5 h-5 text-amber-200" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-[#1C1917]">Commercial Application License</h3>
+                  <p className="text-xs text-[#7E756B]">Official verified license key and entitlement records</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLicenseModalOpen(false)}
+                className="w-8 h-8 rounded-xl bg-white border border-[#EBE6DF] hover:bg-[#FAF7F2] text-[#7E756B] hover:text-[#1C1917] flex items-center justify-center transition cursor-pointer"
+                aria-label="Close License Modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 overflow-y-auto text-xs">
+              {isLoadingLicense ? (
+                <div className="py-12 text-center space-y-3">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#78593D]" />
+                  <p className="text-xs font-bold text-[#7E756B]">Fetching commercial license from security registry...</p>
+                </div>
+              ) : isLicenseError || !licenseDetails ? (
+                <div className="p-5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 space-y-3">
+                  <strong className="block text-sm font-extrabold">Failed to Retrieve License Information</strong>
+                  <p className="text-xs leading-relaxed">
+                    Could not verify license status for App ID <code className="font-mono font-bold">{app?.ulid}</code>. Please check your network connection and session credentials.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => refetchLicense()}
+                    className="px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Retry Retrieval</span>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Status & Type Bar */}
+                  <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <span className="text-[10px] font-bold text-[#7E756B] uppercase tracking-wider block">
+                        License Edition / Type
+                      </span>
+                      <strong className="text-sm font-black text-[#1C1917] block mt-0.5">
+                        {licenseDetails.license_name || licenseDetails.license_type || "Lifetime Commercial App License"}
+                      </strong>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1.5 self-start sm:self-auto">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{licenseDetails.license_status || licenseDetails.status_label || "Active & Verified"}</span>
+                    </span>
+                  </div>
+
+                  {/* License Key Box with Copy */}
+                  <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-[#7E756B] uppercase tracking-wider">
+                        Cryptographic License Key
+                      </span>
+                      <span className="text-[10px] text-emerald-700 font-bold">RSA-2048 Signed</span>
+                    </div>
+                    <div className="p-3 bg-white border border-[#EBE6DF] rounded-xl flex items-center justify-between gap-3 font-mono text-xs">
+                      <span className="font-bold text-[#1C1917] tracking-wider select-all">
+                        {licenseDetails.license_key_masked || licenseDetails.license_key || "WIA-••••-••••-••••"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const keyToCopy =
+                            licenseDetails.license_key_full ||
+                            licenseDetails.full_license_key ||
+                            licenseDetails.license_key ||
+                            "";
+                          navigator.clipboard?.writeText(keyToCopy);
+                          setIsCopiedLicenseKey(true);
+                          setTimeout(() => setIsCopiedLicenseKey(false), 2000);
+                        }}
+                        className="px-3 py-1.5 bg-[#FAF7F2] hover:bg-[#EFEAE2] border border-[#EBE6DF] text-[#78593D] rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        {isCopiedLicenseKey ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span className="text-emerald-700">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Copy Key</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Metadata Specs Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Associated App ID</span>
+                      <code className="text-xs font-mono font-bold text-slate-800 break-all select-all">
+                        {licenseDetails.app_id || app?.ulid}
+                      </code>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Licensed Owner</span>
+                      <strong className="text-xs font-bold text-slate-800 block truncate">
+                        {licenseDetails.customer_name || licenseDetails.customer?.name || "Primary Account"}{" "}
+                        ({licenseDetails.customer_email || licenseDetails.customer?.email || "owner"})
+                      </strong>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Issue Date</span>
+                      <span className="text-xs font-bold text-slate-800 block">
+                        {licenseDetails.issue_date || licenseDetails.issued_at || "Recent"}
+                      </span>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Expiry Date</span>
+                      <span className="text-xs font-bold text-emerald-800 block">
+                        {licenseDetails.expiry_date || licenseDetails.expires_at || "Lifetime (No Expiration)"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Entitlements / Inclusions */}
+                  <div className="p-4 rounded-2xl bg-white border border-[#EBE6DF] space-y-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-[#7E756B] block">
+                      Active License Inclusions &amp; Entitlements
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      {(licenseDetails.entitlements || [
+                        "Unlimited Android APK Compilations",
+                        "Google Play Store Bundle (AAB) Generation",
+                        "Automated Storefront Catalog Webhook Sync",
+                        "Production Signing Keystore (RSA-2048)",
+                        "Push Notifications Relay Engine",
+                      ]).map((item: string, idx: number) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                          <span className="text-[#2A241F] font-medium">{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-[#FAF7F2] border-t border-[#EBE6DF] flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setIsLicenseModalOpen(false)}
+                className="px-5 py-2 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white font-bold text-xs transition shadow-2xs cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

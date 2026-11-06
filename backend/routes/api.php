@@ -497,6 +497,9 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('/apps/{ulid}', [\App\Http\Controllers\Api\AppController::class, 'show'])
         ->name('api.apps.show');
 
+    Route::get('/apps/{ulid}/license', [\App\Http\Controllers\Api\AppController::class, 'license'])
+        ->name('api.apps.license');
+
     Route::delete('/apps/{ulid}', [\App\Http\Controllers\Api\AppController::class, 'destroy'])
         ->name('api.apps.destroy');
 
@@ -838,6 +841,12 @@ Route::get('/apps/{ulid}/consent', [\App\Http\Controllers\Api\ConsentController:
 
 Route::post('/apps/{ulid}/consent', [\App\Http\Controllers\Api\ConsentController::class, 'store'])
     ->name('api.apps.consent.store.direct');
+
+Route::get('/apps/{ulid}/themes', [\App\Http\Controllers\Api\ConfigController::class, 'getThemes'])
+    ->name('api.apps.themes.direct');
+
+Route::get('/apps/{ulid}/license', [\App\Http\Controllers\Api\AppController::class, 'license'])
+    ->name('api.apps.license.direct');
 
 Route::get('/apps/{ulid}/admin-portal', [\App\Http\Controllers\Api\AppController::class, 'adminPortal'])
     ->name('api.apps.admin-portal.direct');
