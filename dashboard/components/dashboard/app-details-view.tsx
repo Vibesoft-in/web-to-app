@@ -270,6 +270,10 @@ export interface AppThemeConfig {
   description: string;
   styleTitle: string;
   badge: string;
+  priceFormatted: string;
+  priceNote: string;
+  isFree: boolean;
+  requiredTier: "free" | "pro" | "enterprise";
   colors: {
     primary: string;
     secondary: string;
@@ -287,8 +291,12 @@ export const APP_THEMES: AppThemeConfig[] = [
     key: "modern_minimal",
     name: "Modern Minimal",
     description: "Clean, whitespace-focused minimalist store layout with focused typography",
-    styleTitle: "Minimalist Card Flow",
+    styleTitle: "Minimalist Flow",
     badge: "Official Clean",
+    priceFormatted: "Free",
+    priceNote: "Included in All Plans",
+    isFree: true,
+    requiredTier: "free",
     colors: {
       primary: "#18181B",
       secondary: "#71717A",
@@ -303,9 +311,13 @@ export const APP_THEMES: AppThemeConfig[] = [
   {
     key: "premium",
     name: "Premium",
-    description: "Warm bronze & gold luxury styling with editorial card layout and elevated product frames",
+    description: "Warm bronze luxury styling with editorial card frames and elevated aesthetics",
     styleTitle: "Editorial Showcase",
     badge: "Most Popular",
+    priceFormatted: "₹4,999",
+    priceNote: "Pro Plan & Above",
+    isFree: false,
+    requiredTier: "pro",
     colors: {
       primary: "#78593D",
       secondary: "#C2A88F",
@@ -320,9 +332,13 @@ export const APP_THEMES: AppThemeConfig[] = [
   {
     key: "ecommerce_classic",
     name: "E-commerce Classic",
-    description: "Familiar, high-converting retail layout with grid product cards, badges, and quick cart buttons",
+    description: "High-converting retail grid with badges and quick cart conversion layout",
     styleTitle: "Retail Grid",
     badge: "High Conversion",
+    priceFormatted: "₹8,999",
+    priceNote: "Enterprise Suite",
+    isFree: false,
+    requiredTier: "enterprise",
     colors: {
       primary: "#2563EB",
       secondary: "#F59E0B",
@@ -332,57 +348,6 @@ export const APP_THEMES: AppThemeConfig[] = [
     },
     font: "Poppins",
     radius: 12,
-    nav: "bottom",
-  },
-  {
-    key: "bold_colorful",
-    name: "Bold & Colorful",
-    description: "Dynamic gradient accents, vibrant CTA buttons, and modern rounded aesthetic",
-    styleTitle: "Dynamic Mosaic",
-    badge: "Vibrant",
-    colors: {
-      primary: "#EC4899",
-      secondary: "#8B5CF6",
-      background: "#FFFFFF",
-      surface: "#FDF2F8",
-      text: "#18181B",
-    },
-    font: "Plus Jakarta Sans",
-    radius: 20,
-    nav: "bottom",
-  },
-  {
-    key: "elegant",
-    name: "Elegant",
-    description: "Soft neutral tones, subtle drop shadows, refined serifs/sans mix, and graceful spacing",
-    styleTitle: "Soft Horizon",
-    badge: "Boutique",
-    colors: {
-      primary: "#0D9488",
-      secondary: "#F43F5E",
-      background: "#F0FDFA",
-      surface: "#FFFFFF",
-      text: "#134E4A",
-    },
-    font: "Outfit",
-    radius: 14,
-    nav: "bottom",
-  },
-  {
-    key: "dark_mode",
-    name: "Dark Mode",
-    description: "Sleek obsidian dark backdrop, neon amber & emerald accents, optimized for OLED displays",
-    styleTitle: "Obsidian Cyber",
-    badge: "OLED Optimized",
-    colors: {
-      primary: "#D97706",
-      secondary: "#10B981",
-      background: "#0B0F19",
-      surface: "#151C2C",
-      text: "#F8FAFC",
-    },
-    font: "Outfit",
-    radius: 14,
     nav: "bottom",
   },
 ];
@@ -583,12 +548,22 @@ export function AppDetailsView({
   const licenseDetails: any = (licenseData as any)?.license_key ? licenseData : (licenseData as any)?.data || licenseData;
 
   // Theme Selection State (Change 4)
-  const initialThemeKey =
+  const normalizeThemeKey = (k?: string): string => {
+    if (!k) return "modern_minimal";
+    if (k === "theme_a") return "modern_minimal";
+    if (k === "theme_b") return "premium";
+    if (k === "theme_c") return "ecommerce_classic";
+    if (k === "theme_d") return "modern_minimal";
+    return k;
+  };
+
+  const initialThemeKey = normalizeThemeKey(
     appConfig?.selected_theme_key ||
     appConfig?.theme?.key ||
     appConfig?.theme?.layout ||
     app?.assigned_theme_key ||
-    "modern_minimal";
+    "modern_minimal"
+  );
 
   const [savedThemeKey, setSavedThemeKey] = useState<string>(initialThemeKey);
   const [previewThemeKey, setPreviewThemeKey] = useState<string>(initialThemeKey);
@@ -596,9 +571,10 @@ export function AppDetailsView({
   const [themeSuccessMsg, setThemeSuccessMsg] = useState<string | null>(null);
 
   const activePreviewTheme = useMemo(() => {
+    const normalized = normalizeThemeKey(previewThemeKey);
     return (
+      APP_THEMES.find((t) => t.key === normalized) ||
       APP_THEMES.find((t) => t.key === previewThemeKey) ||
-      APP_THEMES.find((t) => t.key === "modern_minimal") ||
       APP_THEMES[0]
     );
   }, [previewThemeKey]);
@@ -1941,9 +1917,9 @@ export function AppDetailsView({
                   </div>
                 )}
 
-                {/* ── CHANGE 4: CHOOSE YOUR THEME GALLERY ── */}
-                <div className="p-5 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                {/* ── CHOOSE YOUR THEME GALLERY (3 Themes, Compact Short Cards, Prices & Upgrade) ── */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] space-y-3.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div>
                       <div className="flex items-center gap-2">
                         <Sparkles className="w-4 h-4 text-[#78593D]" />
@@ -1951,11 +1927,11 @@ export function AppDetailsView({
                           Choose Your Theme
                         </h3>
                         <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-[#EFEAE2] text-[#78593D]">
-                          6 Ready Themes
+                          3 Curated Themes
                         </span>
                       </div>
                       <p className="text-xs text-[#7E756B] mt-0.5">
-                        Select a design template for your mobile store. Click Preview to view it on the emulator, or Apply to save it for your app.
+                        Select a design template for your mobile store. Preview on the emulator or apply it to your app.
                       </p>
                     </div>
 
@@ -1963,7 +1939,7 @@ export function AppDetailsView({
                       <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white border border-[#EBE6DF] text-xs font-bold text-[#1C1917] shadow-2xs self-start sm:self-auto">
                         <span className="text-[#7E756B] font-normal">Active:</span>
                         <span className="text-[#78593D]">
-                          {APP_THEMES.find((t) => t.key === savedThemeKey)?.name || savedThemeKey}
+                          {APP_THEMES.find((t) => t.key === normalizeThemeKey(savedThemeKey))?.name || savedThemeKey}
                         </span>
                       </div>
                     )}
@@ -1985,15 +1961,20 @@ export function AppDetailsView({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                     {APP_THEMES.map((theme) => {
-                      const isCurrentSaved = savedThemeKey === theme.key;
-                      const isCurrentPreview = previewThemeKey === theme.key;
+                      const isCurrentSaved = normalizeThemeKey(savedThemeKey) === theme.key;
+                      const isCurrentPreview = normalizeThemeKey(previewThemeKey) === theme.key;
+                      const canUseTheme = Boolean(
+                        theme.isFree ||
+                        (theme.key === "premium" && (isPremiumTier || isEnterprise)) ||
+                        (theme.key === "ecommerce_classic" && isEnterprise)
+                      );
 
                       return (
                         <div
                           key={theme.key}
-                          className={`p-4 rounded-2xl border transition-all flex flex-col justify-between relative ${
+                          className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between relative ${
                             isCurrentSaved
                               ? "bg-white border-[#78593D] shadow-sm ring-2 ring-[#78593D]/20"
                               : isCurrentPreview
@@ -2001,107 +1982,96 @@ export function AppDetailsView({
                               : "bg-white border-[#EBE6DF] hover:border-[#78593D]/30 hover:shadow-2xs"
                           }`}
                         >
-                          <div className="space-y-3">
-                            {/* Card Top: Name & Badges */}
+                          <div className="space-y-2.5">
+                            {/* Card Top: Name & Price */}
                             <div className="flex items-start justify-between gap-2">
                               <div>
-                                <h4 className="text-sm font-black text-[#1C1917] leading-tight">
-                                  {theme.name}
-                                </h4>
-                                <span className="text-[10px] text-[#7E756B] block mt-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <h4 className="text-sm font-black text-[#1C1917] leading-tight">
+                                    {theme.name}
+                                  </h4>
+                                  {isCurrentSaved && (
+                                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800">
+                                      Active
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-[#7E756B] block">
                                   {theme.styleTitle}
                                 </span>
                               </div>
-                              <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                {isCurrentSaved ? (
-                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                                    <Check className="w-2.5 h-2.5 stroke-[3]" />
-                                    <span>Active</span>
-                                  </span>
-                                ) : (
-                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#FAF7F2] text-[#78593D] border border-[#EBE6DF]">
-                                    {theme.badge}
-                                  </span>
-                                )}
+
+                              {/* Price tag */}
+                              <div className="text-right flex-shrink-0">
+                                <span className={`text-xs font-black block ${theme.isFree ? "text-emerald-700" : "text-[#78593D]"}`}>
+                                  {theme.priceFormatted}
+                                </span>
+                                <span className="text-[9px] text-[#A8A199] block font-medium">
+                                  {theme.priceNote}
+                                </span>
                               </div>
                             </div>
 
-                            {/* Mini Thumbnail Visual Preview */}
+                            {/* Compact Visual Preview Strip (Short height: 28px) */}
                             <div
-                              className="w-full h-20 rounded-xl p-2 border flex flex-col justify-between overflow-hidden shadow-2xs"
+                              className="w-full h-7 rounded-lg px-2 border flex items-center justify-between overflow-hidden shadow-2xs"
                               style={{
                                 backgroundColor: theme.colors.background,
                                 borderColor: theme.colors.surface !== theme.colors.background ? theme.colors.surface : "#E5E7EB",
                               }}
                             >
-                              <div
-                                className="h-4 rounded-md px-2 flex items-center justify-between shadow-2xs"
-                                style={{ backgroundColor: theme.colors.primary }}
-                              >
-                                <div className="w-8 h-1.5 rounded-full bg-white/60" />
-                                <div className="w-3 h-1.5 rounded-full bg-white/40" />
-                              </div>
-                              <div className="grid grid-cols-2 gap-1.5">
-                                <div
-                                  className="h-8 rounded-md p-1 border shadow-2xs flex flex-col justify-between"
-                                  style={{
-                                    backgroundColor: theme.colors.surface,
-                                    borderColor: theme.colors.primary + "20",
-                                  }}
-                                >
-                                  <div className="w-6 h-1 rounded-full" style={{ backgroundColor: theme.colors.secondary }} />
-                                  <div className="w-4 h-1.5 rounded-full" style={{ backgroundColor: theme.colors.primary }} />
-                                </div>
-                                <div
-                                  className="h-8 rounded-md p-1 border shadow-2xs flex flex-col justify-between"
-                                  style={{
-                                    backgroundColor: theme.colors.surface,
-                                    borderColor: theme.colors.primary + "20",
-                                  }}
-                                >
-                                  <div className="w-7 h-1 rounded-full" style={{ backgroundColor: theme.colors.secondary }} />
-                                  <div className="w-5 h-1.5 rounded-full" style={{ backgroundColor: theme.colors.primary }} />
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Short Description */}
-                            <p className="text-[11px] text-[#57514B] leading-relaxed line-clamp-2">
-                              {theme.description}
-                            </p>
-
-                            {/* Color Scheme Swatches */}
-                            <div className="pt-2 border-t border-[#EBE6DF]/70 flex items-center justify-between">
-                              <span className="text-[10px] font-bold text-[#7E756B] uppercase tracking-wider">
-                                Palette
-                              </span>
                               <div className="flex items-center gap-1.5">
                                 <div
-                                  className="w-4 h-4 rounded-full border border-black/10 shadow-2xs"
-                                  title={`Primary: ${theme.colors.primary}`}
+                                  className="h-3.5 px-2 rounded flex items-center shadow-2xs"
                                   style={{ backgroundColor: theme.colors.primary }}
+                                >
+                                  <span className="text-[8px] font-bold text-white">App Bar</span>
+                                </div>
+                                <div
+                                  className="h-3.5 px-1.5 rounded text-[8px] border font-medium"
+                                  style={{
+                                    backgroundColor: theme.colors.surface,
+                                    borderColor: theme.colors.primary + "30",
+                                    color: theme.colors.text,
+                                  }}
+                                >
+                                  Card
+                                </div>
+                              </div>
+
+                              {/* 4 Palette Swatch Dots */}
+                              <div className="flex items-center gap-1">
+                                <div
+                                  className="w-2.5 h-2.5 rounded-full border border-black/10 shadow-2xs"
+                                  style={{ backgroundColor: theme.colors.primary }}
+                                  title={`Primary: ${theme.colors.primary}`}
                                 />
                                 <div
-                                  className="w-4 h-4 rounded-full border border-black/10 shadow-2xs"
-                                  title={`Secondary: ${theme.colors.secondary}`}
+                                  className="w-2.5 h-2.5 rounded-full border border-black/10 shadow-2xs"
                                   style={{ backgroundColor: theme.colors.secondary }}
+                                  title={`Secondary: ${theme.colors.secondary}`}
                                 />
                                 <div
-                                  className="w-4 h-4 rounded-full border border-black/10 shadow-2xs"
-                                  title={`Surface: ${theme.colors.surface}`}
+                                  className="w-2.5 h-2.5 rounded-full border border-black/10 shadow-2xs"
                                   style={{ backgroundColor: theme.colors.surface }}
+                                  title={`Surface: ${theme.colors.surface}`}
                                 />
                                 <div
-                                  className="w-4 h-4 rounded-full border border-black/10 shadow-2xs"
-                                  title={`Background: ${theme.colors.background}`}
+                                  className="w-2.5 h-2.5 rounded-full border border-black/10 shadow-2xs"
                                   style={{ backgroundColor: theme.colors.background }}
+                                  title={`Background: ${theme.colors.background}`}
                                 />
                               </div>
                             </div>
+
+                            {/* Short 1-line Description */}
+                            <p className="text-[11px] text-[#57514B] truncate leading-tight">
+                              {theme.description}
+                            </p>
                           </div>
 
-                          {/* Action Buttons: Preview & Apply */}
-                          <div className="pt-3 mt-3 border-t border-[#EBE6DF] grid grid-cols-2 gap-2">
+                          {/* Action Buttons: Preview & (Apply / Upgrade to Use) */}
+                          <div className="pt-2.5 mt-2 border-t border-[#EBE6DF] grid grid-cols-2 gap-2">
                             <button
                               type="button"
                               onClick={() => {
@@ -2110,7 +2080,7 @@ export function AppDetailsView({
                                 setSecondaryColorInput(theme.colors.secondary);
                                 setFontInput(theme.font);
                               }}
-                              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer border ${
+                              className={`px-2 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer border ${
                                 isCurrentPreview
                                   ? "bg-[#FAF7F2] text-[#78593D] border-[#78593D]/40 font-extrabold"
                                   : "bg-white hover:bg-[#FAF7F2] text-[#57514B] border-[#EBE6DF]"
@@ -2120,25 +2090,36 @@ export function AppDetailsView({
                               <span>{isCurrentPreview ? "Previewing" : "Preview"}</span>
                             </button>
 
-                            <button
-                              type="button"
-                              onClick={() => handleApplyTheme(theme)}
-                              disabled={isApplyingTheme}
-                              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs ${
-                                isCurrentSaved
-                                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200 cursor-default"
-                                  : "bg-[#78593D] hover:bg-[#634932] text-white active:scale-98"
-                              }`}
-                            >
-                              {isApplyingTheme ? (
-                                <RefreshCw className="w-3 h-3 animate-spin" />
-                              ) : isCurrentSaved ? (
+                            {isCurrentSaved ? (
+                              <span className="px-2 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center gap-1 cursor-default">
                                 <Check className="w-3 h-3 text-emerald-600" />
-                              ) : (
-                                <Sparkles className="w-3 h-3" />
-                              )}
-                              <span>{isCurrentSaved ? "Applied" : "Apply"}</span>
-                            </button>
+                                <span>Applied</span>
+                              </span>
+                            ) : canUseTheme ? (
+                              <button
+                                type="button"
+                                onClick={() => handleApplyTheme(theme)}
+                                disabled={isApplyingTheme}
+                                className="px-2 py-1.5 rounded-xl text-xs font-bold bg-[#78593D] hover:bg-[#634932] text-white transition flex items-center justify-center gap-1 cursor-pointer active:scale-98 shadow-2xs"
+                              >
+                                {isApplyingTheme ? (
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Sparkles className="w-3 h-3" />
+                                )}
+                                <span>Apply</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleSelectTab("billing")}
+                                className="px-2 py-1.5 rounded-xl text-xs font-bold bg-[#78593D] hover:bg-[#634932] text-white transition flex items-center justify-center gap-1 cursor-pointer active:scale-98 shadow-2xs"
+                                title="Upgrade your plan to unlock this theme"
+                              >
+                                <Lock className="w-3 h-3 text-amber-200" />
+                                <span>Upgrade to Use</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
