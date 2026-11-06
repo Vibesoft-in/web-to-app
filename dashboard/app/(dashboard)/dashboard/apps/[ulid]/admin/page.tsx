@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -304,6 +304,11 @@ export default function AppAdminPortalPage() {
   const [catName, setCatName] = useState("");
   const [catSlug, setCatSlug] = useState("");
   const [catIcon, setCatIcon] = useState("🏷️");
+  const [catParentId, setCatParentId] = useState<string>("0");
+  const [catDescription, setCatDescription] = useState("");
+  const [isAddCatModalOpen, setIsAddCatModalOpen] = useState(false);
+  const [expandedCatIds, setExpandedCatIds] = useState<Record<string, boolean>>({});
+  const [categorySearch, setCategorySearch] = useState("");
 
   // ── Upgrade / Commercial package modal ─────────────────────────────────────
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
@@ -546,10 +551,27 @@ export default function AppAdminPortalPage() {
       showToast("Category preferences updated for mobile app!", "success");
       setCatName("");
       setCatSlug("");
+      setCatDescription("");
+      setCatParentId("0");
+      setIsAddCatModalOpen(false);
       queryClient.invalidateQueries({ queryKey: ["app-admin-portal", ulid] });
     },
     onError: (err: any) => {
       showToast(err.message || "Failed to update category.", "error");
+    },
+  });
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: (categoryId: string | number) =>
+      apiClient(`/api/apps/${ulid}/admin-portal/categories/${categoryId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      showToast("Category deleted and synced with website & app!", "success");
+      queryClient.invalidateQueries({ queryKey: ["app-admin-portal", ulid] });
+    },
+    onError: (err: any) => {
+      showToast(err.message || "Failed to delete category.", "error");
     },
   });
 
@@ -642,6 +664,8 @@ export default function AppAdminPortalPage() {
   const rawOrders: any[] = portalData?.store_orders || [];
   const rawCustomers: any[] = portalData?.store_customers || [];
   const rawCategories: any[] = portalData?.categories || [];
+  const rawSubCategories: any[] = portalData?.sub_categories || [];
+  const lastSyncAt: string | null = portalData?.catalog_stats?.last_sync_at || null;
   const rawBanners: any[] = portalData?.banners || [];
   const rawCampaigns: any[] = portalData?.campaigns || [];
   const rawCoupons: any[] = portalData?.store_coupons || [];
@@ -3460,62 +3484,458 @@ export default function AppAdminPortalPage() {
         )}
 
         {/* ──────────────────────────────────────────────────────────────────── */}
-        {/* VIEW 7: CATEGORIES (REAL STORE CATEGORIES)                           */}
+        {/* VIEW 7: CATEGORIES (DYNAMIC HIERARCHICAL STORE CATEGORIES)          */}
         {/* ──────────────────────────────────────────────────────────────────── */}
         {activeTab === "categories" && (
           <div className="space-y-6">
-            <div>
-              <div className="flex items-center gap-2 text-xs font-bold text-[var(--mav-muted)] mb-1">
-                <span>Grow &amp; App</span>
-                <span>/</span>
-                <span className="text-[var(--mav-text)]">Categories</span>
+            {/* Header & Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-bold text-[var(--mav-muted)] mb-1">
+                  <span>Grow &amp; App</span>
+                  <span>/</span>
+                  <span className="text-[var(--mav-text)]">Categories</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--mav-text)]">
+                  Store Categories &amp; Taxonomies
+                </h2>
+                <p className="text-sm text-[var(--mav-muted)] mt-1">
+                  Real-time category hierarchy retrieved dynamically from <strong className="text-[var(--mav-text)]">{storeDomain}</strong> via WooCommerce REST API.
+                </p>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                Store Categories &amp; Taxonomies
-              </h2>
-              <p className="text-sm text-[var(--mav-muted)] mt-1">
-                Categories synced directly from your website ({storeDomain}).
-              </p>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Sync Categories Action */}
+                <button
+                  type="button"
+                  onClick={() => syncCatalogMutation.mutate()}
+                  disabled={syncCatalogMutation.isPending}
+                  className="px-4 py-2 rounded-xl bg-white dark:bg-[#1f221b] border border-[var(--mav-line)] text-xs font-bold text-[var(--mav-text)] hover:bg-[var(--mav-surface-2)] transition shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  title="Synchronize latest categories directly from your WooCommerce store"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-[#557e2a] ${syncCatalogMutation.isPending ? "animate-spin" : ""}`} />
+                  <span>{syncCatalogMutation.isPending ? "Syncing..." : "Sync Categories"}</span>
+                </button>
+
+                {/* Add Category Modal Trigger */}
+                <button
+                  type="button"
+                  onClick={() => setIsAddCatModalOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-[#557e2a] hover:bg-[#486b24] text-white text-xs font-extrabold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Category</span>
+                </button>
+              </div>
             </div>
 
-            <div className="rounded-3xl bg-[var(--mav-surface)] border border-[var(--mav-line)] shadow-sm overflow-hidden">
+            {/* Quick Stats & Last Synced Timestamp */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-2xl bg-[var(--mav-surface)] border border-[var(--mav-line)] p-4 shadow-xs">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--mav-muted)] block">
+                  Total Categories
+                </span>
+                <span className="text-2xl font-black text-[var(--mav-text)] mt-1 block font-mono">
+                  {rawCategories.length + (rawSubCategories.length || 0)}
+                </span>
+              </div>
+
+              <div className="rounded-2xl bg-[var(--mav-surface)] border border-[var(--mav-line)] p-4 shadow-xs">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--mav-muted)] block">
+                  Root Categories
+                </span>
+                <span className="text-2xl font-black text-[var(--mav-text)] mt-1 block font-mono">
+                  {rawCategories.length}
+                </span>
+              </div>
+
+              <div className="rounded-2xl bg-[var(--mav-surface)] border border-[var(--mav-line)] p-4 shadow-xs">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--mav-muted)] block">
+                  Sub-Categories
+                </span>
+                <span className="text-2xl font-black text-[var(--mav-text)] mt-1 block font-mono">
+                  {rawSubCategories.length || rawCategories.reduce((acc, c) => acc + (c.children?.length || 0), 0)}
+                </span>
+              </div>
+
+              <div className="rounded-2xl bg-[var(--mav-surface)] border border-[var(--mav-line)] p-4 shadow-xs">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--mav-muted)] block">
+                  Last Synced
+                </span>
+                <span className="text-xs font-bold text-[var(--mav-text)] mt-2 block truncate">
+                  {lastSyncAt ? new Date(lastSyncAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Live Synced"}
+                </span>
+              </div>
+            </div>
+
+            {/* Search Filter Toolbar */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--mav-muted)]" />
+                <input
+                  type="search"
+                  placeholder="Search category name, slug, ID..."
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                  className="w-full h-10 pl-9 pr-3 rounded-xl bg-[var(--mav-surface)] border border-[var(--mav-line)] text-xs text-[var(--mav-text)] placeholder:text-[var(--mav-muted)] focus:outline-none focus:border-[var(--mav-primary)]"
+                />
+              </div>
+
+              <div className="text-xs text-[var(--mav-muted)] font-medium">
+                Showing {rawCategories.filter((c) => {
+                  if (!categorySearch.trim()) return true;
+                  const q = categorySearch.toLowerCase().trim();
+                  return (
+                    (c.name || "").toLowerCase().includes(q) ||
+                    (c.slug || "").toLowerCase().includes(q) ||
+                    String(c.id).includes(q)
+                  );
+                }).length} root categories
+              </div>
+            </div>
+
+            {/* Categories Table */}
+            <div className="rounded-[28px] bg-[var(--mav-surface)] border border-[var(--mav-line)] shadow-sm overflow-hidden">
               <div className="overflow-x-auto no-scrollbar">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-[var(--mav-line)] text-[var(--mav-muted)] uppercase tracking-wider font-extrabold text-[11px] bg-[var(--mav-surface-2)]/50">
-                      <th className="py-3 px-4">Category Name</th>
-                      <th className="py-3 px-4">Slug</th>
-                      <th className="py-3 px-4">Items Count</th>
-                      <th className="py-3 px-4">Mobile App Visibility</th>
+                    <tr className="border-b border-[var(--mav-line)] text-[var(--mav-muted)] uppercase tracking-wider font-extrabold text-[11px] bg-[var(--mav-surface-2)]/60">
+                      <th className="py-3.5 px-4">Category</th>
+                      <th className="py-3.5 px-4">Category ID</th>
+                      <th className="py-3.5 px-4">Slug</th>
+                      <th className="py-3.5 px-4">Hierarchy</th>
+                      <th className="py-3.5 px-4">Child Categories</th>
+                      <th className="py-3.5 px-4">Description</th>
+                      <th className="py-3.5 px-4">Products</th>
+                      <th className="py-3.5 px-4">App Visibility</th>
+                      <th className="py-3.5 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--mav-line)]">
-                    {rawCategories.map((c) => (
-                      <tr key={c.id || c.name} className="hover:bg-[var(--mav-surface-2)] transition-colors">
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-2.5 font-bold text-[13px]">
-                            <span>{c.icon || "🏷️"}</span>
-                            <span>{c.name}</span>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-[12px] text-[var(--mav-muted)]">
-                          {c.slug || c.name.toLowerCase()}
-                        </td>
-                        <td className="py-3.5 px-4 font-mono font-bold text-[13px]">
-                          {c.items_count || 0}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-                            <Check className="w-3 h-3" />
-                            <span>Visible on App</span>
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    {rawCategories
+                      .filter((c) => {
+                        if (!categorySearch.trim()) return true;
+                        const q = categorySearch.toLowerCase().trim();
+                        return (
+                          (c.name || "").toLowerCase().includes(q) ||
+                          (c.slug || "").toLowerCase().includes(q) ||
+                          String(c.id).includes(q)
+                        );
+                      })
+                      .map((c) => {
+                        const isExpanded = Boolean(expandedCatIds[String(c.id)]);
+                        const children = Array.isArray(c.children) ? c.children : [];
+                        const isVisible = c.is_visible !== false;
+
+                        return (
+                          <React.Fragment key={c.id || c.slug || c.name}>
+                            <tr className="hover:bg-[var(--mav-surface-2)] transition-colors group">
+                              <td className="py-3.5 px-4">
+                                <div className="flex items-center gap-3">
+                                  {c.image_url ? (
+                                    <img
+                                      src={c.image_url}
+                                      alt={c.name}
+                                      className="w-9 h-9 rounded-xl object-cover border border-[var(--mav-line)] flex-shrink-0"
+                                      onError={(e) => {
+                                        (e.target as HTMLElement).style.display = "none";
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="w-9 h-9 rounded-xl bg-[#e5ede0] text-[#557e2a] font-extrabold text-sm flex items-center justify-center flex-shrink-0">
+                                      {c.icon || "🏷️"}
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <span className="font-extrabold block text-[13px] text-[var(--mav-text)] group-hover:text-[var(--mav-primary)] transition truncate">
+                                      {c.name}
+                                    </span>
+                                    {c.badge && (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800">
+                                        {c.badge}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="py-3.5 px-4 font-mono font-bold text-[12px] text-[var(--mav-muted)]">
+                                <span className="px-2 py-0.5 rounded-lg bg-[var(--mav-surface-2)] border border-[var(--mav-line)]">
+                                  #{c.id}
+                                </span>
+                              </td>
+
+                              <td className="py-3.5 px-4 font-mono text-[12px] text-[var(--mav-muted)] truncate max-w-[140px]">
+                                {c.slug || c.name.toLowerCase()}
+                              </td>
+
+                              <td className="py-3.5 px-4">
+                                <span className="px-2.5 py-1 rounded-full text-[10.5px] font-extrabold bg-[#e5ede0] text-[#557e2a] inline-flex items-center gap-1">
+                                  <span>Root Category</span>
+                                </span>
+                              </td>
+
+                              <td className="py-3.5 px-4">
+                                {children.length > 0 ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setExpandedCatIds((prev) => ({
+                                        ...prev,
+                                        [String(c.id)]: !prev[String(c.id)],
+                                      }))
+                                    }
+                                    className="px-2.5 py-1 rounded-xl border border-[var(--mav-line)] bg-white dark:bg-[#1f221b] text-[11px] font-bold text-[var(--mav-text)] hover:bg-[var(--mav-well)] transition inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                  >
+                                    <span>{children.length} sub-categories</span>
+                                    <ChevronDown
+                                      className={`w-3 h-3 text-[var(--mav-muted)] transition-transform duration-200 ${
+                                        isExpanded ? "rotate-180" : ""
+                                      }`}
+                                    />
+                                  </button>
+                                ) : (
+                                  <span className="text-[11px] text-[var(--mav-muted)] font-medium">None</span>
+                                )}
+                              </td>
+
+                              <td className="py-3.5 px-4 text-[var(--mav-muted)] max-w-[180px] truncate" title={c.description || "No description"}>
+                                {c.description ? c.description : <span className="italic opacity-50">No description</span>}
+                              </td>
+
+                              <td className="py-3.5 px-4 font-mono font-bold text-[13px] text-[var(--mav-text)]">
+                                <span className="px-2 py-0.5 rounded-lg bg-[var(--mav-surface-2)]">
+                                  {c.items_count || 0}
+                                </span>
+                              </td>
+
+                              <td className="py-3.5 px-4">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    saveCategoryMutation.mutate({
+                                      id: c.id,
+                                      name: c.name,
+                                      slug: c.slug,
+                                      is_visible: !isVisible,
+                                    })
+                                  }
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition cursor-pointer ${
+                                    isVisible
+                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/25"
+                                      : "bg-slate-200 text-slate-600 hover:bg-slate-300"
+                                  }`}
+                                  title="Toggle mobile app visibility"
+                                >
+                                  <Check className={`w-3 h-3 ${isVisible ? "opacity-100" : "opacity-30"}`} />
+                                  <span>{isVisible ? "Visible on App" : "Hidden"}</span>
+                                </button>
+                              </td>
+
+                              <td className="py-3.5 px-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (confirm(`Are you sure you want to delete category "${c.name}"? This will sync directly to your WooCommerce store.`)) {
+                                      deleteCategoryMutation.mutate(c.id);
+                                    }
+                                  }}
+                                  className="p-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition shadow-2xs cursor-pointer"
+                                  title={`Delete category "${c.name}"`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+
+                            {/* Nested Sub-Categories Rows when Expanded */}
+                            {isExpanded &&
+                              children.map((sub: any) => (
+                                <tr key={sub.id || sub.slug} className="bg-[var(--mav-surface-2)]/40 hover:bg-[var(--mav-surface-2)]/80 transition-colors">
+                                  <td className="py-2.5 px-4 pl-10">
+                                    <div className="flex items-center gap-2.5">
+                                      <span className="text-[var(--mav-muted)]">↳</span>
+                                      <span className="font-bold text-[12px] text-[var(--mav-text)]">
+                                        {sub.name}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-4 font-mono text-[11px] text-[var(--mav-muted)]">
+                                    #{sub.id}
+                                  </td>
+                                  <td className="py-2.5 px-4 font-mono text-[11px] text-[var(--mav-muted)]">
+                                    {sub.slug}
+                                  </td>
+                                  <td className="py-2.5 px-4">
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                                      Child of #{c.id}
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 px-4 text-[11px] text-[var(--mav-muted)] italic">
+                                    Subcategory level 1
+                                  </td>
+                                  <td className="py-2.5 px-4 text-[11px] text-[var(--mav-muted)] truncate max-w-[150px]">
+                                    {sub.description || "—"}
+                                  </td>
+                                  <td className="py-2.5 px-4 font-mono font-bold text-[12px] text-[var(--mav-text)]">
+                                    {sub.items_count || 0}
+                                  </td>
+                                  <td className="py-2.5 px-4">
+                                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                      Active
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 px-4 text-right">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (confirm(`Delete subcategory "${sub.name}" from store?`)) {
+                                          deleteCategoryMutation.mutate(sub.id);
+                                        }
+                                      }}
+                                      className="p-1 rounded-lg text-rose-500 hover:bg-rose-50 transition cursor-pointer"
+                                      title="Delete subcategory"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                          </React.Fragment>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
             </div>
+
+            {/* ── CREATE CATEGORY MODAL ── */}
+            {isAddCatModalOpen && (
+              <div
+                className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
+                onClick={() => setIsAddCatModalOpen(false)}
+              >
+                <div
+                  className="bg-white dark:bg-[#1a1c17] border border-[var(--mav-line)] rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl space-y-5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between pb-3 border-b border-[var(--mav-line)]">
+                    <div>
+                      <h3 className="text-lg font-black text-[var(--mav-text)]">Create Store Category</h3>
+                      <p className="text-xs text-[var(--mav-muted)] mt-0.5">
+                        Creates category in WooCommerce and synchronizes to your mobile app immediately.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddCatModalOpen(false)}
+                      className="p-1.5 rounded-full hover:bg-[var(--mav-surface-2)] text-[var(--mav-muted)] transition"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--mav-muted)] block mb-1">
+                        Category Name *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Summer Collection, Smart Watches..."
+                        value={catName}
+                        onChange={(e) => {
+                          setCatName(e.target.value);
+                          if (!catSlug) {
+                            setCatSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""));
+                          }
+                        }}
+                        className="w-full h-10 px-3.5 rounded-xl bg-[var(--mav-surface-2)] border border-[var(--mav-line)] text-xs text-[var(--mav-text)] focus:outline-none focus:border-[var(--mav-primary)] font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--mav-muted)] block mb-1">
+                        Slug (URL Key)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. summer-collection"
+                        value={catSlug}
+                        onChange={(e) => setCatSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, ""))}
+                        className="w-full h-10 px-3.5 rounded-xl bg-[var(--mav-surface-2)] border border-[var(--mav-line)] text-xs text-[var(--mav-text)] font-mono focus:outline-none focus:border-[var(--mav-primary)]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--mav-muted)] block mb-1">
+                        Parent Category (Hierarchy)
+                      </label>
+                      <select
+                        value={catParentId}
+                        onChange={(e) => setCatParentId(e.target.value)}
+                        className="w-full h-10 px-3.5 rounded-xl bg-[var(--mav-surface-2)] border border-[var(--mav-line)] text-xs text-[var(--mav-text)] focus:outline-none focus:border-[var(--mav-primary)] cursor-pointer"
+                      >
+                        <option value="0">Root Category (No Parent)</option>
+                        {rawCategories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} (#{c.id})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--mav-muted)] block mb-1">
+                        Category Description
+                      </label>
+                      <textarea
+                        rows={3}
+                        placeholder="Optional short description for search and app banner..."
+                        value={catDescription}
+                        onChange={(e) => setCatDescription(e.target.value)}
+                        className="w-full p-3 rounded-xl bg-[var(--mav-surface-2)] border border-[var(--mav-line)] text-xs text-[var(--mav-text)] focus:outline-none focus:border-[var(--mav-primary)]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--mav-line)]">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddCatModalOpen(false)}
+                      className="px-4 py-2 rounded-xl border border-[var(--mav-line)] text-xs font-bold text-[var(--mav-text)] hover:bg-[var(--mav-surface-2)] transition"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={!catName.trim() || saveCategoryMutation.isPending}
+                      onClick={() =>
+                        saveCategoryMutation.mutate({
+                          name: catName.trim(),
+                          slug: catSlug.trim() || undefined,
+                          parent_id: catParentId ? parseInt(catParentId, 10) : 0,
+                          description: catDescription.trim() || undefined,
+                          icon: catIcon || "🏷️",
+                          is_visible: true,
+                        })
+                      }
+                      className="px-5 py-2 rounded-xl bg-[#557e2a] hover:bg-[#486b24] text-white text-xs font-extrabold transition shadow-xs disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                    >
+                      {saveCategoryMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Pushing to WooCommerce...</span>
+                        </>
+                      ) : (
+                        <span>Create &amp; Sync Category</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

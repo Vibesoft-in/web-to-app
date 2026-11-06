@@ -549,6 +549,7 @@ class AppController extends Controller
     public function saveCategory(string $ulid, Request $request): JsonResponse
     {
         $app = $this->resolveAdminPortalApp($ulid, $request);
+        $app->loadMissing('connection');
 
         if (! $app->hasAdminPanelAccess()) {
             return response()->json([
@@ -562,25 +563,92 @@ class AppController extends Controller
         $name = (string) $request->input('name', 'New Category');
         $slug = (string) ($request->input('slug') ?: \Illuminate\Support\Str::slug($name));
         $icon = (string) $request->input('icon', '🛍️');
-        $itemsCount = (int) $request->input('items_count', 10);
+        $description = (string) $request->input('description', '');
+        $parentId = (int) $request->input('parent_id', 0);
+        $itemsCount = (int) $request->input('items_count', 0);
         $isVisible = (bool) $request->input('is_visible', true);
         $order = (int) $request->input('order', 1);
         $badge = (string) $request->input('badge', '');
-        $id = $request->input('id') ?: ('cat_' . uniqid());
+        $id = (string) ($request->input('id') ?: '');
+
+        $storeUpdated = false;
+        $syncStatus = 'pending';
+        $syncErrorMessage = null;
+        $remoteCatId = null;
+
+        // Push updates to live website if connected via WooCommerce REST API
+        if ($app->connection && $app->connection->site_url) {
+            $cleanSite = rtrim((string) $app->connection->site_url, '/');
+            $creds = $app->connection->credentials;
+            $ck = (string) ($creds['consumer_key'] ?? $creds['ck'] ?? '');
+            $cs = (string) ($creds['consumer_secret'] ?? $creds['cs'] ?? '');
+
+            if ($ck && $cs) {
+                try {
+                    $wooPayload = [
+                        'name'        => $name,
+                        'slug'        => $slug,
+                        'description' => $description,
+                    ];
+                    if ($parentId > 0) {
+                        $wooPayload['parent'] = $parentId;
+                    }
+
+                    if (is_numeric($id) && (int)$id > 0) {
+                        // Update existing category on WooCommerce
+                        $res = \Illuminate\Support\Facades\Http::withBasicAuth($ck, $cs)
+                            ->withoutVerifying()
+                            ->timeout(10)
+                            ->put("{$cleanSite}/wp-json/wc/v3/products/categories/{$id}", $wooPayload);
+                    } else {
+                        // Create new category on WooCommerce
+                        $res = \Illuminate\Support\Facades\Http::withBasicAuth($ck, $cs)
+                            ->withoutVerifying()
+                            ->timeout(10)
+                            ->post("{$cleanSite}/wp-json/wc/v3/products/categories", $wooPayload);
+                    }
+
+                    if ($res->successful() && !empty($res->json('id'))) {
+                        $storeUpdated = true;
+                        $syncStatus = 'successfully_synced';
+                        $remoteCatId = (string) $res->json('id');
+                    } else {
+                        $syncStatus = 'failed';
+                        $syncErrorMessage = $res->json('message') ?? ("Remote website returned HTTP " . $res->status());
+                    }
+                } catch (\Throwable $e) {
+                    $syncStatus = 'failed';
+                    $syncErrorMessage = $e->getMessage();
+                }
+            }
+        }
+
+        $finalId = $remoteCatId ?: ($id ?: ('cat_' . uniqid()));
 
         $config = $this->getAppConfig($app);
         $categories = $config['admin_categories'] ?? [];
 
+        $categoryData = [
+            'id'          => $finalId,
+            'name'        => $name,
+            'slug'        => $slug,
+            'icon'        => $icon,
+            'description' => $description,
+            'parent_id'   => (string) $parentId,
+            'items_count' => $itemsCount,
+            'is_visible'  => $isVisible,
+            'order'       => $order,
+            'badge'       => $badge,
+            'status'      => 'active',
+            'sync_status' => $syncStatus,
+            'sync_error'  => $syncErrorMessage,
+            'synced_at'   => $storeUpdated ? now()->toIso8601String() : null,
+        ];
+
         $updated = false;
         foreach ($categories as &$c) {
-            if ($c['id'] === $id) {
-                $c['name'] = $name;
-                $c['slug'] = $slug;
-                $c['icon'] = $icon;
-                $c['items_count'] = $itemsCount;
-                $c['is_visible'] = $isVisible;
-                $c['order'] = $order;
-                $c['badge'] = $badge;
+            if (($c['id'] ?? '') === $finalId || ($id && ($c['id'] ?? '') === $id)) {
+                $c = array_merge($c, $categoryData);
                 $updated = true;
                 break;
             }
@@ -588,25 +656,74 @@ class AppController extends Controller
         unset($c);
 
         if (! $updated) {
-            $categories[] = [
-                'id'          => $id,
-                'name'        => $name,
-                'slug'        => $slug,
-                'icon'        => $icon,
-                'items_count' => $itemsCount,
-                'is_visible'  => $isVisible,
-                'order'       => $order,
-                'badge'       => $badge,
-            ];
+            $categories[] = $categoryData;
         }
 
         $config['admin_categories'] = $categories;
         $this->updateAppConfig($app, $config);
+        \Illuminate\Support\Facades\Cache::forget("store_portal_data_{$app->id}");
 
         return response()->json([
-            'success'    => true,
-            'message'    => 'Mobile category updated successfully!',
-            'categories' => $categories,
+            'success'      => true,
+            'message'      => $storeUpdated
+                ? 'Category synchronized with your website and mobile app!'
+                : ($syncStatus === 'failed'
+                    ? "Category saved locally, but remote website sync failed: {$syncErrorMessage}"
+                    : 'Category updated and synchronized with mobile app!'),
+            'sync_status'  => $syncStatus,
+            'store_synced' => $storeUpdated,
+            'error_note'   => $syncErrorMessage,
+            'category'     => $categoryData,
+            'categories'   => $categories,
+        ]);
+    }
+
+    /**
+     * Delete Category from the app's admin portal and WooCommerce.
+     * DELETE /api/apps/{ulid}/admin-portal/categories/{categoryId}
+     */
+    public function deleteCategory(string $ulid, string $categoryId, Request $request): JsonResponse
+    {
+        $app = $this->resolveAdminPortalApp($ulid, $request);
+        $app->loadMissing('connection');
+
+        if (! $app->hasAdminPanelAccess()) {
+            return response()->json(['error' => ['message' => 'Admin Panel access required.']], 403);
+        }
+
+        $storeUpdated = false;
+        $syncErrorMessage = null;
+
+        if ($app->connection && $app->connection->site_url && is_numeric($categoryId)) {
+            $cleanSite = rtrim((string) $app->connection->site_url, '/');
+            $creds = $app->connection->credentials;
+            $ck = (string) ($creds['consumer_key'] ?? $creds['ck'] ?? '');
+            $cs = (string) ($creds['consumer_secret'] ?? $creds['cs'] ?? '');
+
+            if ($ck && $cs) {
+                try {
+                    $res = \Illuminate\Support\Facades\Http::withBasicAuth($ck, $cs)
+                        ->withoutVerifying()
+                        ->timeout(10)
+                        ->delete("{$cleanSite}/wp-json/wc/v3/products/categories/{$categoryId}?force=true");
+                    $storeUpdated = $res->successful();
+                } catch (\Throwable $e) {
+                    $syncErrorMessage = $e->getMessage();
+                }
+            }
+        }
+
+        $config = $this->getAppConfig($app);
+        $categories = $config['admin_categories'] ?? [];
+        $categories = array_values(array_filter($categories, fn ($c) => ($c['id'] ?? '') !== $categoryId));
+        $config['admin_categories'] = $categories;
+        $this->updateAppConfig($app, $config);
+        \Illuminate\Support\Facades\Cache::forget("store_portal_data_{$app->id}");
+
+        return response()->json([
+            'success'      => true,
+            'message'      => $storeUpdated ? 'Category deleted from website and mobile app.' : 'Category removed from mobile app.',
+            'store_synced' => $storeUpdated,
         ]);
     }
 
@@ -910,7 +1027,11 @@ class AppController extends Controller
 
         // Push updates to live website if connected via WooCommerce REST API
         $storeUpdated = false;
-        if ($app->connection && $app->connection->site_url && is_numeric($pId)) {
+        $syncStatus = 'pending';
+        $syncErrorMessage = null;
+        $remoteProdId = null;
+
+        if ($app->connection && $app->connection->site_url) {
             $cleanSite = rtrim((string) $app->connection->site_url, '/');
             $creds = $app->connection->credentials;
             $ck = (string) ($creds['consumer_key'] ?? $creds['ck'] ?? '');
@@ -923,22 +1044,70 @@ class AppController extends Controller
                         'regular_price' => (string) $validated['price'],
                         'stock_status'  => $stockStatus,
                     ];
-                    $res = \Illuminate\Support\Facades\Http::withBasicAuth($ck, $cs)
-                        ->withoutVerifying()
-                        ->timeout(8)
-                        ->put("{$cleanSite}/wp-json/wc/v3/products/{$pId}", $wooPayload);
-                    $storeUpdated = $res->successful();
-                } catch (\Throwable) {}
+                    if (!empty($images)) {
+                        $wooPayload['images'] = array_map(fn($url) => ['src' => $url], $images);
+                    }
+
+                    if (is_numeric($pId) && (int)$pId > 0) {
+                        // Update existing product on WooCommerce
+                        $res = \Illuminate\Support\Facades\Http::withBasicAuth($ck, $cs)
+                            ->withoutVerifying()
+                            ->timeout(10)
+                            ->put("{$cleanSite}/wp-json/wc/v3/products/{$pId}", $wooPayload);
+                    } else {
+                        // Create brand new product on WooCommerce
+                        $wooPayload['type'] = 'simple';
+                        $res = \Illuminate\Support\Facades\Http::withBasicAuth($ck, $cs)
+                            ->withoutVerifying()
+                            ->timeout(10)
+                            ->post("{$cleanSite}/wp-json/wc/v3/products", $wooPayload);
+                    }
+
+                    if ($res->successful() && !empty($res->json('id'))) {
+                        $storeUpdated = true;
+                        $syncStatus = 'successfully_synced';
+                        $remoteProdId = (string) $res->json('id');
+                    } else {
+                        $syncStatus = 'failed';
+                        $syncErrorMessage = $res->json('message') ?? ("Remote website returned HTTP " . $res->status());
+                    }
+                } catch (\Throwable $e) {
+                    $syncStatus = 'failed';
+                    $syncErrorMessage = $e->getMessage();
+                }
             }
         }
+
+        if ($remoteProdId) {
+            $newItem['id'] = $remoteProdId;
+            $statusOverrides[$remoteProdId] = $statusOverrides[$pId];
+            unset($statusOverrides[$pId]);
+            $config['admin_product_status_overrides'] = $statusOverrides;
+        }
+
+        $newItem['sync_status'] = $syncStatus;
+        $newItem['sync_error'] = $syncErrorMessage;
+        $newItem['synced_at'] = $storeUpdated ? now()->toIso8601String() : null;
+
+        // Re-save products array with updated ID if new
+        if ($remoteProdId && $existingIdx === null) {
+            $products[0]['id'] = $remoteProdId;
+        }
+        $config['admin_products'] = $products;
+        $this->updateAppConfig($app, $config);
+        \Illuminate\Support\Facades\Cache::forget("store_portal_data_{$app->id}");
 
         return response()->json([
             'success'       => true,
             'message'       => $storeUpdated
-                ? 'Product updated on your live website and mobile app!'
-                : 'Product saved successfully!',
+                ? 'Product synchronized with your website and mobile app!'
+                : ($syncStatus === 'failed'
+                    ? "Product saved locally, but remote website sync failed: {$syncErrorMessage}"
+                    : 'Product saved and synchronized with mobile app!'),
+            'sync_status'   => $syncStatus,
             'product'       => $newItem,
             'store_updated' => $storeUpdated,
+            'error_note'    => $syncErrorMessage,
         ]);
     }
 
@@ -1058,8 +1227,28 @@ class AppController extends Controller
     public function deleteProduct(Request $request, string $ulid, string $productId): JsonResponse
     {
         $app = $this->resolveAdminPortalApp($ulid, $request);
+        $app->loadMissing('connection');
+
         if (! $app->hasAdminPanelAccess()) {
             return response()->json(['error' => ['message' => 'Admin Panel access required.']], 403);
+        }
+
+        $storeUpdated = false;
+        if ($app->connection && $app->connection->site_url && is_numeric($productId)) {
+            $cleanSite = rtrim((string) $app->connection->site_url, '/');
+            $creds = $app->connection->credentials;
+            $ck = (string) ($creds['consumer_key'] ?? $creds['ck'] ?? '');
+            $cs = (string) ($creds['consumer_secret'] ?? $creds['cs'] ?? '');
+
+            if ($ck && $cs) {
+                try {
+                    $res = \Illuminate\Support\Facades\Http::withBasicAuth($ck, $cs)
+                        ->withoutVerifying()
+                        ->timeout(10)
+                        ->delete("{$cleanSite}/wp-json/wc/v3/products/{$productId}?force=true");
+                    $storeUpdated = $res->successful();
+                } catch (\Throwable) {}
+            }
         }
 
         $config = $this->getAppConfig($app);
@@ -1072,10 +1261,12 @@ class AppController extends Controller
         $config['admin_products'] = $products;
         $config['admin_deleted_product_ids'] = array_values(array_unique($delList));
         $this->updateAppConfig($app, $config);
+        \Illuminate\Support\Facades\Cache::forget("store_portal_data_{$app->id}");
 
         return response()->json([
-            'success' => true,
-            'message' => 'Product removed successfully.',
+            'success'       => true,
+            'message'       => $storeUpdated ? 'Product deleted from website and mobile app.' : 'Product removed from mobile app.',
+            'store_synced'  => $storeUpdated,
         ]);
     }
 
@@ -1213,7 +1404,7 @@ class AppController extends Controller
             try {
                 $rawCats = [];
                 $catRes = \Illuminate\Support\Facades\Http::withBasicAuth($ck, $cs)
-                    ->withoutVerifying()->timeout(8)->get("{$cleanSiteUrl}/wp-json/wc/v3/products/categories?per_page=100");
+                    ->withoutVerifying()->timeout(10)->get("{$cleanSiteUrl}/wp-json/wc/v3/products/categories?per_page=100&hide_empty=false");
                 if ($catRes->successful() && is_array($catRes->json())) {
                     $rawCats = $catRes->json();
                 }
@@ -1252,6 +1443,7 @@ class AppController extends Controller
                         $cCount = (int) (is_array($c) ? ($c['count'] ?? 0) : ($c->count ?? 0));
                         $cImg = is_array($c) ? ($c['image']['src'] ?? null) : ($c->image->src ?? null);
                         $cParent = (int) (is_array($c) ? ($c['parent'] ?? 0) : ($c->parent ?? 0));
+                        $cDesc = html_entity_decode((string) (is_array($c) ? ($c['description'] ?? '') : ($c->description ?? '')), ENT_QUOTES, 'UTF-8');
 
                         $lowerName = strtolower($cName);
                         $icon = '🏷️';
@@ -1269,12 +1461,17 @@ class AppController extends Controller
                                 'id'          => $cId ?: ('cat_' . ($idx + 1)),
                                 'name'        => $decodedName,
                                 'slug'        => $cSlug ?: Str::slug($cName),
+                                'parent_id'   => 0,
+                                'parent_name' => 'Root Category',
+                                'description' => $cDesc,
                                 'icon'        => $icon,
                                 'items_count' => $cCount,
+                                'status'      => 'active',
                                 'is_visible'  => true,
                                 'order'       => count($liveCategories) + 1,
                                 'badge'       => $cCount > 10 ? 'POPULAR' : (count($liveCategories) === 0 ? 'FEATURED' : ''),
                                 'image_url'   => $cImg,
+                                'children'    => [],
                             ];
                         } else {
                             $subCategories[] = [
@@ -1285,10 +1482,22 @@ class AppController extends Controller
                                 'items_count' => $cCount,
                                 'parent_id'   => (string) $cParent,
                                 'parent_name' => $catMap[(string) $cParent] ?? 'Store Catalog',
+                                'description' => $cDesc,
+                                'status'      => 'active',
+                                'is_visible'  => true,
                                 'image_url'   => $cImg,
                             ];
                         }
                     }
+
+                    // Nest children inside their parent categories
+                    foreach ($liveCategories as &$parentCat) {
+                        $pIdStr = (string) $parentCat['id'];
+                        $parentCat['children'] = array_values(array_filter($subCategories, fn ($sc) => (string) $sc['parent_id'] === $pIdStr));
+                    }
+                    unset($parentCat);
+
+                    $catCount = count($rawCats);
 
                     if (!empty($liveCategories)) {
                         if (!empty($config['admin_categories'])) {
@@ -1472,20 +1681,23 @@ class AppController extends Controller
                 // Fetch recent customers
                 try {
                     $custRes = \Illuminate\Support\Facades\Http::withBasicAuth($ck, $cs)
-                        ->withoutVerifying()->timeout(12)->get("{$cleanSiteUrl}/wp-json/wc/v3/customers?per_page=10");
+                        ->withoutVerifying()->timeout(12)->get("{$cleanSiteUrl}/wp-json/wc/v3/customers?per_page=50");
                     if ($custRes->successful() && is_array($custRes->json())) {
                         $headerTotal = $custRes->header('X-WP-Total');
                         $customerCount = ($headerTotal && is_numeric($headerTotal)) ? (int) $headerTotal : count($custRes->json());
 
                         foreach ($custRes->json() as $c) {
                             $name = trim(($c['first_name'] ?? '') . ' ' . ($c['last_name'] ?? ''));
+                            $phone = $c['billing']['phone'] ?? $c['shipping']['phone'] ?? '';
                             $liveCustomers[] = [
-                                'id'           => $c['id'] ?? uniqid(),
+                                'id'           => (string) ($c['id'] ?? uniqid()),
                                 'name'         => $name ?: ($c['username'] ?? 'Customer'),
                                 'email'        => $c['email'] ?? '',
+                                'phone'        => $phone,
                                 'orders_count' => (int) ($c['orders_count'] ?? 0),
                                 'total_spent'  => (float) ($c['total_spent'] ?? 0),
                                 'city'         => $c['billing']['city'] ?? '',
+                                'status'       => 'active',
                                 'created_at'   => $c['date_created'] ?? null,
                             ];
                         }
@@ -1551,6 +1763,45 @@ class AppController extends Controller
                         }
                     }
                 } catch (\Throwable) {}
+
+                // If /customers was empty (e.g. WC keys without administrator role), aggregate real customers from live orders
+                if (empty($liveCustomers) && !empty($liveOrders)) {
+                    $custMap = [];
+                    foreach ($liveOrders as $o) {
+                        $email = strtolower(trim($o['billing']['email'] ?? ''));
+                        if (!$email) continue;
+                        $cName = trim(($o['billing']['first_name'] ?? '') . ' ' . ($o['billing']['last_name'] ?? '')) ?: ($o['customer_name'] ?? 'Customer');
+                        $phone = $o['billing']['phone'] ?? '';
+                        $city = $o['billing']['city'] ?? '';
+                        $total = (float) ($o['total'] ?? 0);
+                        $date = $o['created_at'] ?? null;
+
+                        if (!isset($custMap[$email])) {
+                            $custMap[$email] = [
+                                'id'           => (string) ($o['id'] ? 'c_' . $o['id'] : uniqid()),
+                                'name'         => $cName,
+                                'email'        => $email,
+                                'phone'        => $phone,
+                                'orders_count' => 1,
+                                'total_spent'  => $total,
+                                'city'         => $city,
+                                'status'       => 'active',
+                                'created_at'   => $date,
+                            ];
+                        } else {
+                            $custMap[$email]['orders_count']++;
+                            $custMap[$email]['total_spent'] += $total;
+                            if (empty($custMap[$email]['phone']) && $phone) {
+                                $custMap[$email]['phone'] = $phone;
+                            }
+                            if (empty($custMap[$email]['city']) && $city) {
+                                $custMap[$email]['city'] = $city;
+                            }
+                        }
+                    }
+                    $liveCustomers = array_values($custMap);
+                    $customerCount = count($liveCustomers);
+                }
 
                 // Fetch real store coupons
                 $liveCoupons = [];
@@ -1819,8 +2070,8 @@ class AppController extends Controller
             'store_brands'     => $liveBrands,
             'catalog_stats'  => [
                 'products_count'   => max($prodCount, count($liveProducts)),
-                'categories_count' => count($categories) ?: $catCount,
-                'customers_count'  => $customerCount,
+                'categories_count' => max($catCount, count($categories)),
+                'customers_count'  => max($customerCount, count($liveCustomers)),
                 'orders_count'     => $orderCount ?: $ordersSummary['all'],
                 'last_sync_at'     => $config['catalog_last_synced_at'] ?? now()->toIso8601String(),
                 'status'           => 'synced',

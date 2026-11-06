@@ -155,3 +155,33 @@ body {
 .animate-shake {
   animation: shake 0.4s ease-in-out;
 }
+
+/* App details stage window and stage panel fail-safes */
+.app-stage-window {
+  position: relative;
+  width: 100%;
+  min-height: 600px;
+  background-color: #FFFFFF;
+  border: 1px solid #EBE6DF;
+  border-radius: 24px;
+  box-shadow: 0 4px 24px rgba(44, 38, 33, 0.04);
+  box-sizing: border-box;
+}
+
+.app-stage-panel {
+  width: 100%;
+  min-height: 600px;
+  padding: 1.75rem 2rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background-color: #FFFFFF;
+  border-radius: 24px;
+  opacity: 1;
+}
+
+.app-stage-panel.is-active {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}

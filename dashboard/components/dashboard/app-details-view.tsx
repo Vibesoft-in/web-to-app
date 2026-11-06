@@ -6,6 +6,7 @@ import { DeleteAppModal } from "@/components/dashboard/delete-app-modal";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { AddonLearnMoreModal } from "@/components/addons/addon-learn-more-modal";
 import {
   ArrowLeft,
   ArrowRight,
@@ -350,17 +351,10 @@ export function AppDetailsView({
 
   const getPanelClass = (tabKey: TabKey) => {
     const isActive = activeTab === tabKey;
-    const isExiting = exitingTab === tabKey;
-
     if (isActive) {
-      return "app-stage-panel is-active !flex flex-col";
+      return "w-full min-h-[580px] p-5 sm:p-7 bg-white rounded-3xl flex flex-col opacity-100 transition-opacity duration-200 animate-fadeIn";
     }
-    if (isExiting) {
-      return direction === "down"
-        ? "app-stage-panel is-exiting-up !hidden"
-        : "app-stage-panel is-exiting-down !hidden";
-    }
-    return "app-stage-panel !hidden";
+    return "hidden";
   };
 
   // Add-ons state
@@ -370,6 +364,7 @@ export function AppDetailsView({
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [checkoutMessage, setCheckoutMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [selectedAddonForModal, setSelectedAddonForModal] = useState<any | null>(null);
 
   // App billing query for this specific app
   const { data: ordersData, isLoading: isLoadingOrders } = useQuery({
@@ -1524,15 +1519,26 @@ export function AppDetailsView({
                           <div className="flex items-center justify-between gap-2 pt-3 border-t border-[#EBE6DF]/70">
                             <button
                               type="button"
-                              onClick={() => setExpandedAddonId(isExpanded ? null : addon.id)}
+                              onClick={() =>
+                                setSelectedAddonForModal({
+                                  ...addon,
+                                  shortName: addon.shortName || addon.name,
+                                  oneLineDesc: addon.description,
+                                  price: addon.price_formatted || formatPrice(addon.price),
+                                  licenseType: addon.licenseType || "Lifetime App License",
+                                  isActive,
+                                  features: addon.features || [],
+                                  featureDetails: {
+                                    title: addon.description,
+                                    items: addon.features || [],
+                                  },
+                                  actionUrl: hasAdminPanel ? `/dashboard/apps/${app?.ulid}/admin` : undefined,
+                                })
+                              }
                               className="text-xs font-bold text-[#78593D] hover:text-[#5A412A] flex items-center gap-1 cursor-pointer select-none"
                             >
-                              <span>{isExpanded ? "Hide Details" : "View Details"}</span>
-                              <ChevronDown
-                                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                                  isExpanded ? "rotate-180" : ""
-                                }`}
-                              />
+                              <span>View Details</span>
+                              <Info className="w-3.5 h-3.5" />
                             </button>
 
                             <div>
@@ -2666,6 +2672,17 @@ export function AppDetailsView({
         onDeleted={() => {
           setIsDeleteModalOpen(false);
           onBack();
+        }}
+      />
+
+      {/* ── ADD-ON SPECIFICATION & DETAILS POPUP MODAL (Requirement 5) ── */}
+      <AddonLearnMoreModal
+        isOpen={Boolean(selectedAddonForModal)}
+        onClose={() => setSelectedAddonForModal(null)}
+        addon={selectedAddonForModal}
+        onSelectOrBuy={(targetAddon) => {
+          setSelectedAddonForModal(null);
+          handleExecutePurchase(targetAddon);
         }}
       />
     </div>

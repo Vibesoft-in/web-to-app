@@ -542,6 +542,9 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::post('/apps/{ulid}/admin-portal/categories', [\App\Http\Controllers\Api\AppController::class, 'saveCategory'])
         ->name('api.apps.admin-portal.categories.save');
 
+    Route::delete('/apps/{ulid}/admin-portal/categories/{categoryId}', [\App\Http\Controllers\Api\AppController::class, 'deleteCategory'])
+        ->name('api.apps.admin-portal.categories.delete');
+
     Route::post('/apps/{ulid}/admin-portal/products', [\App\Http\Controllers\Api\AppController::class, 'saveProduct'])
         ->name('api.apps.admin-portal.products.save');
 
@@ -686,17 +689,42 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
                 return response()->json(['error' => 'Unauthorized. Super Admin access required.'], 403);
             }
 
-            $users = \App\Models\User::with([
-                'tenant',
-                'apps' => fn ($q) => $q->withoutGlobalScopes()->with([
-                    'connection',
-                    'configs' => fn ($cfg) => $cfg->latest('version'),
-                    'subscriptions.plan',
-                    'builds'  => fn ($b) => $b->latest('id'),
-                ]),
-            ])->latest()->get();
+            $users = \App\Models\User::withoutGlobalScopes()
+                ->with([
+                    'tenant',
+                    'apps' => fn ($q) => $q->withoutGlobalScopes()->with([
+                        'connection',
+                        'configs' => fn ($cfg) => $cfg->latest('version'),
+                        'subscriptions.plan',
+                        'builds'  => fn ($b) => $b->latest('id'),
+                    ]),
+                ])
+                ->latest()
+                ->get()
+                ->map(function ($u) {
+                    $appsCount = \App\Models\App::withoutGlobalScopes()->where('tenant_id', $u->tenant_id)->count();
+                    return [
+                        'id'                => $u->id,
+                        'name'              => $u->name,
+                        'email'             => $u->email,
+                        'phone'             => $u->phone,
+                        'role'              => $u->role instanceof \App\Enums\UserRole ? $u->role->value : (string) $u->role,
+                        'avatar_url'        => $u->avatar_url,
+                        'status'            => $u->trashed() ? 'suspended' : ($u->email_verified_at ? 'active' : 'pending_verification'),
+                        'status_label'      => $u->trashed() ? 'Suspended' : ($u->email_verified_at ? 'Active' : 'Pending Verification'),
+                        'email_verified_at' => $u->email_verified_at,
+                        'created_at'        => $u->created_at?->toIso8601String(),
+                        'tenant_id'         => $u->tenant_id,
+                        'tenant_name'       => $u->tenant?->name,
+                        'apps_count'        => $appsCount,
+                        'apps'              => $u->apps,
+                    ];
+                });
 
-            return response()->json(['users' => $users]);
+            return response()->json([
+                'total' => count($users),
+                'users' => $users,
+            ]);
         })->name('api.admin.users');
 
         Route::get('/apps', function (Request $request) {
@@ -831,6 +859,9 @@ Route::delete('/apps/{ulid}/admin-portal/sales/{saleId}', [\App\Http\Controllers
 
 Route::post('/apps/{ulid}/admin-portal/categories', [\App\Http\Controllers\Api\AppController::class, 'saveCategory'])
     ->name('api.apps.admin-portal.categories.save.direct');
+
+Route::delete('/apps/{ulid}/admin-portal/categories/{categoryId}', [\App\Http\Controllers\Api\AppController::class, 'deleteCategory'])
+    ->name('api.apps.admin-portal.categories.delete.direct');
 
 Route::post('/apps/{ulid}/admin-portal/products', [\App\Http\Controllers\Api\AppController::class, 'saveProduct'])
     ->name('api.apps.admin-portal.products.save.direct');

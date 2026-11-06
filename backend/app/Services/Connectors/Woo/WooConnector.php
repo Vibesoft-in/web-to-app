@@ -314,7 +314,7 @@ class WooConnector implements ConnectorInterface
     {
         $response = $this->guard()->get("{$this->baseUrl}/products/categories", [
             'auth'    => [$this->consumerKey, $this->consumerSecret],
-            'query'   => ['per_page' => 100, 'hide_empty' => true],
+            'query'   => ['per_page' => 100, 'hide_empty' => false],
             'timeout' => 10,
         ]);
 

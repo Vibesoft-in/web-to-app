@@ -14,6 +14,9 @@ import {
   Calendar,
   CreditCard,
   DollarSign,
+  Phone,
+  ShieldCheck,
+  CheckCircle2,
 } from "lucide-react";
 
 interface CustomersViewProps {
@@ -45,8 +48,9 @@ export function CustomersView({
       if (!q) return true;
       const nameMatch = (c.name || "").toLowerCase().includes(q);
       const emailMatch = (c.email || "").toLowerCase().includes(q);
+      const phoneMatch = (c.phone || "").toLowerCase().includes(q);
       const cityMatch = (c.city || "").toLowerCase().includes(q);
-      return nameMatch || emailMatch || cityMatch;
+      return nameMatch || emailMatch || phoneMatch || cityMatch;
     });
   }, [rawCustomers, searchQuery]);
 
@@ -68,16 +72,19 @@ export function CustomersView({
       showToast("No customer records to export.", "info");
       return;
     }
-    const headers = "Customer Name,Email,City,Orders Count,Total Spent,Currency\n";
+    const headers = "Customer Name,Email,Phone,City,Orders Count,Total Spent,Status,Registered Date,Currency\n";
     const rows = rawCustomers
       .map((c) => {
         const name = `"${(c.name || "Customer").replace(/"/g, '""')}"`;
         const email = `"${(c.email || "").replace(/"/g, '""')}"`;
+        const phone = `"${(c.phone || "").replace(/"/g, '""')}"`;
         const city = `"${(c.city || "").replace(/"/g, '""')}"`;
         const orders = c.orders_count || 0;
         const spent = parseFloat(c.total_spent || "0");
+        const status = `"${(c.status || "active").replace(/"/g, '""')}"`;
+        const regDate = `"${(c.created_at || "").replace(/"/g, '""')}"`;
         const curr = `"${currencySymbol.trim()}"`;
-        return [name, email, city, orders, spent, curr].join(",");
+        return [name, email, phone, city, orders, spent, status, regDate, curr].join(",");
       })
       .join("\n");
 
@@ -146,16 +153,19 @@ export function CustomersView({
               <tr className="border-b border-[var(--mav-line)] text-[var(--mav-muted)] uppercase tracking-wider font-extrabold text-[11px] bg-[var(--mav-surface-2)]/60">
                 <th className="py-3.5 px-4">Customer</th>
                 <th className="py-3.5 px-4">Email Address</th>
+                <th className="py-3.5 px-4">Phone Number</th>
                 <th className="py-3.5 px-4">City / Region</th>
                 <th className="py-3.5 px-4">Orders</th>
                 <th className="py-3.5 px-4">Lifetime Spend</th>
+                <th className="py-3.5 px-4">Status</th>
+                <th className="py-3.5 px-4">Registered Date</th>
                 <th className="py-3.5 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--mav-line)]">
               {filteredCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-[var(--mav-muted)]">
+                  <td colSpan={9} className="py-12 text-center text-[var(--mav-muted)]">
                     <Users className="w-10 h-10 mx-auto opacity-30 mb-2" />
                     <p className="font-bold text-sm">No customers found</p>
                     <p className="text-xs mt-0.5">Customer profiles automatically populate from website checkouts.</p>
@@ -190,6 +200,9 @@ export function CustomersView({
                       <td className="py-3.5 px-4 font-mono text-[12px] text-[var(--mav-muted)]">
                         {c.email || "—"}
                       </td>
+                      <td className="py-3.5 px-4 font-mono text-[12px] text-[var(--mav-muted)]">
+                        {c.phone || "—"}
+                      </td>
                       <td className="py-3.5 px-4 text-[var(--mav-muted)] font-medium">
                         {c.city || "Online Store"}
                       </td>
@@ -198,6 +211,15 @@ export function CustomersView({
                       </td>
                       <td className="py-3.5 px-4 font-mono font-bold text-[13px] text-[var(--mav-text)]">
                         {currencySymbol}{spent.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wider inline-flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>Active</span>
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-[11px] text-[var(--mav-muted)]">
+                        {c.created_at ? new Date(c.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Registered"}
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <button
@@ -284,9 +306,27 @@ export function CustomersView({
                     {selectedCustomer.email || "N/A"}
                   </a>
                 </div>
+                {selectedCustomer.phone && (
+                  <div className="flex items-center gap-2 text-[#23241B]">
+                    <Phone className="w-3.5 h-3.5 text-[#557e2a]" />
+                    <a href={`tel:${selectedCustomer.phone}`} className="font-bold font-mono hover:underline">
+                      {selectedCustomer.phone}
+                    </a>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 text-[#23241B]">
                   <MapPin className="w-3.5 h-3.5 text-[#557e2a]" />
                   <span>{selectedCustomer.city || selectedCustomer.address || "Online Store Customer"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-[#23241B]">
+                  <Calendar className="w-3.5 h-3.5 text-[#557e2a]" />
+                  <span>
+                    Registered {selectedCustomer.created_at ? new Date(selectedCustomer.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Customer Account"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-[#23241B]">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="font-bold text-emerald-700">Account Status: Active</span>
                 </div>
               </div>
 

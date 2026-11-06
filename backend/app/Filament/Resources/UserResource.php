@@ -25,6 +25,9 @@ class UserResource extends Resource
     protected static ?string $model = User::class;
     protected static ?string $navigationIcon = 'heroicon-o-users';
     protected static ?string $navigationGroup = 'Tenant Management';
+    protected static ?string $modelLabel = 'Customer / User';
+    protected static ?string $pluralModelLabel = 'Customers & Users';
+    protected static ?string $navigationLabel = 'Customers & Users';
     protected static ?int $navigationSort = 1;
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
@@ -83,58 +86,49 @@ class UserResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('id')->sortable(),
                 Tables\Columns\TextColumn::make('name')
-                    ->label('Name')
+                    ->label('Customer Name')
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
                 Tables\Columns\TextColumn::make('email')
-                    ->label('Mail')
+                    ->label('Email Address')
                     ->searchable()
                     ->sortable()
                     ->copyable()
                     ->wrap(),
-                Tables\Columns\TextColumn::make('username')
-                    ->label('Username')
+                Tables\Columns\TextColumn::make('phone')
+                    ->label('Phone Number')
+                    ->searchable()
+                    ->copyable()
+                    ->placeholder('Not provided'),
+                Tables\Columns\TextColumn::make('account_status')
+                    ->label('Account Status')
                     ->badge()
-                    ->color('info')
-                    ->searchable(query: function (\Illuminate\Database\Eloquent\Builder $query, string $search): \Illuminate\Database\Eloquent\Builder {
-                        return $query->where('phone', 'like', "%{$search}%")
-                            ->orWhere('email', 'like', "%{$search}%");
-                    }),
-                Tables\Columns\TextColumn::make('apps_summary')
-                    ->label('Apps Build')
                     ->state(function (User $record): string {
-                        $appsCount = App::withoutGlobalScopes()->where('tenant_id', $record->tenant_id)->count();
-                        $buildsCount = Build::withoutGlobalScopes()->where('tenant_id', $record->tenant_id)->count();
-                        return "{$appsCount} Apps ({$buildsCount} Builds)";
+                        if ($record->trashed()) return 'Suspended';
+                        if ($record->email_verified_at) return 'Active';
+                        return 'Pending Verification';
                     })
+                    ->color(fn (string $state): string => match ($state) {
+                        'Active' => 'success',
+                        'Pending Verification' => 'warning',
+                        'Suspended' => 'danger',
+                        default => 'gray',
+                    }),
+                Tables\Columns\TextColumn::make('apps_count')
+                    ->label('Apps Created')
+                    ->state(fn (User $record): int => App::withoutGlobalScopes()->where('tenant_id', $record->tenant_id)->count())
                     ->badge()
-                    ->color(fn (string $state): string => str_starts_with($state, '0 Apps') ? 'gray' : 'success'),
+                    ->color(fn ($state): string => $state > 0 ? 'success' : 'gray'),
                 Tables\Columns\TextColumn::make('tenant.name')
                     ->label('Tenant Account')
                     ->formatStateUsing(fn ($record) => "#{$record->tenant_id} {$record->tenant?->name}")
                     ->wrap()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('role')
-                    ->badge()
-                    ->color(fn ($state): string => match ($state instanceof UserRole ? $state->value : (string) $state) {
-                        'owner'  => 'success',
-                        'editor' => 'info',
-                        default  => 'gray',
-                    }),
-                Tables\Columns\IconColumn::make('email_verified_at')
-                    ->label('Verified')
-                    ->boolean()
-                    ->trueIcon('heroicon-o-check-circle')
-                    ->falseIcon('heroicon-o-x-circle')
-                    ->trueColor('success')
-                    ->falseColor('danger')
-                    ->getStateUsing(fn ($record) => $record->email_verified_at !== null),
                 Tables\Columns\TextColumn::make('created_at')
-                    ->label('Registered At')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->label('Registration Date')
+                    ->dateTime('M d, Y h:i A')
+                    ->sortable(),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()

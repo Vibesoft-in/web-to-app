@@ -106,6 +106,21 @@ class CatalogController extends Controller
             return response()->json(['data' => []]);
         }
 
+        $config = $app->configs()->latest('version')->first()?->config ?? [];
+
+        // If admin categories are stored in config, return them respecting visibility and ordering
+        if (!empty($config['admin_categories'])) {
+            $categories = array_values(array_filter($config['admin_categories'], function ($cat) {
+                return !isset($cat['is_visible']) || $cat['is_visible'] !== false;
+            }));
+
+            usort($categories, function ($a, $b) {
+                return ($a['order'] ?? 0) <=> ($b['order'] ?? 0);
+            });
+
+            return response()->json(['data' => $categories]);
+        }
+
         $connector = $this->connectorFactory->make($app->connection);
         $categories = $connector->getCategories();
 
