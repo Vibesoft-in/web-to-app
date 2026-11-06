@@ -20,7 +20,6 @@ import {
   Copy,
   Cpu,
   CreditCard,
-  Crown,
   Download,
   ExternalLink,
   Eye,
@@ -2623,7 +2622,7 @@ export function AppDetailsView({
                       <span className="text-2xl font-black text-[#78593D] block">₹999</span>
                       <span className="text-[10px] text-[#7E756B]">Lifetime App License &bull; Unlimited Notifications &bull; FCM Routing</span>
                     </div>
-                    <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <div className="pt-3 flex items-center justify-center">
                       <button
                         type="button"
                         onClick={() => {
@@ -2638,18 +2637,10 @@ export function AppDetailsView({
                           handleExecutePurchase(targetAddon);
                         }}
                         disabled={isProcessingCheckout}
-                        className="w-full sm:w-auto px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
+                        className="w-full sm:w-auto px-6 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >
                         <Sparkles className="w-4 h-4" />
                         <span>{isProcessingCheckout ? "Opening..." : "Buy"}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onNavigateToTab("plans")}
-                        className="w-full sm:w-auto px-5 py-2.5 bg-white hover:bg-[#F7F5F0] text-[#1C1917] border border-[#EBE6DF] rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
-                      >
-                        <Crown className="w-4 h-4 text-amber-600" />
-                        <span>Upgrade to Premium Plan</span>
                       </button>
                     </div>
                   </div>
@@ -2861,7 +2852,7 @@ export function AppDetailsView({
                       <span className="text-2xl font-black text-[#78593D] block">₹999</span>
                       <span className="text-[10px] text-[#7E756B]">Lifetime App License &bull; Custom SMTP Routing &bull; Transactional Receipts</span>
                     </div>
-                    <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <div className="pt-3 flex items-center justify-center">
                       <button
                         type="button"
                         onClick={() => {
@@ -2876,18 +2867,10 @@ export function AppDetailsView({
                           handleExecutePurchase(targetAddon);
                         }}
                         disabled={isProcessingCheckout}
-                        className="w-full sm:w-auto px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
+                        className="w-full sm:w-auto px-6 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >
                         <Sparkles className="w-4 h-4" />
                         <span>{isProcessingCheckout ? "Opening..." : "Buy"}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onNavigateToTab("plans")}
-                        className="w-full sm:w-auto px-5 py-2.5 bg-white hover:bg-[#F7F5F0] text-[#1C1917] border border-[#EBE6DF] rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
-                      >
-                        <Crown className="w-4 h-4 text-amber-600" />
-                        <span>Upgrade to Premium Plan</span>
                       </button>
                     </div>
                   </div>
@@ -3102,7 +3085,7 @@ export function AppDetailsView({
                       <span className="text-2xl font-black text-[#78593D] block">₹999</span>
                       <span className="text-[10px] text-[#7E756B]">Lifetime App License &bull; Meta WhatsApp Cloud API &bull; Live Customer Support</span>
                     </div>
-                    <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <div className="pt-3 flex items-center justify-center">
                       <button
                         type="button"
                         onClick={() => {
@@ -3117,18 +3100,10 @@ export function AppDetailsView({
                           handleExecutePurchase(targetAddon);
                         }}
                         disabled={isProcessingCheckout}
-                        className="w-full sm:w-auto px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
+                        className="w-full sm:w-auto px-6 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >
                         <Sparkles className="w-4 h-4" />
                         <span>{isProcessingCheckout ? "Opening..." : "Buy"}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onNavigateToTab("plans")}
-                        className="w-full sm:w-auto px-5 py-2.5 bg-white hover:bg-[#F7F5F0] text-[#1C1917] border border-[#EBE6DF] rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
-                      >
-                        <Crown className="w-4 h-4 text-amber-600" />
-                        <span>Upgrade to Premium Plan</span>
                       </button>
                     </div>
                   </div>
