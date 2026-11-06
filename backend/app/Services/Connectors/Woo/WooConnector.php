@@ -47,6 +47,20 @@ class WooConnector implements ConnectorInterface
             return VerifyResult::fail($e->errorCode, $e->getMessage());
         }
 
+        // Strict key format validation
+        if (! str_starts_with($this->consumerKey, 'ck_') || strlen($this->consumerKey) < 30) {
+            return VerifyResult::fail(
+                'INVALID_KEYS',
+                'WooCommerce Consumer Key must start with "ck_" and be at least 32 characters long.'
+            );
+        }
+        if (! str_starts_with($this->consumerSecret, 'cs_') || strlen($this->consumerSecret) < 30) {
+            return VerifyResult::fail(
+                'INVALID_KEYS',
+                'WooCommerce Consumer Secret must start with "cs_" and be at least 32 characters long.'
+            );
+        }
+
         // 2. Call system_status or products check
         try {
             $url = "{$this->baseUrl}/system_status";
@@ -101,6 +115,23 @@ class WooConnector implements ConnectorInterface
             // If system_status is available
             if ($response->successful()) {
                 $data = $response->json();
+
+                // Strict Domain Validation: verify that the returned WordPress/WooCommerce site_url matches entered domain
+                $remoteSiteUrl = $data['environment']['site_url'] ?? $data['environment']['home_url'] ?? null;
+                if (! empty($remoteSiteUrl)) {
+                    $remoteHost = strtolower(parse_url($remoteSiteUrl, PHP_URL_HOST) ?? $remoteSiteUrl);
+                    $targetHost = strtolower(parse_url($this->siteUrl, PHP_URL_HOST) ?? $this->siteUrl);
+                    if (str_starts_with($remoteHost, 'www.')) $remoteHost = substr($remoteHost, 4);
+                    if (str_starts_with($targetHost, 'www.')) $targetHost = substr($targetHost, 4);
+
+                    if ($remoteHost !== $targetHost && ! str_contains($targetHost, $remoteHost) && ! str_contains($remoteHost, $targetHost)) {
+                        return VerifyResult::fail(
+                            'CREDENTIAL_MISMATCH',
+                            "The WooCommerce REST API credentials belong to '{$remoteHost}', but you entered '{$targetHost}'. Credentials must authenticate against your registered store domain."
+                        );
+                    }
+                }
+
                 $storeName = (string) ($data['environment']['site_title'] ?? parse_url($this->siteUrl, PHP_URL_HOST));
                 $currency = (string) ($data['settings']['currency'] ?? 'INR');
                 $wcVersion = (string) ($data['environment']['version'] ?? 'unknown');

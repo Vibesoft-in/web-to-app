@@ -33,6 +33,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   ShoppingBag,
+  Smartphone,
   Sparkles,
   TrendingDown,
   TrendingUp,
@@ -653,7 +654,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   Compatibility Test
                 </h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                  📱 Mobile
+                  ðŸ“± Mobile
                 </span>
                 <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -665,7 +666,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                 <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-[11px] truncate max-w-[280px]">
                   {googlePageSpeed.tested_url}
                 </span>
-                <span className="text-slate-300">•</span>
+                <span className="text-slate-300">â€¢</span>
                 <span className="text-slate-500">Google Lighthouse v12 Engine</span>
               </p>
             </div>
@@ -675,7 +676,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
           <div className="flex items-center gap-2 flex-shrink-0 self-start md:self-auto">
             <div className={`px-3.5 py-1.5 rounded-xl border text-xs font-bold ${totalStyle.badgeBg} ${totalStyle.badgeText} ${totalStyle.badgeBorder} flex items-center gap-1.5 shadow-xs`}>
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Total Score: {totalScore} / 100 • {totalStyle.status}</span>
+              <span>Total Score: {totalScore} / 100 â€¢ {totalStyle.status}</span>
             </div>
           </div>
         </div>
@@ -721,7 +722,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   ? "Strong Mobile Performance!"
                   : totalScore >= 50
                   ? "Good Mobile Performance"
-                  : "Low Score — Store Optimization Required"}
+                  : "Low Score â€” Store Optimization Required"}
               </h4>
               <p className="text-xs text-slate-500 max-w-md leading-relaxed">
                 Score calculated directly from Google PageSpeed Insights Mobile audit for your store.
@@ -810,7 +811,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   {style.status}
                 </span>
                 <span className="text-[10px] text-slate-400 mt-1">
-                  FCP: {googlePageSpeed.fcp} • LCP: {googlePageSpeed.lcp} • TBT: {googlePageSpeed.tbt}
+                  FCP: {googlePageSpeed.fcp} â€¢ LCP: {googlePageSpeed.lcp} â€¢ TBT: {googlePageSpeed.tbt}
                 </span>
               </div>
             );
@@ -850,7 +851,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   {style.status}
                 </span>
                 <span className="text-[10px] text-slate-400 mt-1">
-                  Contrast • Screen Reader • Tap Targets
+                  Contrast â€¢ Screen Reader â€¢ Tap Targets
                 </span>
               </div>
             );
@@ -890,7 +891,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   {style.status}
                 </span>
                 <span className="text-[10px] text-slate-400 mt-1">
-                  HTTPS SSL • Modern APIs • UTF-8
+                  HTTPS SSL â€¢ Modern APIs â€¢ UTF-8
                 </span>
               </div>
             );
@@ -930,7 +931,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                   {style.status}
                 </span>
                 <span className="text-[10px] text-slate-400 mt-1">
-                  Meta Tags • Title • Crawlability
+                  Meta Tags â€¢ Title â€¢ Crawlability
                 </span>
               </div>
             );
@@ -939,7 +940,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
 
       </div>
 
-      {/* ── REQ 3: COMPACT IN-DEPTH WEBSITE & STORE DIAGNOSTICS GRID WITH CIRCULAR CHARTS ── */}
+      {/* â”€â”€ REQ 3: COMPACT IN-DEPTH WEBSITE & STORE DIAGNOSTICS GRID WITH CIRCULAR CHARTS â”€â”€ */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
@@ -977,150 +978,245 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
             {
               id: "perf",
               heading: "Performance Score",
+              icon: Zap,
               percentage: Number(googlePageSpeed.performance || 0),
-              meetsBenchmark: Number(googlePageSpeed.performance || 0) >= 80,
-              benchmarkLabel: "Benchmark: ≥ 80%",
-              statusLabel: Number(googlePageSpeed.performance || 0) >= 80 ? "Optimal" : "Needs Attention",
-              subtext: `FCP: ${googlePageSpeed.fcp || "1.2s"} • TBT: ${googlePageSpeed.tbt || "120ms"}`,
+              displayValue: `${Number(googlePageSpeed.performance || 0)}%`,
+              benchmarkVal: 80,
+              benchmarkLabel: "Benchmark: â‰¥ 80%",
+              statusLabel:
+                Number(googlePageSpeed.performance || 0) >= 80
+                  ? "Optimal"
+                  : Number(googlePageSpeed.performance || 0) >= 50
+                  ? "Acceptable"
+                  : "Needs Attention",
+              subtext: `FCP: ${googlePageSpeed.fcp || "1.2s"} â€¢ TBT: ${googlePageSpeed.tbt || "120ms"}`,
+              tooltip:
+                "Evaluates real Core Web Vitals including First Contentful Paint (FCP) and Total Blocking Time (TBT). High performance guarantees smooth app screen transitions.",
             },
             {
               id: "seo",
               heading: "SEO Score",
+              icon: Globe,
               percentage: Number(googlePageSpeed.seo || 0),
-              meetsBenchmark: Number(googlePageSpeed.seo || 0) >= 80,
-              benchmarkLabel: "Benchmark: ≥ 80%",
-              statusLabel: Number(googlePageSpeed.seo || 0) >= 80 ? "Optimal" : "Needs Attention",
-              subtext: "Meta • Headings • Crawl",
+              displayValue: `${Number(googlePageSpeed.seo || 0)}%`,
+              benchmarkVal: 80,
+              benchmarkLabel: "Benchmark: â‰¥ 80%",
+              statusLabel:
+                Number(googlePageSpeed.seo || 0) >= 80
+                  ? "Optimal"
+                  : Number(googlePageSpeed.seo || 0) >= 50
+                  ? "Acceptable"
+                  : "Needs Attention",
+              subtext: "Meta â€¢ Headings â€¢ Crawlability",
+              tooltip:
+                "Checks search engine indexability, OpenGraph tags, and mobile viewport metadata for social sharing and app deep-linking.",
             },
             {
               id: "a11y",
               heading: "Accessibility Score",
+              icon: Users,
               percentage: Number(googlePageSpeed.accessibility || 0),
-              meetsBenchmark: Number(googlePageSpeed.accessibility || 0) >= 80,
-              benchmarkLabel: "Benchmark: ≥ 80%",
-              statusLabel: Number(googlePageSpeed.accessibility || 0) >= 80 ? "Optimal" : "Needs Attention",
-              subtext: "Contrast • Alt Tags • UX",
+              displayValue: `${Number(googlePageSpeed.accessibility || 0)}%`,
+              benchmarkVal: 80,
+              benchmarkLabel: "Benchmark: â‰¥ 80%",
+              statusLabel:
+                Number(googlePageSpeed.accessibility || 0) >= 80
+                  ? "Optimal"
+                  : Number(googlePageSpeed.accessibility || 0) >= 50
+                  ? "Acceptable"
+                  : "Needs Attention",
+              subtext: "Contrast â€¢ Alt Tags â€¢ Tap Targets",
+              tooltip:
+                "Measures color contrast, touch target sizes (â‰¥48x48dp), and readable font scales essential for native mobile usability.",
             },
             {
               id: "mobile",
               heading: "Mobile Responsiveness",
+              icon: Smartphone,
               percentage: mobileScore,
-              meetsBenchmark: mobileScore >= 80,
+              displayValue: `${mobileScore}%`,
+              benchmarkVal: 80,
               benchmarkLabel: "Benchmark: FCP < 1.8s",
-              statusLabel: mobileScore >= 80 ? "Optimal" : "Needs Attention",
+              statusLabel:
+                mobileScore >= 80
+                  ? "Optimal"
+                  : mobileScore >= 50
+                  ? "Acceptable"
+                  : "Needs Attention",
               subtext: `First Paint: ${rawFcp.toFixed(1)}s`,
+              tooltip:
+                "Simulates mobile viewport rendering and layout shift behavior on 4G networks to ensure immediate native rendering.",
             },
             {
               id: "sec",
               heading: "Security Score",
+              icon: ShieldCheck,
               percentage: securityScore,
-              meetsBenchmark: securityScore >= 85,
+              displayValue: `${securityScore}%`,
+              benchmarkVal: 85,
               benchmarkLabel: "Benchmark: SSL Active",
-              statusLabel: securityScore >= 85 ? "Passed" : "Insecure",
-              subtext: isHttps ? "TLS 1.3 Active" : "Insecure HTTP",
+              statusLabel: securityScore >= 85 ? "Optimal" : "Needs Attention",
+              subtext: isHttps ? "TLS 1.3 Active â€¢ HSTS" : "Insecure HTTP Protocol",
+              tooltip:
+                "Validates HTTPS encryption and modern cipher suites required by Apple App Store and Google Play policy.",
             },
             {
               id: "health",
               heading: "Website Health",
+              icon: Sparkles,
               percentage: Number(googlePageSpeed.best_practices || 0),
-              meetsBenchmark: Number(googlePageSpeed.best_practices || 0) >= 85,
-              benchmarkLabel: "Benchmark: ≥ 85%",
-              statusLabel: Number(googlePageSpeed.best_practices || 0) >= 85 ? "Optimal" : "Needs Attention",
-              subtext: "Doctype • HTTPS • APIs",
+              displayValue: `${Number(googlePageSpeed.best_practices || 0)}%`,
+              benchmarkVal: 85,
+              benchmarkLabel: "Benchmark: â‰¥ 85%",
+              statusLabel:
+                Number(googlePageSpeed.best_practices || 0) >= 85
+                  ? "Optimal"
+                  : Number(googlePageSpeed.best_practices || 0) >= 50
+                  ? "Acceptable"
+                  : "Needs Attention",
+              subtext: "HTML5 â€¢ Valid Doctype â€¢ APIs",
+              tooltip:
+                "Evaluates standard compliance, safe script loading, and modern web API compatibility used by WebIntoApp mobile webviews.",
             },
             {
               id: "compat",
               heading: "Store Compatibility",
+              icon: ShoppingBag,
+  Smartphone,
               percentage: compatScore,
-              meetsBenchmark: compatScore >= 80,
+              displayValue: `${compatScore}%`,
+              benchmarkVal: 80,
               benchmarkLabel: "Benchmark: Active Catalog",
-              statusLabel: compatScore >= 80 ? "Compatible" : "Incomplete",
+              statusLabel: compatScore >= 80 ? "Optimal" : "Needs Attention",
               subtext: `${prodCount} Products Ready`,
+              tooltip:
+                "Verifies e-commerce product feeds, category taxonomies, and live inventory endpoints for continuous native app synchronization.",
             },
             {
               id: "latency",
               heading: "Speed Latency (TTFB)",
+              icon: Clock,
               percentage: latencyScore,
-              meetsBenchmark: rawTtfb <= 300,
+              displayValue: `${rawTtfb}ms`,
+              benchmarkVal: 80,
               benchmarkLabel: "Benchmark: < 300ms",
-              statusLabel: rawTtfb <= 300 ? "Optimal" : "Slow",
-              subtext: `Response: ${rawTtfb}ms`,
+              statusLabel: rawTtfb <= 300 ? "Optimal" : rawTtfb <= 600 ? "Acceptable" : "Needs Attention",
+              subtext: `Response Time: ${rawTtfb}ms`,
+              tooltip:
+                "Time To First Byte (TTFB) from server. Low latency ensures real-time cart updates and fast page switches on mobile devices.",
             },
           ];
 
           return (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {diagnosticGridItems.map((item) => {
-                const radius = 28;
-                const strokeWidth = 5;
-                const circumference = 2 * Math.PI * radius;
-                const strokeDashoffset =
-                  circumference - (Math.min(100, Math.max(0, item.percentage)) / 100) * circumference;
-                // Green Chart if meets benchmark, Red Chart if below benchmark
-                const chartColor = item.meetsBenchmark ? "#10b981" : "#ef4444";
+                const IconComponent = item.icon;
+                const score = Math.min(100, Math.max(0, item.percentage));
+                const isGood = score >= 80;
+                const isWarning = score >= 50 && score < 80;
+
+                // Color coding per requirement (Good >= 80, Warning 50-79, Poor < 50)
+                const barColor = isGood
+                  ? "bg-gradient-to-r from-emerald-500 to-teal-500"
+                  : isWarning
+                  ? "bg-gradient-to-r from-amber-500 to-yellow-500"
+                  : "bg-gradient-to-r from-rose-500 to-red-500";
+
+                const badgeClass = isGood
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : isWarning
+                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                  : "bg-rose-50 text-rose-700 border-rose-200";
+
+                const scoreColor = isGood
+                  ? "text-emerald-700"
+                  : isWarning
+                  ? "text-amber-700"
+                  : "text-rose-700";
 
                 return (
                   <div
                     key={item.id}
-                    className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col items-center text-center shadow-xs hover:border-slate-300 transition"
+                    className="group relative bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs hover:border-[#78593D]/40 hover:shadow-md transition-all duration-200 flex flex-col justify-between gap-3"
                   >
-                    <span
-                      className="text-xs font-bold text-slate-800 tracking-tight block truncate w-full mb-2"
-                      title={item.heading}
-                    >
-                      {item.heading}
-                    </span>
+                    {/* Header: Icon, Title, Score & Status Badge */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 border ${
+                            isGood
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : isWarning
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-rose-50 text-rose-700 border-rose-200"
+                          }`}
+                        >
+                          <IconComponent className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight block truncate">
+                              {item.heading}
+                            </span>
+                            <div className="relative inline-block cursor-help group/tip">
+                              <HelpCircle className="w-3.5 h-3.5 text-slate-400 group-hover/tip:text-[#78593D] transition" />
+                              {/* Hover Tooltip (Requirement 5) */}
+                              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 p-2.5 rounded-xl bg-slate-900 text-white text-[11px] leading-relaxed shadow-xl opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-150 z-50 pointer-events-none">
+                                <p className="font-semibold text-amber-300 mb-1">{item.heading}</p>
+                                <p className="text-slate-300">{item.tooltip}</p>
+                                <div className="mt-1.5 pt-1.5 border-t border-slate-800 text-[10px] text-slate-400 flex justify-between">
+                                  <span>{item.benchmarkLabel}</span>
+                                  <span className="font-bold text-white">{item.displayValue}</span>
+                                </div>
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900" />
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">
+                            {item.subtext}
+                          </span>
+                        </div>
+                      </div>
 
-                    {/* Circular Chart */}
-                    <div className="relative w-18 h-18 flex items-center justify-center my-1">
-                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 68 68">
-                        <circle
-                          cx="34"
-                          cy="34"
-                          r={radius}
-                          stroke="#f1f5f9"
-                          strokeWidth={strokeWidth}
-                          fill="none"
-                        />
-                        <circle
-                          cx="34"
-                          cy="34"
-                          r={radius}
-                          stroke={chartColor}
-                          strokeWidth={strokeWidth}
-                          strokeDasharray={circumference}
-                          strokeDashoffset={strokeDashoffset}
-                          strokeLinecap="round"
-                          fill="none"
-                          className="transition-all duration-700 ease-out"
-                        />
-                      </svg>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-base font-black text-slate-900 leading-none">
-                          {item.percentage}%
+                      {/* Score Value & Status Badge */}
+                      <div className="text-right flex flex-col items-end gap-1 flex-shrink-0">
+                        <span className={`text-base font-black ${scoreColor} tracking-tight leading-none`}>
+                          {item.displayValue}
+                        </span>
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${badgeClass}`}
+                        >
+                          {item.statusLabel}
                         </span>
                       </div>
                     </div>
 
-                    {/* Status Badge & Benchmarks */}
-                    <div className="mt-2 flex flex-col items-center gap-1 w-full">
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          item.meetsBenchmark
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-rose-50 text-rose-700 border-rose-200"
-                        }`}
-                      >
-                        {item.statusLabel}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium block truncate max-w-full">
-                        {item.benchmarkLabel}
-                      </span>
-                      {item.subtext && (
-                        <span className="text-[9.5px] text-slate-400 block truncate max-w-full">
-                          {item.subtext}
+                    {/* â”€â”€ RESPONSIVE HORIZONTAL BAR CHART (Requirement 5) â”€â”€ */}
+                    <div className="space-y-1.5 pt-1">
+                      <div className="relative h-3 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200/70">
+                        {/* Reference Benchmark Marker (Vertical tick on the track) */}
+                        <div
+                          className="absolute top-0 bottom-0 w-0.5 bg-slate-400/70 z-10"
+                          style={{ left: `${item.benchmarkVal}%` }}
+                          title={`Target Benchmark (${item.benchmarkVal}%)`}
+                        />
+                        {/* Animated Progress Bar */}
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 ease-out ${barColor}`}
+                          style={{ width: `${score}%` }}
+                        />
+                      </div>
+
+                      {/* Bar Chart Reference Legend */}
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium px-0.5">
+                        <span className="flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                          <span>{item.benchmarkLabel}</span>
                         </span>
-                      )}
+                        <span className="font-semibold text-slate-500">
+                          {score >= item.benchmarkVal ? "âœ“ Meets Benchmark" : "Below Target"}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1291,7 +1387,7 @@ export function StepAnalysis({ ulid, app, setupState, onNext }: StepAnalysisProp
                       <span>Submit &amp; Request Growth Call</span>
                     </button>
                     <p className="text-[11px] text-slate-400 text-center mt-2">
-                      100% Free consultation • No spam • Direct WhatsApp reach out
+                      100% Free consultation â€¢ No spam â€¢ Direct WhatsApp reach out
                     </p>
                   </div>
                 </form>

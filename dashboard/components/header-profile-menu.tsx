@@ -40,6 +40,7 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [imgError, setImgError] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -47,6 +48,22 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Sync profile data and listen for cross-component updates (Requirement 4)
+  useEffect(() => {
+    const handleProfileUpdate = (e: any) => {
+      if (e.detail?.avatar_url !== undefined) {
+        setEditAvatarUrl(e.detail.avatar_url);
+        setImgError(false);
+      }
+      if (e.detail?.name !== undefined) {
+        setEditName(e.detail.name);
+      }
+      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+    };
+    window.addEventListener("user-profile-updated", handleProfileUpdate);
+    return () => window.removeEventListener("user-profile-updated", handleProfileUpdate);
+  }, [queryClient]);
 
   // Determine current page context: dashboard vs main website
   const isDashboard = forceMode === "dashboard" || (forceMode !== "website" && pathname.startsWith("/dashboard"));
@@ -191,6 +208,24 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
         };
       });
 
+      // Synchronize with LocalStorage and broadcast to all pages and headers (Requirement 4)
+      if (typeof window !== "undefined") {
+        if (editAvatarUrl.trim()) {
+          localStorage.setItem("appifyhub_user_avatar", editAvatarUrl.trim());
+        } else {
+          localStorage.removeItem("appifyhub_user_avatar");
+        }
+        window.dispatchEvent(
+          new CustomEvent("user-profile-updated", {
+            detail: {
+              name: editName.trim(),
+              avatar_url: editAvatarUrl.trim(),
+              tenant_name: editTenantName.trim(),
+            },
+          })
+        );
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
 
       setSaveSuccess(true);
@@ -261,7 +296,8 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
       : user.email?.slice(0, 2) || "CA"
   ).toUpperCase();
 
-  const userAvatar = user.avatar_url || editAvatarUrl;
+  const cachedLocalAvatar = typeof window !== "undefined" ? localStorage.getItem("appifyhub_user_avatar") : null;
+  const userAvatar = editAvatarUrl || user?.avatar_url || cachedLocalAvatar;
 
   return (
     <>
@@ -282,14 +318,12 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
         >
           {/* Avatar Image or Styled Initials */}
           <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full overflow-hidden bg-gradient-to-br from-[#78593D] to-[#5A412A] text-white flex items-center justify-center font-bold text-xs shadow-inner flex-shrink-0 border border-black/5">
-            {userAvatar ? (
+            {userAvatar && !imgError ? (
               <img
                 src={userAvatar}
                 alt={displayName}
                 className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
+                onError={() => setImgError(true)}
               />
             ) : (
               <span>{initials}</span>
@@ -324,14 +358,12 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
             <div className="px-3.5 py-3 border-b border-slate-100 mb-1.5 bg-[#FAF7F2] rounded-xl">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-[#78593D] to-[#5A412A] text-white flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-xs border border-white">
-                  {userAvatar ? (
+                  {userAvatar && !imgError ? (
                     <img
                       src={userAvatar}
                       alt={displayName}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
+                      onError={() => setImgError(true)}
                     />
                   ) : (
                     <span>{initials}</span>

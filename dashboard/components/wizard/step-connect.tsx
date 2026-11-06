@@ -185,9 +185,20 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
   }, [ulid, connectionData, app, setupState, reset, isShopify]);
 
   // Keep saved connection data in sync when user edits fields
-  // Invalidate verification if fields change
+  // Invalidate verification immediately if credentials or URL change (Requirement 2)
   useEffect(() => {
+    let initialRun = true;
     const subscription = watch((value) => {
+      if (initialRun) {
+        initialRun = false;
+        return;
+      }
+      // If user edits any credential or URL, invalidate previous verification immediately
+      setVerificationResult(null);
+      try {
+        localStorage.removeItem(`appifyhub_connect_verified_${ulid}`);
+      } catch {}
+
       if (value.site_url || value.consumer_key || value.consumer_secret) {
         try {
           localStorage.setItem(`appifyhub_connect_${ulid}`, JSON.stringify(value));
@@ -200,7 +211,7 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
     return () => subscription.unsubscribe();
   }, [watch, ulid]);
 
-  const onVerify = async (data: ConnectFormData) => {
+  const onVerify = async (data: ConnectFormData): Promise<boolean> => {
     // For WooCommerce, consumer_secret is required
     if (isWoo && (!data.consumer_secret || data.consumer_secret.trim().length < 3)) {
       setErrorDetails({
@@ -208,7 +219,7 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
         message: "WooCommerce Consumer Secret (cs_...) is required.",
       });
       setIsErrorModalOpen(true);
-      return;
+      return false;
     }
 
     setIsVerifying(true);
@@ -230,12 +241,14 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
       }
 
       setVerificationResult(res);
+      return true;
     } catch (err: any) {
       setErrorDetails({
         code: err.code || "VERIFICATION_FAILED",
         message: err.message || "Failed to verify connection to your store.",
       });
       setIsErrorModalOpen(true);
+      return false;
     } finally {
       setIsVerifying(false);
     }
@@ -250,6 +263,8 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
 
   const getErrorExplanation = (code: string) => {
     switch (code) {
+      case "CREDENTIALS_REUSED":
+        return "These API credentials are already associated with a different store domain. Each website must use its own unique API credentials.";
       case "CREDENTIAL_MISMATCH":
         return "The credentials submitted do not belong to the website entered for this app. Credentials must authenticate against your registered store.";
       case "PLATFORM_MISMATCH":
@@ -547,13 +562,19 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
                 const isValid = await trigger();
                 if (isValid) {
                   const data = getValues();
-                  await onVerify(data);
-                  onNext();
+                  const success = await onVerify(data);
+                  if (success) {
+                    onNext();
+                  }
                 }
               }
             }}
             disabled={isVerifying}
-            className="w-full sm:w-auto justify-center px-7 py-3 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20 cursor-pointer active:scale-98 disabled:opacity-70"
+            className={`w-full sm:w-auto justify-center px-7 py-3 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md cursor-pointer active:scale-98 disabled:opacity-70 ${
+              isStepVerified
+                ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20"
+                : "bg-slate-700 hover:bg-slate-800 text-white"
+            }`}
           >
             <span>Next</span>
             <ArrowRight className="w-4 h-4" />

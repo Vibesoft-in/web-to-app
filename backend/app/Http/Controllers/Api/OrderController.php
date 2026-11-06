@@ -272,10 +272,57 @@ class OrderController extends Controller
     }
 
     /**
+     * Downloads a standard binary PDF tax invoice for the order (Requirement 6).
+     * Enforces user authorization / tenant ownership.
+     * Returns PDF with filename Invoice-ORD-XXXX.pdf.
+     */
+    public function downloadInvoice(Request $request, int|string $id): \Illuminate\Http\Response|JsonResponse
+    {
+        $user = $request->user();
+        $order = Order::where(function ($q) use ($user) {
+            if ($user && ! $user->is_super_admin) {
+                $q->where('tenant_id', $user->tenant_id);
+            }
+        })
+        ->where(function ($q) use ($id) {
+            if (is_numeric($id)) {
+                $q->where('id', (int) $id);
+            } else {
+                $q->where('order_number', (string) $id);
+            }
+        })
+        ->with(['items', 'package', 'app', 'user'])
+        ->firstOrFail();
+
+        $transactionId = $order->transactions()->latest('id')->value('gateway_payment_id')
+            ?? \App\Models\Payment::withoutTenantScope()->where('tenant_id', $order->tenant_id)->latest('id')->value('razorpay_payment_id')
+            ?? 'pay_' . strtoupper(substr(md5((string) $order->id), 0, 14));
+
+        /** @var \App\Services\Billing\PdfInvoiceGenerator $pdfGenerator */
+        $pdfGenerator = app(\App\Services\Billing\PdfInvoiceGenerator::class);
+        $pdfBinary = $pdfGenerator->generate($order, $transactionId);
+
+        $orderNum = $order->order_number ?: "ORD-{$order->id}";
+        $filename = "Invoice-{$orderNum}.pdf";
+
+        return response($pdfBinary, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Content-Length'      => (string) strlen($pdfBinary),
+            'Cache-Control'       => 'private, max-age=3600, must-revalidate',
+        ]);
+    }
+
+    /**
      * Renders a clean printable HTML invoice for the order.
+     * If ?download=1 or ?format=pdf is passed, immediately serves the PDF download.
      */
     public function viewInvoice(Request $request, int|string $id): \Illuminate\Http\Response|JsonResponse
     {
+        if ($request->has('download') || $request->query('format') === 'pdf') {
+            return $this->downloadInvoice($request, $id);
+        }
+
         $user = $request->user();
         $order = Order::where(function ($q) use ($user) {
             if ($user && ! $user->is_super_admin) {

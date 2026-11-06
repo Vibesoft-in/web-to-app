@@ -2630,14 +2630,15 @@ export function AppDetailsView({
                                 </span>
                               </td>
                               <td className="py-3 px-2 text-right">
-                                {ord.invoice_url || ord.invoice_pdf ? (
+                                {ord.invoice_url || ord.invoice_pdf || ord.id ? (
                                   <a
-                                    href={ord.invoice_url || ord.invoice_pdf}
+                                    href={ord.download_invoice_url || (ord.id ? `/api/orders/${ord.id}/invoice?download=1` : (ord.invoice_url || ord.invoice_pdf))}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="text-xs font-bold text-[#78593D] hover:underline inline-flex items-center gap-1"
+                                    download={`Invoice-${ord.order_number || ord.id}.pdf`}
+                                    className="text-xs font-bold text-[#78593D] hover:underline inline-flex items-center gap-1 cursor-pointer"
                                   >
-                                    <FileText className="w-3.5 h-3.5" />
+                                    <Download className="w-3.5 h-3.5" />
                                     <span>Download</span>
                                   </a>
                                 ) : (

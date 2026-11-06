@@ -111,15 +111,12 @@ export default function WizardStepPage() {
     }
   }, [currentStepParam, ulid, router]);
 
-  // URL STEP GUARD:
-  // Only redirect if step is significantly ahead of furthest reached step
+  // URL STEP GUARD: Strict sequential workflow enforcement (Requirement 3)
   useEffect(() => {
     if (isAdvancing) return;
     if (state && state.allowed_steps && Array.isArray(state.allowed_steps) && state.allowed_steps.length > 0) {
-      const curIndex = STEPS.findIndex((s) => s.key === currentStepParam);
-      const stateIndex = STEPS.findIndex((s) => s.key === state.current_step);
-      const isAllowed = state.allowed_steps.includes(currentStepParam) || curIndex <= stateIndex + 1;
-      if (!isAllowed && curIndex > stateIndex + 1 && state.current_step && state.current_step !== currentStepParam) {
+      const isAllowed = state.allowed_steps.includes(currentStepParam);
+      if (!isAllowed && state.current_step && state.current_step !== currentStepParam) {
         router.replace(`/dashboard/apps/${ulid}/setup/${state.current_step}`);
       }
     }

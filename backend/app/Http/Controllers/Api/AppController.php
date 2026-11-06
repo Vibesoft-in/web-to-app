@@ -228,19 +228,43 @@ class AppController extends Controller
      *
      * GET /api/apps/{ulid}
      */
-    public function show(string $ulid): JsonResponse
+    public function show(string $ulid, Request $request): JsonResponse
     {
-        $app = App::where('ulid', $ulid)
-            ->with([
-                'connection',
-                'builds' => fn ($q) => $q->latest('id'),
-                'subscriptions.plan',
-                'configs' => fn ($q) => $q->latest('version'),
-                'keystore',
-            ])
-            ->firstOrFail();
+        $user = $request->user() ?? auth('sanctum')->user();
+        $query = ($user && ! $user->isSuperAdmin())
+            ? App::where('tenant_id', $user->tenant_id)
+            : App::withoutGlobalScopes();
 
-        return response()->json($app);
+        $app = $query->where(function ($q) use ($ulid) {
+            $q->where('ulid', $ulid);
+            if (is_numeric($ulid)) {
+                $q->orWhere('id', (int) $ulid);
+            }
+        })
+        ->with([
+            'connection',
+            'builds' => fn ($q) => $q->latest('id'),
+            'subscriptions.plan',
+            'configs' => fn ($q) => $q->latest('version'),
+            'keystore',
+        ])
+        ->firstOrFail();
+
+        $data = $app->toArray();
+        $data['active_plan'] = $app->getActivePlan();
+        $data['is_completed'] = $app->isCompleted();
+        $data['is_draft'] = ! $app->isCompleted();
+        if ($data['is_completed'] && ($data['status'] === 'draft' || (string)($app->status?->value ?? $app->status) === 'draft')) {
+            $data['status'] = 'completed';
+        }
+        $data['can_apk'] = $app->canDownloadApk();
+        $data['pending_steps'] = $app->getPendingSetupSteps();
+        $data['can_aab'] = $app->canDownloadAab();
+        $data['has_admin_panel'] = $app->hasAdminPanelAccess();
+        $data['purchased_addon_ids'] = $app->getPurchasedAddonIds();
+        $data['purchased_addon_slugs'] = $app->getPurchasedAddonSlugs();
+
+        return response()->json($data);
     }
 
     private function resolveAdminPortalApp(string $ulid, ?Request $request = null): App

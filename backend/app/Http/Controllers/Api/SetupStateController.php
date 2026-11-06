@@ -48,60 +48,38 @@ class SetupStateController extends Controller
         $activePlan = $app->getActivePlan();
         $hasActive = ($activePlan !== null);
 
-        // Auto-heal connection and consent if app progressed past them
+        // Strict Step Validation: If connection is unverified, roll back any premature step progression
         if ($app->setup_step->order() > SetupStep::Connect->order() && ! $isConnectionVerified) {
-            if ($app->connection) {
-                $app->connection->update(['status' => ConnectionStatus::Verified]);
-            } else {
-                $app->connection()->create([
-                    'tenant_id' => $app->tenant_id,
-                    'platform'  => $app->platform,
-                    'site_url'  => $app->site_url ?: ($app->website_url ?: 'https://store.local'),
-                    'status'    => ConnectionStatus::Verified,
-                ]);
-            }
-            $isConnectionVerified = true;
-        }
-
-        if ($app->setup_step->order() > SetupStep::DataCollection->order() && ! $hasDataConsent) {
-            UserConsent::firstOrCreate(
-                ['app_id' => $app->id, 'consent_type' => 'data_collection'],
-                [
-                    'tenant_id'      => $app->tenant_id,
-                    'user_id'        => $app->tenant?->owner_id ?? 1,
-                    'agreed'         => true,
-                    'ip_address'     => $request->ip() ?? '127.0.0.1',
-                    'user_agent'     => $request->userAgent() ?? 'WebIntoApp/1.0',
-                    'policy_version' => 'v1.0',
-                    'metadata'       => ['auto_consented' => true],
-                ]
-            );
-            $hasDataConsent = true;
+            $app->update([
+                'setup_step' => SetupStep::Connect,
+                'status'     => \App\Enums\AppStatus::Draft,
+            ]);
         }
 
         $currentStep = $app->setup_step;
         $allSteps = SetupStep::cases();
         $completedSteps = [];
+        
+        // Strict Sequential Allowed Steps calculation (Requirement 3)
         $allowedSteps = [SetupStep::Platform->value, SetupStep::Connect->value];
 
         if ($isConnectionVerified) {
             $allowedSteps[] = SetupStep::Analysis->value;
             $allowedSteps[] = SetupStep::DataCollection->value;
-            $allowedSteps[] = SetupStep::Theme->value;
-            $allowedSteps[] = SetupStep::Branding->value;
-            $allowedSteps[] = SetupStep::Preview->value;
-            $allowedSteps[] = SetupStep::Integrations->value;
-            $allowedSteps[] = SetupStep::Payment->value;
-            $allowedSteps[] = SetupStep::Build->value;
-        }
 
-        // Always allow the current step and the very next step
-        $currentOrder = $currentStep->order();
-        foreach ($allSteps as $step) {
-            if ($step->order() <= $currentOrder + 1) {
-                $allowedSteps[] = $step->value;
+            if ($hasDataConsent || $currentStep->order() >= SetupStep::Theme->order()) {
+                $allowedSteps[] = SetupStep::Theme->value;
+                $allowedSteps[] = SetupStep::Branding->value;
+                $allowedSteps[] = SetupStep::Preview->value;
+                $allowedSteps[] = SetupStep::Integrations->value;
+                $allowedSteps[] = SetupStep::Payment->value;
+
+                if ($hasActive || $currentStep === SetupStep::Build || $app->isCompleted()) {
+                    $allowedSteps[] = SetupStep::Build->value;
+                }
             }
         }
+
         $allowedSteps = array_values(array_unique($allowedSteps));
 
         foreach ($allSteps as $step) {
@@ -338,24 +316,18 @@ class SetupStateController extends Controller
             return response()->json(['error' => 'Invalid step identifier.'], 422);
         }
 
-        // STEP ADVANCE PREREQUISITE AUTO-HEALING
-        // 1. Advancing past Connect: ensure verified connection exists
+        // STEP ADVANCE PREREQUISITE STRICT VALIDATION (Requirement 3)
+        // 1. Advancing past Connect: strictly require verified connection
         if ($target->order() > SetupStep::Connect->order()) {
             if (! $app->connection || $app->connection->status !== ConnectionStatus::Verified) {
-                if ($app->connection) {
-                    $app->connection->update(['status' => ConnectionStatus::Verified]);
-                } else {
-                    $app->connection()->create([
-                        'tenant_id' => $app->tenant_id,
-                        'platform'  => $app->platform,
-                        'site_url'  => $app->site_url ?: ($app->website_url ?: 'https://store.local'),
-                        'status'    => ConnectionStatus::Verified,
-                    ]);
-                }
+                return response()->json([
+                    'error' => 'Store connection must be successfully verified before proceeding to subsequent steps.',
+                    'code'  => 'CONNECTION_REQUIRED',
+                ], 422);
             }
         }
 
-        // 2. Advancing past Data Collection: auto-record user consent
+        // 2. Advancing past Data Collection: ensure consent
         if ($target->order() > SetupStep::DataCollection->order()) {
             UserConsent::firstOrCreate(
                 ['app_id' => $app->id, 'consent_type' => 'data_collection'],
@@ -371,8 +343,16 @@ class SetupStateController extends Controller
             );
         }
 
-        // 3. Advancing to Build: auto-record payment terms consent
+        // 3. Advancing to Build: require active plan or completed payment
         if ($target === SetupStep::Build) {
+            $hasActivePlan = $app->getActivePlan() !== null || $app->canDownloadApk() || $app->isCompleted();
+            if (! $hasActivePlan) {
+                return response()->json([
+                    'error' => 'An active subscription plan or package selection is required before building your application.',
+                    'code'  => 'PLAN_REQUIRED',
+                ], 422);
+            }
+
             UserConsent::firstOrCreate(
                 ['app_id' => $app->id, 'consent_type' => 'payment_terms'],
                 [
@@ -385,6 +365,14 @@ class SetupStateController extends Controller
                     'metadata'       => ['auto_consented_on_advance' => true],
                 ]
             );
+        }
+
+        // Prevent skipping ahead more than 1 step without sequential progression
+        if ($target->order() > $app->setup_step->order() + 1 && ! $app->isCompleted()) {
+            return response()->json([
+                'error' => 'Sequential step progression is required. You cannot skip incomplete steps.',
+                'code'  => 'STEP_SKIPPING_NOT_ALLOWED',
+            ], 422);
         }
 
         // Advance forward to the target step if prerequisites passed

@@ -74,8 +74,15 @@ export default function HomePage() {
     const handlePageShow = () => {
       queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
     };
+    const handleProfileUpdate = () => {
+      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+    };
     window.addEventListener("pageshow", handlePageShow);
-    return () => window.removeEventListener("pageshow", handlePageShow);
+    window.addEventListener("user-profile-updated", handleProfileUpdate);
+    return () => {
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("user-profile-updated", handleProfileUpdate);
+    };
   }, [queryClient]);
 
   const user = authData?.user;

@@ -101,7 +101,45 @@ class ConnectionController extends Controller
             }
         }
 
-        // 2. Check platform compatibility
+        // 2. Reject placeholder or dummy credentials
+        $lowerKey = strtolower($consumerKey);
+        $lowerSecret = strtolower($consumerSecret);
+        if (
+            str_contains($lowerKey, 'test') || str_contains($lowerKey, 'demo') || str_contains($lowerKey, 'placeholder') ||
+            str_contains($lowerSecret, 'test') || str_contains($lowerSecret, 'demo') || str_contains($lowerSecret, 'placeholder') ||
+            strlen($consumerKey) < 12
+        ) {
+            return response()->json([
+                'error' => [
+                    'code'    => 'INVALID_KEYS',
+                    'message' => 'Placeholder, demo, or dummy credentials are not accepted. Please provide live production API credentials for your store.',
+                ],
+            ], 422);
+        }
+
+        // 3. Detect reused or duplicate credentials across different website domains (Requirement 2)
+        $enteredHost = $this->normalizeHost($siteUrl);
+        $reusedConnection = Connection::withoutGlobalScopes()
+            ->where('id', '!=', $app->connection?->id ?? 0)
+            ->where(function ($q) use ($consumerKey) {
+                $q->where('credentials->consumer_key', $consumerKey)
+                  ->orWhere('credentials->access_token', $consumerKey);
+            })
+            ->first();
+
+        if ($reusedConnection) {
+            $existingHost = $this->normalizeHost($reusedConnection->site_url);
+            if ($existingHost !== $enteredHost && ! str_contains($enteredHost, $existingHost) && ! str_contains($existingHost, $enteredHost)) {
+                return response()->json([
+                    'error' => [
+                        'code'    => 'CREDENTIALS_REUSED',
+                        'message' => "These API credentials are already associated with a different domain ('{$existingHost}'). Each website must have its own unique API credentials.",
+                    ],
+                ], 422);
+            }
+        }
+
+        // 4. Check platform compatibility
         $platformStr = strtolower((string) ($app->platform instanceof \BackedEnum ? $app->platform->value : $app->platform));
         $isWoo = in_array($platformStr, ['woo', 'woocommerce', 'wordpress', 'wp'], true);
         $isShopify = ($platformStr === 'shopify');
@@ -116,11 +154,19 @@ class ConnectionController extends Controller
                     ],
                 ], 422);
             }
-            if (! str_starts_with($consumerKey, 'ck_')) {
+            if (! str_starts_with($consumerKey, 'ck_') || strlen($consumerKey) < 30) {
                 return response()->json([
                     'error' => [
                         'code'    => 'INVALID_KEYS',
-                        'message' => 'WooCommerce Consumer Key must start with "ck_". Please generate valid REST API keys in WooCommerce Settings -> Advanced -> REST API.',
+                        'message' => 'WooCommerce Consumer Key must start with "ck_" and be at least 32 characters long. Please generate valid REST API keys in WooCommerce Settings -> Advanced -> REST API.',
+                    ],
+                ], 422);
+            }
+            if (! empty($consumerSecret) && (! str_starts_with($consumerSecret, 'cs_') || strlen($consumerSecret) < 30)) {
+                return response()->json([
+                    'error' => [
+                        'code'    => 'INVALID_KEYS',
+                        'message' => 'WooCommerce Consumer Secret must start with "cs_" and be at least 32 characters long.',
                     ],
                 ], 422);
             }
@@ -165,6 +211,12 @@ class ConnectionController extends Controller
                 $app->connection->update([
                     'status'          => ConnectionStatus::Failed,
                     'last_error_code' => $result->errorCode,
+                ]);
+            }
+            if ($app->setup_step->order() > SetupStep::Connect->order()) {
+                $app->update([
+                    'setup_step' => SetupStep::Connect,
+                    'status'     => \App\Enums\AppStatus::Draft,
                 ]);
             }
 

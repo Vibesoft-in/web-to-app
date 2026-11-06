@@ -299,6 +299,8 @@ Route::post('/orders/{id}/resend-invoice', [\App\Http\Controllers\Api\OrderContr
     ->name('api.orders.resend-invoice');
 Route::get('/orders/{id}/invoice', [\App\Http\Controllers\Api\OrderController::class, 'viewInvoice'])
     ->name('api.orders.view-invoice');
+Route::get('/orders/{id}/invoice/download', [\App\Http\Controllers\Api\OrderController::class, 'downloadInvoice'])
+    ->name('api.orders.download-invoice');
 
 // ── App Asset Upload (Hero banners, logos, icons — scoped by secret app ULID) ─
 Route::post('/apps/{ulid}/upload-asset', [\App\Http\Controllers\Api\ConfigController::class, 'uploadAsset'])

@@ -10,6 +10,7 @@ import { openRazorpayModal, withSinglePaymentLock } from "@/lib/razorpay";
 import { AppDetailsView } from "@/components/dashboard/app-details-view";
 import { DeleteAppModal } from "@/components/dashboard/delete-app-modal";
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
@@ -256,6 +257,25 @@ function UserDashboardContent() {
         return [];
       }
     },
+  });
+
+  // Dedicated single app query for direct URL navigation, refresh, and deep links (Requirement 1)
+  const appParam = searchParams.get("app");
+  const {
+    data: singleAppRes,
+    isLoading: isSingleAppLoading,
+    isError: isSingleAppError,
+    error: singleAppError,
+    refetch: refetchSingleApp,
+  } = useQuery({
+    queryKey: ["app-single", appParam],
+    queryFn: async () => {
+      if (!appParam) return null;
+      return await apiClient(`/api/apps/${appParam}`);
+    },
+    enabled: Boolean(appParam),
+    retry: 1,
+    staleTime: 5000,
   });
 
   const isAppDraft = (appItem: any) => {
@@ -1243,55 +1263,185 @@ function UserDashboardContent() {
   };
 
   useEffect(() => {
-    const appParam = searchParams.get("app");
-    if (appParam && apps && apps.length > 0) {
-      if (!viewingAppDetails || (viewingAppDetails.ulid !== appParam && String(viewingAppDetails.id) !== String(appParam))) {
-        const matched = apps.find(
-          (a: any) => a.ulid === appParam || String(a.id) === String(appParam)
-        );
-        if (matched) {
-          handleOpenAppDetails(matched, searchParams.get("section") || undefined, false);
-        }
+    if (!appParam) {
+      if (viewingAppDetails) {
+        setViewingAppDetails(null);
+        setAppConfigData(null);
       }
-    } else if (!appParam && viewingAppDetails) {
-      // User clicked browser Back button to return to dashboard app list
-      setViewingAppDetails(null);
-      setAppConfigData(null);
+      return;
     }
-  }, [searchParams, apps, viewingAppDetails]);
 
-  if (viewingAppDetails) {
+    // Try matching in apps list first
+    const matched = apps?.find(
+      (a: any) => a.ulid === appParam || String(a.id) === String(appParam)
+    );
+
+    const targetApp = matched || singleAppRes;
+    if (targetApp) {
+      if (
+        !viewingAppDetails ||
+        (viewingAppDetails.ulid !== targetApp.ulid &&
+          String(viewingAppDetails.id) !== String(targetApp.id))
+      ) {
+        handleOpenAppDetails(targetApp, searchParams.get("section") || undefined, false);
+      }
+    }
+  }, [appParam, apps, singleAppRes, viewingAppDetails, searchParams]);
+
+  // ── APP DASHBOARD DRILLDOWN OR SKELETON / ERROR STATES ──
+  if (appParam) {
+    if (viewingAppDetails) {
+      return (
+        <AppDetailsView
+          app={viewingAppDetails}
+          currentPlan={viewingAppDetails.active_plan || viewingAppDetails.plan || currentPlan}
+          config={appConfigData || viewingAppDetails?.configs?.[0]?.config}
+          isLoadingConfig={isLoadingConfig}
+          onBack={() => {
+            setViewingAppDetails(null);
+            setAppConfigData(null);
+            router.push(activeTab === "apps" ? "/dashboard" : `/dashboard?tab=${activeTab}`);
+          }}
+          onNavigateToTab={(tab) => {
+            setViewingAppDetails(null);
+            setAppConfigData(null);
+            handleTabChange(tab as any);
+          }}
+          onRebuild={handleRebuild}
+          isRebuilding={isRebuilding}
+          addons={displayedAddons}
+          onPurchaseAddon={async (addon) => {
+            await handlePurchaseAddon(addon, viewingAppDetails);
+            const freshApps = await refetchApps();
+            const refreshed = freshApps?.data?.find((a: any) => String(a.id) === String(viewingAppDetails.id));
+            if (refreshed) {
+              setViewingAppDetails(refreshed);
+            }
+          }}
+          isPurchasingAddon={isPurchasingAddon}
+          appHasAddon={(targetApp, addon) => appHasAddon(targetApp || viewingAppDetails, addon)}
+          user={user}
+        />
+      );
+    }
+
+    // Error state when app could not be found or fetched
+    if (isSingleAppError && !isAppsLoading && (!apps || !apps.some((a: any) => a.ulid === appParam || String(a.id) === String(appParam)))) {
+      return (
+        <div className="min-h-[500px] flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-white border border-[#EBE6DF] rounded-3xl p-8 text-center space-y-4 shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertCircle className="w-7 h-7 text-rose-600" />
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="text-lg font-bold text-slate-900">Application Not Found</h3>
+              <p className="text-xs text-slate-500">
+                {(singleAppError as any)?.message || "We were unable to load the requested application dashboard. Please verify the App ID or retry."}
+              </p>
+            </div>
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  refetchSingleApp();
+                  refetchApps();
+                }}
+                className="px-4 py-2 bg-[#78593D] hover:bg-[#63472E] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setViewingAppDetails(null);
+                  router.push("/dashboard");
+                }}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // High fidelity skeleton loader matching AppDetailsView layout (Requirement 1)
     return (
-      <AppDetailsView
-        app={viewingAppDetails}
-        currentPlan={viewingAppDetails.active_plan || viewingAppDetails.plan || currentPlan}
-        config={appConfigData || viewingAppDetails?.configs?.[0]?.config}
-        isLoadingConfig={isLoadingConfig}
-        onBack={() => {
-          setViewingAppDetails(null);
-          setAppConfigData(null);
-          router.push(activeTab === "apps" ? "/dashboard" : `/dashboard?tab=${activeTab}`);
-        }}
-        onNavigateToTab={(tab) => {
-          setViewingAppDetails(null);
-          setAppConfigData(null);
-          handleTabChange(tab as any);
-        }}
-        onRebuild={handleRebuild}
-        isRebuilding={isRebuilding}
-        addons={displayedAddons}
-        onPurchaseAddon={async (addon) => {
-          await handlePurchaseAddon(addon, viewingAppDetails);
-          const freshApps = await refetchApps();
-          const refreshed = freshApps?.data?.find((a: any) => String(a.id) === String(viewingAppDetails.id));
-          if (refreshed) {
-            setViewingAppDetails(refreshed);
-          }
-        }}
-        isPurchasingAddon={isPurchasingAddon}
-        appHasAddon={(targetApp, addon) => appHasAddon(targetApp || viewingAppDetails, addon)}
-        user={user}
-      />
+      <div className="space-y-6 max-w-7xl mx-auto pb-16 font-sans animate-pulse">
+        {/* Top Header Skeleton */}
+        <div className="flex items-center justify-between pb-2 border-b border-[#EBE6DF]">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-slate-200" />
+            <div className="space-y-1.5">
+              <div className="w-48 h-5 rounded-md bg-slate-200" />
+              <div className="w-28 h-3 rounded-md bg-slate-100" />
+            </div>
+          </div>
+          <div className="w-24 h-8 rounded-xl bg-slate-200" />
+        </div>
+
+        {/* 2-Column Dashboard Skeleton: Sidebar + Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Sidebar Skeleton (10 tabs) */}
+          <div className="lg:col-span-3 space-y-2 bg-white border border-[#EBE6DF] rounded-3xl p-3 shadow-xs">
+            <div className="p-2 border-b border-slate-100 mb-2">
+              <div className="w-24 h-3 rounded bg-slate-200 mb-1" />
+              <div className="w-32 h-2.5 rounded bg-slate-100" />
+            </div>
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
+              <div key={i} className="h-10 rounded-2xl bg-slate-100 flex items-center px-3 gap-2.5">
+                <div className="w-4 h-4 rounded-md bg-slate-200" />
+                <div className="w-24 h-3 rounded bg-slate-200" />
+              </div>
+            ))}
+          </div>
+
+          {/* Main Content Area Skeleton */}
+          <div className="lg:col-span-9 space-y-6">
+            <div className="bg-white border border-[#EBE6DF] rounded-3xl p-6 space-y-6 shadow-sm">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="space-y-2">
+                  <div className="w-40 h-5 rounded-md bg-slate-200" />
+                  <div className="w-64 h-3.5 rounded-md bg-slate-100" />
+                </div>
+                <div className="w-32 h-8 rounded-xl bg-slate-200" />
+              </div>
+
+              {/* 3x2 Grid for App Info Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="h-24 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] p-4 space-y-2">
+                    <div className="w-20 h-2.5 rounded bg-slate-200" />
+                    <div className="w-28 h-4 rounded bg-slate-300" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modular Addons Skeleton */}
+            <div className="bg-white border border-[#EBE6DF] rounded-3xl p-6 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="w-44 h-5 rounded-md bg-slate-200" />
+                <div className="w-36 h-7 rounded-xl bg-slate-100" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-36 rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+                    <div className="flex justify-between">
+                      <div className="w-24 h-4 rounded bg-slate-200" />
+                      <div className="w-12 h-4 rounded bg-slate-200" />
+                    </div>
+                    <div className="w-full h-8 rounded bg-slate-100" />
+                    <div className="w-16 h-4 rounded bg-slate-200" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 

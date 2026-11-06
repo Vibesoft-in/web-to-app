@@ -124,6 +124,32 @@ class ShopifyConnector implements ConnectorInterface
                 );
             }
 
+            // Strict Domain Validation for Shopify (Requirement 2)
+            $shopDomain = strtolower((string) ($data['domain'] ?? ''));
+            $myshopifyDomain = strtolower((string) ($data['myshopify_domain'] ?? ''));
+            $cleanHost = $this->cleanHost;
+            if (str_starts_with($cleanHost, 'www.')) $cleanHost = substr($cleanHost, 4);
+
+            $matches = false;
+            if (! empty($shopDomain)) {
+                $cleanShopDomain = str_starts_with($shopDomain, 'www.') ? substr($shopDomain, 4) : $shopDomain;
+                if ($cleanShopDomain === $cleanHost || str_contains($cleanHost, $cleanShopDomain) || str_contains($cleanShopDomain, $cleanHost)) {
+                    $matches = true;
+                }
+            }
+            if (! $matches && ! empty($myshopifyDomain)) {
+                if ($myshopifyDomain === $cleanHost || str_contains($cleanHost, $myshopifyDomain) || str_contains($myshopifyDomain, $cleanHost)) {
+                    $matches = true;
+                }
+            }
+
+            if (! $matches && (! empty($shopDomain) || ! empty($myshopifyDomain))) {
+                return VerifyResult::fail(
+                    'CREDENTIAL_MISMATCH',
+                    "The Shopify Admin credentials belong to store '{$shopDomain}' ({$myshopifyDomain}), but you entered '{$this->cleanHost}'. Credentials must belong to the exact website being connected."
+                );
+            }
+
             $storeName = (string) ($data['name'] ?? $this->cleanHost);
             $currency = (string) ($data['currency'] ?? 'USD');
             $myshopifyDomain = (string) ($data['myshopify_domain'] ?? $this->cleanHost);

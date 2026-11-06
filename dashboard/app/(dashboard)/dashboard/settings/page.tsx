@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
   Copy,
@@ -20,6 +20,7 @@ import {
 import { apiClient } from "@/lib/api-client";
 
 export default function SettingsPage() {
+  const queryClient = useQueryClient();
   const { data: userData, isLoading, refetch } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
@@ -52,6 +53,23 @@ export default function SettingsPage() {
     }
   }, [user]);
 
+  // Listen to profile updates from header or modals (Requirement 4)
+  useEffect(() => {
+    const handleProfileUpdate = (e: any) => {
+      if (e.detail?.avatar_url !== undefined) {
+        setAvatarUrl(e.detail.avatar_url);
+      }
+      if (e.detail?.name !== undefined) {
+        setName(e.detail.name);
+      }
+      if (e.detail?.tenant_name !== undefined) {
+        setTenantName(e.detail.tenant_name);
+      }
+    };
+    window.addEventListener("user-profile-updated", handleProfileUpdate);
+    return () => window.removeEventListener("user-profile-updated", handleProfileUpdate);
+  }, []);
+
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileSaving(true);
@@ -62,7 +80,40 @@ export default function SettingsPage() {
         method: "PUT",
         body: JSON.stringify({ name, tenant_name: tenantName, avatar_url: avatarUrl }),
       });
+
+      // Synchronize across LocalStorage and broadcast window event (Requirement 4)
+      if (typeof window !== "undefined") {
+        if (avatarUrl) {
+          localStorage.setItem("appifyhub_user_avatar", avatarUrl);
+        } else {
+          localStorage.removeItem("appifyhub_user_avatar");
+        }
+        window.dispatchEvent(
+          new CustomEvent("user-profile-updated", {
+            detail: { name, avatar_url: avatarUrl, tenant_name: tenantName },
+          })
+        );
+      }
+
+      // Optimistically update query cache
+      queryClient.setQueryData(["auth", "me"], (old: any) => {
+        if (!old?.user) return old;
+        return {
+          ...old,
+          user: {
+            ...old.user,
+            name,
+            avatar_url: avatarUrl,
+            tenant: {
+              ...(old.user.tenant || {}),
+              name: tenantName,
+            },
+          },
+        };
+      });
+
       setProfileMsg({ type: "success", text: "Profile and workspace settings updated successfully!" });
+      await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
       await refetch();
     } catch (err: any) {
       setProfileMsg({ type: "error", text: err.message || "Failed to update profile settings." });

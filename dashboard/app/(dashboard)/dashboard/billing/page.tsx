@@ -774,11 +774,12 @@ export default function BillingPage() {
                     <td className="py-3.5 text-right">
                       <div className="inline-flex items-center gap-2">
                         <a
-                          href={`/api/orders/${order.id}/invoice`}
+                          href={`/api/orders/${order.id}/invoice?download=1`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white text-slate-800 font-bold text-xs hover:bg-slate-50 transition flex items-center gap-1.5 shadow-2xs"
-                          title="Download and print official tax invoice"
+                          download={`Invoice-${order.order_number || order.id}.pdf`}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white text-slate-800 font-bold text-xs hover:bg-slate-50 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                          title="Download official PDF tax invoice"
                         >
                           <Printer className="w-3 h-3 text-slate-600" />
                           <span>Download Invoice</span>

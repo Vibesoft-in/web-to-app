@@ -57,6 +57,15 @@ export default function DashboardLayout({
     }
   }, [isUserLoading, user, router]);
 
+  // Synchronize profile photo update across entire dashboard header (Requirement 4)
+  useEffect(() => {
+    const handleProfileUpdate = () => {
+      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+    };
+    window.addEventListener("user-profile-updated", handleProfileUpdate);
+    return () => window.removeEventListener("user-profile-updated", handleProfileUpdate);
+  }, [queryClient]);
+
   const { data: appsData } = useQuery({
     queryKey: ["apps"],
     queryFn: async () => {
