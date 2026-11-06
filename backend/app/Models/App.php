@@ -63,6 +63,10 @@ class App extends Model
 
     public function isCompleted(): bool
     {
+        if ($this->status === AppStatus::Completed || $this->status === AppStatus::Active) {
+            return true;
+        }
+
         return empty($this->getPendingSetupSteps());
     }
 
@@ -204,6 +208,10 @@ class App extends Model
      */
     public function getPendingSetupSteps(): array
     {
+        if ($this->status === \App\Enums\AppStatus::Completed || $this->status === \App\Enums\AppStatus::Active) {
+            return [];
+        }
+
         $pending = [];
 
         // 1. Platform & Store Connection (must have store URL configured or verified)

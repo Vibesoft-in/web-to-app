@@ -484,10 +484,39 @@ export function AppDetailsView({
     (app?.can_apk !== false)
   );
 
+  // Determine normalized status and step strings
+  const statusStr = (
+    typeof app?.status === "string"
+      ? app.status
+      : app?.status?.value || ""
+  ).toLowerCase().trim();
+
+  const stepStr = (
+    typeof app?.setup_step === "string"
+      ? app.setup_step
+      : app?.setup_step?.value || ""
+  ).toLowerCase().trim();
+
   // Completed status check for conditional header (Requirement 2)
+  // An app is complete if marked complete, status is completed/active/live/ready/published,
+  // has a ready build, or has completed all pending setup steps.
   const isCompletedApp = Boolean(
     app?.is_completed === true ||
-    (app?.status && !["draft", "pending", "in_progress"].includes(String(app.status).toLowerCase()))
+    app?.is_completed === 1 ||
+    app?.is_completed === "1" ||
+    app?.is_completed === "true" ||
+    app?.is_setup_complete === true ||
+    app?.is_draft === false ||
+    statusStr === "completed" ||
+    statusStr === "active" ||
+    statusStr === "live" ||
+    statusStr === "ready" ||
+    statusStr === "published" ||
+    (statusStr && !["draft", "pending", "in_progress", "incomplete", "new"].includes(statusStr)) ||
+    stepStr === "completed" ||
+    stepStr === "finish" ||
+    (stepStr === "build" && (hasReadyBuild || Boolean(app?.active_plan))) ||
+    (Array.isArray(app?.pending_steps) && app.pending_steps.length === 0)
   );
 
   // Consolidate full active addons list
@@ -991,10 +1020,17 @@ export function AppDetailsView({
                     <span className="text-[10px] font-bold text-[#7E756B] uppercase tracking-wider block">
                       Lifecycle Status
                     </span>
-                    <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 mt-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>{app?.status || "Active & Ready"}</span>
-                    </span>
+                    {isCompletedApp ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 mt-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Active &amp; Ready</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-black text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300 mt-1">
+                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Setup Incomplete (Draft)</span>
+                      </span>
+                    )}
                   </div>
 
                   <div className="p-4 rounded-2xl bg-[#F7F5F0] border border-[#EBE6DF]">

@@ -256,6 +256,10 @@ class AppController extends Controller
         $data['is_draft'] = ! $app->isCompleted();
         if ($data['is_completed'] && ($data['status'] === 'draft' || (string)($app->status?->value ?? $app->status) === 'draft')) {
             $data['status'] = 'completed';
+            $app->update([
+                'status'     => \App\Enums\AppStatus::Completed,
+                'setup_step' => \App\Enums\SetupStep::Build,
+            ]);
         }
         $data['can_apk'] = $app->canDownloadApk();
         $data['pending_steps'] = $app->getPendingSetupSteps();

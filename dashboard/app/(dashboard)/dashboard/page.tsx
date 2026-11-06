@@ -280,8 +280,8 @@ function UserDashboardContent() {
 
   const isAppDraft = (appItem: any) => {
     if (!appItem) return false;
-    const statusStr = (typeof appItem.status === "string" ? appItem.status : appItem.status?.value || "").toLowerCase();
-    const stepStr = (typeof appItem.setup_step === "string" ? appItem.setup_step : appItem.setup_step?.value || "").toLowerCase();
+    const statusStr = (typeof appItem.status === "string" ? appItem.status : appItem.status?.value || "").toLowerCase().trim();
+    const stepStr = (typeof appItem.setup_step === "string" ? appItem.setup_step : appItem.setup_step?.value || "").toLowerCase().trim();
     const builds = appItem.builds || [];
     const hasBuild = builds.length > 0;
     const hasPaidPlan = Boolean(
@@ -289,10 +289,21 @@ function UserDashboardContent() {
       appItem.can_apk === true
     );
 
-    // If explicitly completed or live or active in database and has builds
+    // If explicitly completed or live or active in database
     if (
-      (Boolean(appItem.is_completed) || statusStr === "completed" || statusStr === "live" || statusStr === "active") &&
-      hasBuild
+      Boolean(appItem.is_completed) ||
+      appItem.is_completed === 1 ||
+      appItem.is_completed === "1" ||
+      appItem.is_completed === "true" ||
+      appItem.is_setup_complete === true ||
+      appItem.is_draft === false ||
+      statusStr === "completed" ||
+      statusStr === "live" ||
+      statusStr === "active" ||
+      statusStr === "ready" ||
+      statusStr === "published" ||
+      (statusStr && !["draft", "pending", "in_progress", "incomplete", "new"].includes(statusStr)) ||
+      (Array.isArray(appItem.pending_steps) && appItem.pending_steps.length === 0)
     ) {
       return false;
     }
