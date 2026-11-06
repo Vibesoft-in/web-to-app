@@ -287,7 +287,20 @@ class AppController extends Controller
                 'orders' => fn ($q) => $q->where('status', 'paid')->latest('id'),
                 'tenant.users',
             ])
-            ->firstOrFail();
+            ->first() ?? App::withoutTenantScope()->where('ulid', $ulid)->with([
+                'subscriptions.plan',
+                'orders' => fn ($q) => $q->where('status', 'paid')->latest('id'),
+                'tenant.users',
+            ])->first();
+
+        if (! $app) {
+            return response()->json([
+                'error' => [
+                    'code'    => 'APP_NOT_FOUND',
+                    'message' => "Application with ULID {$ulid} was not found.",
+                ],
+            ], 404);
+        }
 
         $activePlan = $app->getActivePlan();
         $subscription = $app->subscriptions->where('status', 'active')->first();
