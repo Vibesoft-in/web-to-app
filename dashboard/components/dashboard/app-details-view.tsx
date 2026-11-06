@@ -20,6 +20,7 @@ import {
   Copy,
   Cpu,
   CreditCard,
+  Crown,
   Download,
   ExternalLink,
   Eye,
@@ -650,13 +651,19 @@ export function AppDetailsView({
       ? "Shopify"
       : "WordPress";
 
-  const isStarter = currentPlan?.name === "Starter";
-  const isEnterprise = currentPlan?.name === "Enterprise" || currentPlan?.name === "Enterprise Suite";
-  const planSlug = (currentPlan?.slug || currentPlan?.name || "").toLowerCase();
-  const isPremiumTier =
+  const planSlug = (currentPlan?.slug || currentPlan?.name || app?.active_plan?.name || "").toLowerCase();
+  const isStarter = planSlug.includes("starter") || planSlug.includes("basic") || planSlug.includes("free");
+  const isEnterprise = planSlug.includes("enterprise");
+  const isPremiumPlan = Boolean(
     planSlug.includes("premium") ||
     planSlug.includes("enterprise") ||
-    Boolean(currentPlan?.has_admin_panel);
+    (planSlug.includes("pro") && !planSlug.includes("starter")) ||
+    currentPlan?.id === 2 ||
+    currentPlan?.id === 3 ||
+    Boolean(currentPlan?.has_admin_panel) ||
+    Boolean(app?.has_admin_panel)
+  );
+  const isPremiumTier = isPremiumPlan;
 
   const hasAdminPanel = Boolean(
     app?.has_admin_panel ||
@@ -739,9 +746,34 @@ export function AppDetailsView({
       return getPriority(a) - getPriority(b);
     });
 
+  const isPushSolelyPurchased = Boolean(
+    localPurchasedSlugs.includes("push_notifications") ||
+    (Array.isArray(app?.purchased_addon_slugs) && app.purchased_addon_slugs.includes("push_notifications")) ||
+    (appHasAddon && appHasAddon(app, { slug: "push_notifications" }))
+  );
+  const isEmailSolelyPurchased = Boolean(
+    localPurchasedSlugs.includes("email_config") ||
+    (Array.isArray(app?.purchased_addon_slugs) && app.purchased_addon_slugs.includes("email_config")) ||
+    (appHasAddon && appHasAddon(app, { slug: "email_config" }))
+  );
+  const isWhatsAppSolelyPurchased = Boolean(
+    localPurchasedSlugs.includes("whatsapp_sync") ||
+    (Array.isArray(app?.purchased_addon_slugs) && app.purchased_addon_slugs.includes("whatsapp_sync")) ||
+    (appHasAddon && appHasAddon(app, { slug: "whatsapp_sync" }))
+  );
+
+  // Requirements: These features should ONLY be available in Premium Plan, otherwise the user has to buy them solely
+  const isPushActive = Boolean(isPremiumPlan || isPushSolelyPurchased);
+  const isEmailActive = Boolean(isPremiumPlan || isEmailSolelyPurchased);
+  const isWhatsAppActive = Boolean(isPremiumPlan || isWhatsAppSolelyPurchased);
+
   const checkIsAddonActive = (addon: any): boolean => {
     if (!addon) return false;
     const slug = (addon.slug || "").toLowerCase();
+
+    if (slug === "push_notifications") return isPushActive;
+    if (slug === "email_config") return isEmailActive;
+    if (slug === "whatsapp_sync" || slug === "whatsapp_config") return isWhatsAppActive;
 
     if (slug && localPurchasedSlugs.includes(slug)) return true;
     if (appHasAddon && appHasAddon(app, addon)) return true;
@@ -759,10 +791,6 @@ export function AppDetailsView({
     }
     return false;
   };
-
-  const isPushActive = checkIsAddonActive({ slug: "push_notifications" }) || isEnterprise;
-  const isEmailActive = checkIsAddonActive({ slug: "email_config" }) || isEnterprise;
-  const isWhatsAppActive = checkIsAddonActive({ slug: "whatsapp_sync" }) || isEnterprise;
 
   const formatPrice = (price: number | string) => {
     const num = typeof price === "string" ? parseFloat(price) : price;
@@ -945,21 +973,24 @@ export function AppDetailsView({
       label: "Push Notifications",
       icon: Bell,
       description: "Campaigns & FCM credentials",
-      badge: isPushActive ? "Active" : undefined,
+      badge: isPushActive ? "Active" : "Premium",
+      isPremiumFeature: !isPushActive,
     },
     {
       id: "email_config" as const,
       label: "Email Configuration",
       icon: Mail,
       description: "SMTP server & notifications",
-      badge: isEmailActive ? "Active" : undefined,
+      badge: isEmailActive ? "Active" : "Premium",
+      isPremiumFeature: !isEmailActive,
     },
     {
       id: "whatsapp_config" as const,
       label: "WhatsApp API",
       icon: MessageSquare,
       description: "Cloud API & floating support",
-      badge: isWhatsAppActive ? "Active" : undefined,
+      badge: isWhatsAppActive ? "Active" : "Premium",
+      isPremiumFeature: !isWhatsAppActive,
     },
     {
       id: "billing" as const,
@@ -1145,8 +1176,17 @@ export function AppDetailsView({
                     </div>
 
                     {item.badge && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#EFEAE2] text-[#78593D] flex-shrink-0">
-                        {item.badge}
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-black flex-shrink-0 flex items-center gap-1 ${
+                          item.badge === "Active"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : (item as any).isPremiumFeature
+                            ? "bg-amber-100 text-amber-900 border border-amber-200"
+                            : "bg-[#EFEAE2] text-[#78593D]"
+                        }`}
+                      >
+                        {(item as any).isPremiumFeature && <Lock className="w-2.5 h-2.5 text-amber-700" />}
+                        <span>{item.badge}</span>
                       </span>
                     )}
                   </button>
@@ -2424,7 +2464,7 @@ export function AppDetailsView({
                   {isPushActive && (
                     <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-black uppercase flex items-center gap-1 self-start sm:self-auto">
                       <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>Active &amp; Provisioned</span>
+                      <span>{isPushSolelyPurchased ? "Active • Standalone License" : "Active • Included in Premium Plan"}</span>
                     </span>
                   )}
                 </div>
@@ -2560,24 +2600,28 @@ export function AppDetailsView({
                     </div>
                   </div>
                 ) : (
-                  /* ── LOCKED STATE (Requirement 7) ── */
+                  /* ── LOCKED STATE (Premium Plan or Standalone Add-on) ── */
                   <div className="p-8 sm:p-10 rounded-3xl bg-[#FAF7F2] border border-[#EBE6DF] text-center space-y-4 max-w-xl mx-auto shadow-xs">
                     <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto shadow-xs">
                       <Lock className="w-7 h-7" />
                     </div>
                     <div>
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-black uppercase mb-2">
+                        <Sparkles className="w-3 h-3 text-amber-700" />
+                        <span>Premium Feature</span>
+                      </div>
                       <h3 className="text-base sm:text-lg font-black text-[#1C1917]">
                         Push Notifications Campaign Engine Locked
                       </h3>
-                      <p className="text-xs text-[#7E756B] mt-1.5 leading-relaxed">
-                        Send rich media push broadcasts to your customers&apos; lock screens, trigger automated abandoned cart recovery alerts, and drive 3.5x higher repeat visits.
+                      <p className="text-xs text-[#7E756B] mt-1.5 leading-relaxed max-w-md mx-auto">
+                        This feature is included in the <strong>Premium Plan</strong>. If you are on the Starter plan, you can upgrade your plan or purchase this feature solely as a standalone lifetime add-on.
                       </p>
                     </div>
                     <div className="pt-2">
-                      <span className="text-xl font-black text-[#78593D] block">₹999</span>
-                      <span className="text-[10px] text-[#7E756B]">Lifetime App License &bull; Unlimited Notifications</span>
+                      <span className="text-2xl font-black text-[#78593D] block">₹999</span>
+                      <span className="text-[10px] text-[#7E756B]">Lifetime App License &bull; Unlimited Notifications &bull; FCM Routing</span>
                     </div>
-                    <div className="pt-2">
+                    <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
                       <button
                         type="button"
                         onClick={() =>
@@ -2588,10 +2632,18 @@ export function AppDetailsView({
                           })
                         }
                         disabled={isProcessingCheckout}
-                        className="px-6 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center gap-2 mx-auto shadow-xs cursor-pointer active:scale-98"
+                        className="w-full sm:w-auto px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >
                         <Sparkles className="w-4 h-4" />
-                        <span>{isProcessingCheckout ? "Opening Checkout..." : "Unlock Push Notifications (₹999)"}</span>
+                        <span>{isProcessingCheckout ? "Opening Checkout..." : "Buy Solely (₹999 Lifetime)"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab("plans")}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-white hover:bg-[#F7F5F0] text-[#1C1917] border border-[#EBE6DF] rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
+                      >
+                        <Crown className="w-4 h-4 text-amber-600" />
+                        <span>Upgrade to Premium Plan</span>
                       </button>
                     </div>
                   </div>
@@ -2615,7 +2667,7 @@ export function AppDetailsView({
                   {isEmailActive && (
                     <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-black uppercase flex items-center gap-1 self-start sm:self-auto">
                       <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>Active &amp; Provisioned</span>
+                      <span>{isEmailSolelyPurchased ? "Active • Standalone License" : "Active • Included in Premium Plan"}</span>
                     </span>
                   )}
                 </div>
@@ -2782,24 +2834,28 @@ export function AppDetailsView({
                     </div>
                   </div>
                 ) : (
-                  /* ── LOCKED STATE (Requirement 7) ── */
+                  /* ── LOCKED STATE (Premium Plan or Standalone Add-on) ── */
                   <div className="p-8 sm:p-10 rounded-3xl bg-[#FAF7F2] border border-[#EBE6DF] text-center space-y-4 max-w-xl mx-auto shadow-xs">
                     <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto shadow-xs">
                       <Lock className="w-7 h-7" />
                     </div>
                     <div>
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-black uppercase mb-2">
+                        <Sparkles className="w-3 h-3 text-amber-700" />
+                        <span>Premium Feature</span>
+                      </div>
                       <h3 className="text-base sm:text-lg font-black text-[#1C1917]">
                         Branded Email Configuration Module Locked
                       </h3>
-                      <p className="text-xs text-[#7E756B] mt-1.5 leading-relaxed">
-                        Connect custom SMTP relays and domains to dispatch transactional purchase receipts, password recovery links, and customer notifications branded with your store identity.
+                      <p className="text-xs text-[#7E756B] mt-1.5 leading-relaxed max-w-md mx-auto">
+                        This feature is included in the <strong>Premium Plan</strong>. If you are on the Starter plan, you can upgrade your plan or purchase this feature solely as a standalone lifetime add-on.
                       </p>
                     </div>
                     <div className="pt-2">
-                      <span className="text-xl font-black text-[#78593D] block">₹999</span>
-                      <span className="text-[10px] text-[#7E756B]">Lifetime App License &bull; Custom SMTP Routing</span>
+                      <span className="text-2xl font-black text-[#78593D] block">₹999</span>
+                      <span className="text-[10px] text-[#7E756B]">Lifetime App License &bull; Custom SMTP Routing &bull; Transactional Receipts</span>
                     </div>
-                    <div className="pt-2">
+                    <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
                       <button
                         type="button"
                         onClick={() =>
@@ -2810,10 +2866,18 @@ export function AppDetailsView({
                           })
                         }
                         disabled={isProcessingCheckout}
-                        className="px-6 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center gap-2 mx-auto shadow-xs cursor-pointer active:scale-98"
+                        className="w-full sm:w-auto px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >
                         <Sparkles className="w-4 h-4" />
-                        <span>{isProcessingCheckout ? "Opening Checkout..." : "Unlock Email Configuration (₹999)"}</span>
+                        <span>{isProcessingCheckout ? "Opening Checkout..." : "Buy Solely (₹999 Lifetime)"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab("plans")}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-white hover:bg-[#F7F5F0] text-[#1C1917] border border-[#EBE6DF] rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
+                      >
+                        <Crown className="w-4 h-4 text-amber-600" />
+                        <span>Upgrade to Premium Plan</span>
                       </button>
                     </div>
                   </div>
@@ -2837,7 +2901,7 @@ export function AppDetailsView({
                   {isWhatsAppActive && (
                     <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-black uppercase flex items-center gap-1 self-start sm:self-auto">
                       <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>Active &amp; Provisioned</span>
+                      <span>{isWhatsAppSolelyPurchased ? "Active • Standalone License" : "Active • Included in Premium Plan"}</span>
                     </span>
                   )}
                 </div>
@@ -3007,24 +3071,28 @@ export function AppDetailsView({
                     </div>
                   </div>
                 ) : (
-                  /* ── LOCKED STATE (Requirement 7) ── */
+                  /* ── LOCKED STATE (Premium Plan or Standalone Add-on) ── */
                   <div className="p-8 sm:p-10 rounded-3xl bg-[#FAF7F2] border border-[#EBE6DF] text-center space-y-4 max-w-xl mx-auto shadow-xs">
                     <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto shadow-xs">
                       <Lock className="w-7 h-7" />
                     </div>
                     <div>
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-black uppercase mb-2">
+                        <Sparkles className="w-3 h-3 text-amber-700" />
+                        <span>Premium Feature</span>
+                      </div>
                       <h3 className="text-base sm:text-lg font-black text-[#1C1917]">
                         WhatsApp Automated Order Sync &amp; Chat Locked
                       </h3>
-                      <p className="text-xs text-[#7E756B] mt-1.5 leading-relaxed">
-                        Automate WhatsApp order confirmation notifications, parcel tracking updates, and provide 1-click in-app floating WhatsApp live chat support to increase sales conversions by over 40%.
+                      <p className="text-xs text-[#7E756B] mt-1.5 leading-relaxed max-w-md mx-auto">
+                        This feature is included in the <strong>Premium Plan</strong>. If you are on the Starter plan, you can upgrade your plan or purchase this feature solely as a standalone lifetime add-on.
                       </p>
                     </div>
                     <div className="pt-2">
-                      <span className="text-xl font-black text-[#78593D] block">₹999</span>
-                      <span className="text-[10px] text-[#7E756B]">Lifetime App License &bull; Meta WhatsApp Cloud API</span>
+                      <span className="text-2xl font-black text-[#78593D] block">₹999</span>
+                      <span className="text-[10px] text-[#7E756B]">Lifetime App License &bull; Meta WhatsApp Cloud API &bull; Live Customer Support</span>
                     </div>
-                    <div className="pt-2">
+                    <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
                       <button
                         type="button"
                         onClick={() =>
@@ -3035,10 +3103,18 @@ export function AppDetailsView({
                           })
                         }
                         disabled={isProcessingCheckout}
-                        className="px-6 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center gap-2 mx-auto shadow-xs cursor-pointer active:scale-98"
+                        className="w-full sm:w-auto px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >
                         <Sparkles className="w-4 h-4" />
-                        <span>{isProcessingCheckout ? "Opening Checkout..." : "Unlock WhatsApp Integration (₹999)"}</span>
+                        <span>{isProcessingCheckout ? "Opening Checkout..." : "Buy Solely (₹999 Lifetime)"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToTab("plans")}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-white hover:bg-[#F7F5F0] text-[#1C1917] border border-[#EBE6DF] rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
+                      >
+                        <Crown className="w-4 h-4 text-amber-600" />
+                        <span>Upgrade to Premium Plan</span>
                       </button>
                     </div>
                   </div>
