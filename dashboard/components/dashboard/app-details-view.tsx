@@ -2641,7 +2641,7 @@ export function AppDetailsView({
                         className="w-full sm:w-auto px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >
                         <Sparkles className="w-4 h-4" />
-                        <span>{isProcessingCheckout ? "Opening Checkout..." : "Buy Solely (₹999 Lifetime)"}</span>
+                        <span>{isProcessingCheckout ? "Opening..." : "Buy"}</span>
                       </button>
                       <button
                         type="button"
@@ -2879,7 +2879,7 @@ export function AppDetailsView({
                         className="w-full sm:w-auto px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >
                         <Sparkles className="w-4 h-4" />
-                        <span>{isProcessingCheckout ? "Opening Checkout..." : "Buy Solely (₹999 Lifetime)"}</span>
+                        <span>{isProcessingCheckout ? "Opening..." : "Buy"}</span>
                       </button>
                       <button
                         type="button"
@@ -3120,7 +3120,7 @@ export function AppDetailsView({
                         className="w-full sm:w-auto px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >
                         <Sparkles className="w-4 h-4" />
-                        <span>{isProcessingCheckout ? "Opening Checkout..." : "Buy Solely (₹999 Lifetime)"}</span>
+                        <span>{isProcessingCheckout ? "Opening..." : "Buy"}</span>
                       </button>
                       <button
                         type="button"
