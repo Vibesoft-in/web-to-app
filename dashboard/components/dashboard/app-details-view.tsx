@@ -7,7 +7,9 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { AddonLearnMoreModal } from "@/components/addons/addon-learn-more-modal";
+import { openRazorpayModal } from "@/lib/razorpay";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Award,
@@ -39,6 +41,7 @@ import {
   RefreshCw,
   Rocket,
   Send,
+  Settings,
   Shield,
   ShieldAlert,
   ShieldCheck,
@@ -374,7 +377,7 @@ export function AppDetailsView({
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Navigation sidebar state (Change 2: Web Traffic removed)
+  // Navigation sidebar state (Change 2: Web Traffic removed; Change 5: App Settings added at bottom)
   const TAB_KEYS = [
     "overview",
     "app_traffic",
@@ -385,6 +388,7 @@ export function AppDetailsView({
     "email_config",
     "whatsapp_config",
     "billing",
+    "app_settings",
   ] as const;
   type TabKey = (typeof TAB_KEYS)[number];
 
@@ -398,7 +402,8 @@ export function AppDetailsView({
     if (sectionParam) {
       const aliasMap: Record<string, TabKey> = {
         "app-addons-section": "addons",
-        "settings": "overview",
+        "settings": "app_settings",
+        "app_settings": "app_settings",
         "branding-section": "branding",
         "web_traffic": "app_traffic",
       };
@@ -534,6 +539,68 @@ export function AppDetailsView({
   // License Modal State (Change 1)
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
   const [isCopiedLicenseKey, setIsCopiedLicenseKey] = useState(false);
+
+  // Upgrade Plan Modal State (Change 4)
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState<string | null>(null);
+
+  // App Settings State (Change 5)
+  const [appSettingsName, setAppSettingsName] = useState<string>(
+    appConfig?.app?.name || app?.name || "Mobile Application"
+  );
+  const [isSavingAppSettings, setIsSavingAppSettings] = useState(false);
+  const [appSettingsMsg, setAppSettingsMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [offlineModeEnabled, setOfflineModeEnabled] = useState(true);
+  const [splashTimeout, setSplashTimeout] = useState("2.5");
+  const [isClearingCache, setIsClearingCache] = useState(false);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
+
+  useEffect(() => {
+    if (app?.name || appConfig?.app?.name) {
+      setAppSettingsName(appConfig?.app?.name || app?.name || "Mobile Application");
+    }
+  }, [app?.name, appConfig?.app?.name]);
+
+  const handleSaveAppSettings = async () => {
+    if (!app?.ulid) return;
+    setIsSavingAppSettings(true);
+    setAppSettingsMsg(null);
+    try {
+      const payload = {
+        app: {
+          name: appSettingsName,
+          logo_url: logoUrlInput,
+          banner_url: bannerUrlInput,
+          currency: "INR",
+        },
+        selected_theme_key: savedThemeKey,
+        theme: {
+          colors: {
+            primary: primaryColorInput,
+            secondary: secondaryColorInput,
+          },
+          font: fontInput,
+        },
+      };
+
+      await apiClient(`/api/apps/${app.ulid}/config/draft`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+
+      await apiClient(`/api/apps/${app.ulid}/config/publish`, {
+        method: "POST",
+      });
+
+      setAppSettingsMsg({ text: "✓ Application name and settings saved successfully!", type: "success" });
+      setAppNameInput(appSettingsName);
+    } catch (err: any) {
+      setAppSettingsMsg({ text: err.message || "Failed to save application settings.", type: "error" });
+    } finally {
+      setIsSavingAppSettings(false);
+    }
+  };
 
   const {
     data: licenseData,
@@ -752,6 +819,20 @@ export function AppDetailsView({
       : app?.platform === "shopify" || app?.platform?.value === "shopify"
       ? "Shopify"
       : "WordPress";
+
+  const appLogoUrl =
+    app?.icon_url ||
+    app?.logo_url ||
+    appConfig?.app?.logo_url ||
+    appConfig?.theme?.logo_url ||
+    logoUrlInput;
+
+  const platformKey = (app?.platform || platform || "").toLowerCase();
+  const platformIconSrc = platformKey.includes("shop")
+    ? "/assets/icons/shopify.svg"
+    : platformKey.includes("woo")
+    ? "/assets/icons/woocommerce.svg"
+    : "/assets/icons/wordpress.svg";
 
   const planSlug = (currentPlan?.slug || currentPlan?.name || app?.active_plan?.name || "").toLowerCase();
   const isStarter = planSlug.includes("starter") || planSlug.includes("basic") || planSlug.includes("free");
@@ -1104,6 +1185,12 @@ export function AppDetailsView({
       description: "Payment history & invoices",
       badge: appOrders.length > 0 ? String(appOrders.length) : undefined,
     },
+    {
+      id: "app_settings" as const,
+      label: "App Settings",
+      icon: Settings,
+      description: "Preferences, config & delete",
+    },
   ];
 
   return (
@@ -1173,15 +1260,6 @@ export function AppDetailsView({
               title="Refresh / Rebuild"
             >
               <RefreshCw className={`w-4 h-4 ${isRebuilding ? "animate-spin text-[#78593D]" : ""}`} />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsDeleteModalOpen(true)}
-              className="p-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition shadow-2xs cursor-pointer"
-              title="Delete Application"
-            >
-              <Trash2 className="w-4 h-4 text-rose-600" />
             </button>
           </div>
         </div>
@@ -1313,18 +1391,61 @@ export function AppDetailsView({
                     <h2 className="text-lg font-black text-[#1C1917]">App Information &amp; Specs</h2>
                     <p className="text-xs text-[#7E756B]">Detailed configuration, subscription tier, and store connection</p>
                   </div>
-                  {/* Note: "Edit Theme & Branding" removed from here as per Requirement 6 */}
+                  {/* Active Plan info + Upgrade Button in Header (Change 4) */}
+                  <div className="flex items-center gap-2.5 self-start sm:self-auto bg-[#F7F5F0] border border-[#EBE6DF] px-3.5 py-1.5 rounded-2xl shadow-2xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-[#1C1917]">
+                        {currentPlan?.name || "Basic Package"}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        <span>Active</span>
+                      </span>
+                    </div>
+                    <div className="w-[1px] h-4 bg-[#EBE6DF]" />
+                    <button
+                      type="button"
+                      onClick={() => setIsUpgradeModalOpen(true)}
+                      className="px-3 py-1 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-98"
+                    >
+                      <Sparkles className="w-3 h-3 text-amber-200" />
+                      <span>Upgrade Plan</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* App Specs Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Card 1: Application Name with Uploaded App Logo (Change 4) */}
                   <div className="p-4 rounded-2xl bg-[#F7F5F0] border border-[#EBE6DF]">
                     <span className="text-[10px] font-bold text-[#7E756B] uppercase tracking-wider block">
                       Application Name
                     </span>
-                    <strong className="text-sm font-extrabold text-[#1C1917] mt-1 block truncate">
-                      {appName}
-                    </strong>
+                    <div className="flex items-center gap-2.5 mt-1.5">
+                      {appLogoUrl ? (
+                        <img
+                          src={appLogoUrl}
+                          alt={appName}
+                          className="w-8 h-8 rounded-xl object-cover border border-[#EBE6DF] bg-white shadow-2xs flex-shrink-0"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = "none";
+                            if (e.currentTarget.nextElementSibling) {
+                              (e.currentTarget.nextElementSibling as HTMLElement).style.display = "flex";
+                            }
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className={`w-8 h-8 rounded-xl bg-[#78593D] text-white font-black text-xs items-center justify-center flex-shrink-0 shadow-2xs ${
+                          appLogoUrl ? "hidden" : "flex"
+                        }`}
+                      >
+                        {(appName || "A").charAt(0).toUpperCase()}
+                      </div>
+                      <strong className="text-sm font-extrabold text-[#1C1917] truncate">
+                        {appName}
+                      </strong>
+                    </div>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-[#F7F5F0] border border-[#EBE6DF]">
@@ -1336,30 +1457,38 @@ export function AppDetailsView({
                         href={storeUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-sm font-bold text-[#78593D] hover:underline mt-1 inline-flex items-center gap-1 truncate max-w-full"
+                        className="text-sm font-bold text-[#78593D] hover:underline mt-1.5 inline-flex items-center gap-1 truncate max-w-full"
                       >
                         <span className="truncate">{storeUrl.replace(/^https?:\/\//, "")}</span>
                         <ExternalLink className="w-3 h-3 flex-shrink-0" />
                       </a>
                     ) : (
-                      <span className="text-sm text-slate-400 mt-1 block">Not connected</span>
+                      <span className="text-sm text-slate-400 mt-1.5 block">Not connected</span>
                     )}
                   </div>
 
+                  {/* Card 3: Target Platform with Platform Logo (Change 4) */}
                   <div className="p-4 rounded-2xl bg-[#F7F5F0] border border-[#EBE6DF]">
                     <span className="text-[10px] font-bold text-[#7E756B] uppercase tracking-wider block">
                       Target Platform
                     </span>
-                    <strong className="text-sm font-extrabold text-[#1C1917] mt-1 block">
-                      {platform}
-                    </strong>
+                    <div className="flex items-center gap-2.5 mt-1.5">
+                      <img
+                        src={platformIconSrc}
+                        alt={platform}
+                        className="w-5 h-5 object-contain flex-shrink-0"
+                      />
+                      <strong className="text-sm font-extrabold text-[#1C1917]">
+                        {platform}
+                      </strong>
+                    </div>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-[#F7F5F0] border border-[#EBE6DF]">
                     <span className="text-[10px] font-bold text-[#7E756B] uppercase tracking-wider block">
                       Package Name
                     </span>
-                    <strong className="text-xs font-mono font-bold text-[#57514B] mt-1 block truncate">
+                    <strong className="text-xs font-mono font-bold text-[#57514B] mt-1.5 block truncate">
                       {packageName}
                     </strong>
                   </div>
@@ -1368,17 +1497,19 @@ export function AppDetailsView({
                     <span className="text-[10px] font-bold text-[#7E756B] uppercase tracking-wider block">
                       Lifecycle Status
                     </span>
-                    {isCompletedApp ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 mt-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Active &amp; Ready</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-xs font-black text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300 mt-1">
-                        <Clock className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Setup Incomplete (Draft)</span>
-                      </span>
-                    )}
+                    <div className="mt-1.5">
+                      {isCompletedApp ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Active &amp; Ready</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs font-black text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300">
+                          <Clock className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Setup Incomplete (Draft)</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* ── CHANGE 1: REPLACE KEYSTORE & SECURITY WITH VIEW LICENSE ── */}
@@ -1391,56 +1522,88 @@ export function AppDetailsView({
                     <span className="text-[10px] font-bold text-[#7E756B] uppercase tracking-wider block">
                       Commercial License
                     </span>
-                    <div className="flex items-center gap-1.5 mt-1 text-[#78593D] group-hover:text-[#523B27] font-bold text-xs transition">
+                    <div className="flex items-center gap-1.5 mt-1.5 text-[#78593D] group-hover:text-[#523B27] font-bold text-xs transition">
                       <Eye className="w-4 h-4 text-[#78593D] flex-shrink-0" />
                       <span className="underline decoration-[#78593D]/40 underline-offset-2">View License</span>
                     </div>
                   </button>
                 </div>
 
-                {/* ── CURRENT SUBSCRIPTION PLAN CARD (Requirement 4) ── */}
+                {/* ── ADMIN PANEL ACCESS MODULE CARD (Change 4: Replaces old bottom subscription card) ── */}
                 <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-[#FAF7F2] to-white border border-[#EBE6DF] flex flex-col md:flex-row md:items-center justify-between gap-5 shadow-2xs">
                   <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-[#78593D] text-white flex items-center justify-center flex-shrink-0 shadow-xs">
-                      <CreditCard className="w-6 h-6 text-amber-200" />
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-xs ${
+                      hasAdminPanel ? "bg-[#78593D] text-white" : "bg-amber-100 text-amber-800"
+                    }`}>
+                      <Sliders className="w-6 h-6" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#78593D]">
-                          Active Subscription Plan
+                          Admin Panel Module
                         </span>
-                        <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
-                          Active
-                        </span>
+                        {hasAdminPanel ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                            <span>Unlocked &amp; Active</span>
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                            <Lock className="w-2.5 h-2.5" />
+                            <span>Locked &bull; Available as Add-on</span>
+                          </span>
+                        )}
                       </div>
                       <strong className="text-base sm:text-lg font-black text-[#1C1917] mt-0.5 block">
-                        {currentPlan?.name || "Pro Combo"}
+                        {hasAdminPanel ? "Dedicated Web Admin Portal Unlocked" : "Dedicated Web Admin Portal Access"}
                       </strong>
-                      <div className="text-xs text-[#7E756B] mt-0.5 flex flex-wrap items-center gap-2">
-                        <span>
-                          {currentPlan?.price_monthly === 0
-                            ? "Standard Free Tier"
-                            : `₹${((currentPlan?.price_monthly || 799900) / 100).toLocaleString("en-IN")}`}
-                        </span>
-                        <span className="text-slate-300">&bull;</span>
-                        <span className="font-semibold text-[#1C1917]">
-                          {currentPlan?.billing_cycle === "annual" ? "Annual Billing" : "Lifetime Ownership"}
-                        </span>
-                        <span className="text-slate-300">&bull;</span>
-                        <span className="text-emerald-700 font-bold">14-Day Store Acceptance Guarantee</span>
+                      <div className="text-xs text-[#7E756B] mt-0.5 max-w-xl leading-relaxed">
+                        {hasAdminPanel
+                          ? "Manage live storefront product synchronization, dispatch push notification campaigns, manage customer returns/refunds, and inspect user analytics."
+                          : "Web-based admin portal for your app. Manage push notification campaigns, live store catalog sync, customer returns/refunds, user analytics, and app configuration."}
                       </div>
+                      {!hasAdminPanel && (
+                        <div className="mt-2 flex items-center gap-2 text-xs font-bold text-[#78593D]">
+                          <span>₹2,999 Lifetime License</span>
+                          <span className="text-slate-300">&bull;</span>
+                          <span className="text-emerald-700">One-Time Modular Purchase</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 self-start md:self-auto flex-shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => onNavigateToTab("plans")}
-                      className="px-4 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-98"
-                    >
-                      <span>Upgrade Plan</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    {hasAdminPanel ? (
+                      <Link
+                        href={`/dashboard/apps/${app.ulid}/admin`}
+                        className="px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-98"
+                      >
+                        <span>View Admin Panel</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={isProcessingCheckout}
+                        onClick={() => {
+                          const targetAddon = availableAddons.find(
+                            (a: any) =>
+                              (a.slug || "").toLowerCase().includes("admin_panel") ||
+                              (a.name || "").toLowerCase().includes("admin panel")
+                          ) || {
+                            id: 2,
+                            slug: "admin_panel_addon",
+                            name: "Dedicated Admin Panel Access Module",
+                            price: 299900,
+                          };
+                          handleExecutePurchase(targetAddon);
+                        }}
+                        className="px-5 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-98"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+                        <span>{isProcessingCheckout ? "Opening Checkout..." : "Buy Admin Panel (₹2,999)"}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1498,23 +1661,6 @@ export function AppDetailsView({
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isRebuilding ? "animate-spin text-[#78593D]" : ""}`} />
                       <span>Sync Now</span>
-                    </button>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <strong className="text-sm font-bold text-rose-900 block">Delete Application</strong>
-                      <p className="text-xs text-rose-700 mt-0.5 max-w-lg">
-                        Permanently delete {appName}, its configuration, cached catalog assets, and historical build binaries.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsDeleteModalOpen(true)}
-                      className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete Application</span>
                     </button>
                   </div>
                 </div>
@@ -3357,6 +3503,227 @@ export function AppDetailsView({
                 </div>
               </div>
             </article>
+
+            {/* ── TAB 10: APP SETTINGS (Requirement 5) ── */}
+            <article className={getPanelClass("app_settings")}>
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#EBE6DF]">
+                  <div>
+                    <h2 className="text-lg font-black text-[#1C1917] flex items-center gap-2">
+                      <Settings className="w-5 h-5 text-[#78593D]" />
+                      <span>Application Settings</span>
+                    </h2>
+                    <p className="text-xs text-[#7E756B]">
+                      Configure app identity, runtime device preferences, connected store endpoints, and danger zone controls
+                    </p>
+                  </div>
+                </div>
+
+                {appSettingsMsg && (
+                  <div
+                    className={`p-3.5 rounded-xl text-xs font-bold flex items-center justify-between shadow-2xs ${
+                      appSettingsMsg.type === "success"
+                        ? "bg-emerald-50 text-emerald-900 border border-emerald-200"
+                        : "bg-rose-50 text-rose-900 border border-rose-200"
+                    }`}
+                  >
+                    <span>{appSettingsMsg.text}</span>
+                    <button
+                      type="button"
+                      onClick={() => setAppSettingsMsg(null)}
+                      className="p-1 hover:opacity-70 transition cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Section 1: Application Basic Information */}
+                <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE6DF] space-y-4">
+                  <div className="border-b border-[#EBE6DF] pb-3">
+                    <h3 className="text-sm font-extrabold text-[#1C1917]">Basic Information</h3>
+                    <p className="text-xs text-[#7E756B]">Update user-facing application name and inspect platform package metadata</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[#7E756B] uppercase">Application Name</label>
+                      <input
+                        type="text"
+                        value={appSettingsName}
+                        onChange={(e) => setAppSettingsName(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#EBE6DF] rounded-xl text-xs font-bold text-[#1C1917]"
+                        placeholder="e.g. My Mobile Store"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[#7E756B] uppercase">Android Package Identifier</label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={packageName}
+                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-600 cursor-not-allowed select-all"
+                      />
+                    </div>
+                  </div>
+                  <div className="pt-2 flex items-center justify-end">
+                    <button
+                      type="button"
+                      disabled={isSavingAppSettings}
+                      onClick={handleSaveAppSettings}
+                      className="px-4 py-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-98"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{isSavingAppSettings ? "Saving..." : "Save App Name"}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Section 2: Application Configuration */}
+                <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE6DF] space-y-4">
+                  <div className="border-b border-[#EBE6DF] pb-3">
+                    <h3 className="text-sm font-extrabold text-[#1C1917]">Application Configuration</h3>
+                    <p className="text-xs text-[#7E756B]">Manage mobile client caching, offline browsing behaviour, and splash duration</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#EBE6DF] space-y-2">
+                      <strong className="text-xs font-extrabold text-[#1C1917] block">Client Cache Control</strong>
+                      <p className="text-[11px] text-[#7E756B] leading-relaxed">
+                        Flush device-side cache on client handsets to force instant reload of updated storefront collections and pricing.
+                      </p>
+                      <button
+                        type="button"
+                        disabled={isClearingCache}
+                        onClick={() => {
+                          setIsClearingCache(true);
+                          setTimeout(() => {
+                            setIsClearingCache(false);
+                            setAppSettingsMsg({ text: "✓ Device cache flush instruction dispatched successfully!", type: "success" });
+                          }, 600);
+                        }}
+                        className="px-3.5 py-1.5 bg-white border border-[#EBE6DF] hover:bg-[#F7F5F0] text-[#1C1917] rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isClearingCache ? "animate-spin text-[#78593D]" : ""}`} />
+                        <span>{isClearingCache ? "Clearing Cache..." : "Clear App Cache"}</span>
+                      </button>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#EBE6DF] space-y-3">
+                      <div>
+                        <strong className="text-xs font-extrabold text-[#1C1917] block">Offline Catalog Mode</strong>
+                        <p className="text-[11px] text-[#7E756B] leading-relaxed mt-0.5">
+                          Allow customers to browse recently viewed products and cart items when network connectivity is offline.
+                        </p>
+                      </div>
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={offlineModeEnabled}
+                          onChange={(e) => setOfflineModeEnabled(e.target.checked)}
+                          className="w-4 h-4 rounded text-[#78593D] focus:ring-[#78593D] cursor-pointer"
+                        />
+                        <span className="text-xs font-bold text-[#1C1917]">Enable Offline Storefront Cache</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <div className="max-w-xs space-y-1">
+                      <label className="text-[10px] font-bold text-[#7E756B] uppercase">Splash Screen Display Duration</label>
+                      <select
+                        value={splashTimeout}
+                        onChange={(e) => setSplashTimeout(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#EBE6DF] rounded-xl text-xs font-bold text-[#1C1917]"
+                      >
+                        <option value="1.5">1.5 Seconds (Fast Transition)</option>
+                        <option value="2.5">2.5 Seconds (Recommended Standard)</option>
+                        <option value="3.5">3.5 Seconds (Extended Brand Logo)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3: Connected Website Information */}
+                <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE6DF] space-y-4">
+                  <div className="border-b border-[#EBE6DF] pb-3">
+                    <h3 className="text-sm font-extrabold text-[#1C1917]">Connected Website &amp; Sync Engine</h3>
+                    <p className="text-xs text-[#7E756B]">Inspect the upstream website, platform integration, and live sync endpoint</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#EBE6DF] space-y-1">
+                      <span className="text-[10px] font-bold text-[#7E756B] uppercase block">Connected Website URL</span>
+                      {storeUrl ? (
+                        <a
+                          href={storeUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-bold text-[#78593D] hover:underline inline-flex items-center gap-1 truncate max-w-full"
+                        >
+                          <span className="truncate">{storeUrl}</span>
+                          <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                        </a>
+                      ) : (
+                        <span className="text-xs text-slate-400">Not configured</span>
+                      )}
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#EBE6DF] space-y-1">
+                      <span className="text-[10px] font-bold text-[#7E756B] uppercase block">Sync Engine Status</span>
+                      <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        <span>Active &amp; Synchronized</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 pt-1">
+                    <label className="text-[10px] font-bold text-[#7E756B] uppercase">Dedicated Realtime Webhook Endpoint</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={`https://api.webintoapp.com/v1/webhook/${app.ulid}`}
+                        className="flex-1 px-3.5 py-2 bg-[#FAF7F2] border border-[#EBE6DF] rounded-xl text-xs font-mono text-slate-700 select-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(`https://api.webintoapp.com/v1/webhook/${app.ulid}`);
+                          setCopiedWebhook(true);
+                          setTimeout(() => setCopiedWebhook(false), 2000);
+                        }}
+                        className="px-3.5 py-2 border border-[#EBE6DF] bg-white hover:bg-[#FAF7F2] rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                      >
+                        {copiedWebhook ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-600" />}
+                        <span>{copiedWebhook ? "Copied" : "Copy"}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 4: Danger Zone */}
+                <div className="p-5 sm:p-6 rounded-3xl bg-rose-50/50 border-2 border-rose-200 space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-rose-200">
+                    <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+                    <h3 className="text-sm font-black text-rose-950 uppercase tracking-wider">Danger Zone</h3>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <strong className="text-sm font-extrabold text-rose-900 block">Delete This Application</strong>
+                      <p className="text-xs text-rose-700 mt-1 max-w-xl leading-relaxed">
+                        Permanently delete this application, its build history, certificates, and configuration. This action is irreversible.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsDeleteModalOpen(true)}
+                      className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-xs transition flex items-center gap-2 cursor-pointer self-start sm:self-auto active:scale-98"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete Application</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </article>
           </div>
         </section>
       </div>
@@ -3382,6 +3749,268 @@ export function AppDetailsView({
           handleExecutePurchase(targetAddon);
         }}
       />
+
+      {/* ── UPGRADE PLAN MODAL (Change 4) ── */}
+      {isUpgradeModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isUpgrading) {
+              setIsUpgradeModalOpen(false);
+              setUpgradeError(null);
+            }
+          }}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-4xl w-full p-6 sm:p-8 shadow-2xl border border-[#EBE6DF] relative overflow-hidden my-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 pb-4 border-b border-[#EBE6DF]">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-black uppercase mb-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Package Upgrade Suite</span>
+                </div>
+                <h3 className="text-lg sm:text-xl font-black text-[#1C1917]">
+                  Upgrade Plan for {appName}
+                </h3>
+                <p className="text-xs text-[#7E756B] mt-1 leading-relaxed">
+                  Choose a higher tier to unlock advanced distribution, push notification broadcasts, and modular admin capabilities. You only pay the pro-rated price difference.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsUpgradeModalOpen(false);
+                  setUpgradeError(null);
+                }}
+                disabled={isUpgrading}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                aria-label="Close Upgrade Modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {upgradeError && (
+              <div className="mt-4 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-bold flex items-center justify-between">
+                <span>{upgradeError}</span>
+                <button type="button" onClick={() => setUpgradeError(null)} className="p-1">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* 3 Plans Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-5">
+              {[
+                {
+                  id: 1,
+                  name: "Basic",
+                  price: 299900,
+                  priceFormatted: "₹2,999",
+                  tierNum: 1,
+                  description: "Standard Android APK generation with lifetime app ownership and store sync.",
+                  features: [
+                    "Unlimited Android APK Builds",
+                    "Realtime Store Catalog Sync",
+                    "Standard Push Notifications",
+                    "Zero Recurring Monthly Fees",
+                  ],
+                },
+                {
+                  id: 2,
+                  name: "Pro Combo",
+                  price: 899900,
+                  priceFormatted: "₹8,999",
+                  tierNum: 2,
+                  badge: "Most Popular",
+                  description: "Complete Google Play Store publishing bundle with Firebase Cloud Messaging.",
+                  features: [
+                    "Everything in Basic",
+                    "Google Play AAB Bundle",
+                    "Firebase Cloud Messaging (FCM)",
+                    "Dedicated RSA-2048 Keystore",
+                    "Automated Order Notifications",
+                  ],
+                },
+                {
+                  id: 3,
+                  name: "Enterprise Suite",
+                  price: 1499900,
+                  priceFormatted: "₹14,999",
+                  tierNum: 3,
+                  badge: "All-Inclusive",
+                  description: "Flagship package with Web Admin Panel, WhatsApp automated order sync, and branded SMTP.",
+                  features: [
+                    "Everything in Pro Combo",
+                    "Dedicated Web Admin Panel Included",
+                    "WhatsApp Automated Sync & Chat Included",
+                    "Branded SMTP Email Module Included",
+                    "Priority Play Store Review Support",
+                  ],
+                },
+              ].map((planItem) => {
+                const currentTier =
+                  planSlug.includes("enterprise") || currentPlan?.id === 3
+                    ? 3
+                    : planSlug.includes("pro") || currentPlan?.id === 2
+                    ? 2
+                    : 1;
+
+                const isCurrent = currentTier === planItem.tierNum;
+                const isLower = planItem.tierNum < currentTier;
+
+                const currentPrice = currentTier === 3 ? 1499900 : currentTier === 2 ? 899900 : 299900;
+                const differencePrice = Math.max(0, planItem.price - currentPrice);
+
+                return (
+                  <div
+                    key={planItem.id}
+                    className={`rounded-2xl p-5 border flex flex-col justify-between transition-all ${
+                      isCurrent
+                        ? "bg-[#FAF7F2] border-[#78593D] ring-2 ring-[#78593D]/20 shadow-sm"
+                        : "bg-white border-[#EBE6DF] hover:border-[#78593D]/40"
+                    }`}
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <strong className="text-base font-black text-[#1C1917]">{planItem.name}</strong>
+                        {planItem.badge && !isCurrent && (
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                            {planItem.badge}
+                          </span>
+                        )}
+                        {isCurrent && (
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                            <span>Active</span>
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="pt-1">
+                        <div className="text-xl font-black text-[#1C1917]">{planItem.priceFormatted}</div>
+                        <span className="text-[10px] text-[#7E756B]">Lifetime License &bull; One-Time</span>
+                      </div>
+
+                      <p className="text-[11px] text-[#7E756B] leading-relaxed">
+                        {planItem.description}
+                      </p>
+
+                      <div className="pt-2 border-t border-[#EBE6DF]/70 space-y-1.5">
+                        {planItem.features.map((feat, fIdx) => (
+                          <div key={fIdx} className="flex items-start gap-1.5 text-[11px] text-[#2A241F]">
+                            <Check className="w-3 h-3 text-emerald-600 mt-0.5 flex-shrink-0" />
+                            <span className="leading-tight">{feat}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-5 mt-4 border-t border-[#EBE6DF]">
+                      {isCurrent ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-500 font-bold text-xs cursor-default"
+                        >
+                          Current Active Plan
+                        </button>
+                      ) : isLower ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="w-full py-2.5 rounded-xl bg-slate-50 text-slate-400 font-bold text-xs cursor-not-allowed"
+                        >
+                          Included in Higher Tier
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isUpgrading}
+                          onClick={async () => {
+                            setIsUpgrading(true);
+                            setUpgradeError(null);
+                            try {
+                              const checkoutRes = await apiClient("/api/orders/checkout", {
+                                method: "POST",
+                                body: JSON.stringify({
+                                  type: "upgrade",
+                                  package_id: planItem.id,
+                                  app_id: app.id,
+                                  app_ulid: app.ulid,
+                                  customer_name: user?.name || "",
+                                  customer_email: user?.email || "",
+                                  currency: "INR",
+                                }),
+                              });
+
+                              if (!checkoutRes?.success || !checkoutRes?.order) {
+                                throw new Error(checkoutRes?.message || "Failed to initiate package upgrade.");
+                              }
+
+                              const orderData = checkoutRes.order;
+
+                              const paymentResponse = await openRazorpayModal({
+                                orderId: orderData.gateway_order_id || orderData.order_id,
+                                amount: orderData.amount,
+                                currency: orderData.currency || "INR",
+                                keyId:
+                                  orderData.key_id ||
+                                  process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
+                                  "rzp_test_SnbtbVtFnRIrAI",
+                                name: "WebIntoApp",
+                                description: `Upgrade "${appName}" to ${planItem.name}`,
+                                prefill: {
+                                  name: user?.name,
+                                  email: user?.email,
+                                },
+                                themeColor: "#78593D",
+                              });
+
+                              await apiClient("/api/orders/verify", {
+                                method: "POST",
+                                body: JSON.stringify({
+                                  order_id: orderData.id,
+                                  razorpay_order_id: paymentResponse.razorpay_order_id,
+                                  razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                                  razorpay_signature: paymentResponse.razorpay_signature,
+                                }),
+                              });
+
+                              setIsUpgradeModalOpen(false);
+                              if (onRebuild) onRebuild();
+                              window.location.reload();
+                            } catch (err: any) {
+                              if (err.message !== "PAYMENT_CANCELLED" && err.message !== "PAYMENT_ALREADY_IN_PROGRESS") {
+                                setUpgradeError(err.message || "Failed to process upgrade.");
+                              }
+                            } finally {
+                              setIsUpgrading(false);
+                            }
+                          }}
+                          className="w-full py-2.5 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white font-black text-xs transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-98"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+                          <span>
+                            {isUpgrading
+                              ? "Processing..."
+                              : `Upgrade (Pay ₹${(differencePrice / 100).toLocaleString("en-IN")})`}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── COMMERCIAL LICENSE DETAILS POPUP MODAL (Change 1) ── */}
       {isLicenseModalOpen && (
