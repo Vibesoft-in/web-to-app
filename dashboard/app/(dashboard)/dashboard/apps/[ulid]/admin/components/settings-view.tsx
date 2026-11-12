@@ -70,6 +70,29 @@ export function SettingsView({
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("Staff");
 
+  // Global Escape key handler for settings invite modal (Change 2)
+  useEffect(() => {
+    if (!inviteModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setInviteModalOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [inviteModalOpen]);
+
+  // Background scroll locking when modal is open (Change 2)
+  useEffect(() => {
+    if (inviteModalOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [inviteModalOpen]);
+
   // Notification toggles
   const [notifications, setNotifications] = useState({
     orders: true,
@@ -674,10 +697,14 @@ export function SettingsView({
 
       {/* INVITE TEAM MEMBER MODAL */}
       {inviteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+          onClick={() => setInviteModalOpen(false)}
+        >
           <form
             onSubmit={handleInviteSubmit}
             className="w-full max-w-md bg-[#FAF8F5] dark:bg-[#1A1B1A] border border-[#E6E1D8] dark:border-[#2C2D2B] rounded-2xl p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-serif font-semibold text-[#1A1917] dark:text-[#F5F2EB]">Invite teammate</h3>

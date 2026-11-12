@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Package,
   Search,
@@ -106,10 +106,7 @@ export function ProductsView({
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [editablePrice, setEditablePrice] = useState<string>("");
 
-  // Product price and stock overrides in local state
-  const [productOverrides, setProductOverrides] = useState<Record<string, { price?: number; stock?: number; status?: string }>>({});
-
-  // Collections state
+  // Collections state & modal
   const [collections, setCollections] = useState<Array<{ id: string; name: string; text: string; featured: boolean; tone: string }>>([
     { id: "single-origin", name: "Single origins", text: "Curated seasonal apparel, tops, shirts, and casual wear.", featured: true, tone: "amber" },
     { id: "house-espresso", name: "House espresso", text: "Top-selling store merchandise and bestselling inventory.", featured: true, tone: "coral" },
@@ -119,6 +116,33 @@ export function ProductsView({
   const [newCollModalOpen, setNewCollModalOpen] = useState(false);
   const [newCollName, setNewCollName] = useState("");
   const [newCollDesc, setNewCollDesc] = useState("");
+
+  // Global Escape key handler for product drawer & modal (Change 2)
+  useEffect(() => {
+    if (!selectedProduct && !newCollModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (newCollModalOpen) setNewCollModalOpen(false);
+        else if (selectedProduct) setSelectedProduct(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedProduct, newCollModalOpen]);
+
+  // Background scroll locking when product drawer or modal is open (Change 2)
+  useEffect(() => {
+    if (selectedProduct || newCollModalOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [selectedProduct, newCollModalOpen]);
+
+  // Product price and stock overrides in local state
+  const [productOverrides, setProductOverrides] = useState<Record<string, { price?: number; stock?: number; status?: string }>>({});
 
   // Normalized product list
   const normalizedProducts = useMemo(() => {
@@ -900,7 +924,10 @@ export function ProductsView({
 
       {/* PRODUCT DETAIL DRAWER */}
       {selectedProduct && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200">
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setSelectedProduct(null)}
+        >
           <div
             className="w-full max-w-md bg-[#FAF8F5] dark:bg-[#1A1B1A] h-full shadow-2xl border-l border-[#E6E1D8] dark:border-[#2C2D2B] flex flex-col justify-between overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
@@ -1060,8 +1087,14 @@ export function ProductsView({
 
       {/* NEW COLLECTION MODAL */}
       {newCollModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-[#FAF8F5] dark:bg-[#1A1B1A] border border-[#E6E1D8] dark:border-[#2C2D2B] rounded-2xl p-6 shadow-2xl space-y-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+          onClick={() => setNewCollModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md bg-[#FAF8F5] dark:bg-[#1A1B1A] border border-[#E6E1D8] dark:border-[#2C2D2B] rounded-2xl p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-serif font-semibold text-[#1A1917] dark:text-[#F5F2EB]">New collection</h3>
               <button onClick={() => setNewCollModalOpen(false)} className="text-[#8A857D] hover:text-[#1A1917]">

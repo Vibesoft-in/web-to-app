@@ -157,6 +157,30 @@ export function OrdersView({
     }
   }, [externalRefundOrder]);
 
+  // Escape key handler for Refund modal (Change 2)
+  useEffect(() => {
+    if (!isRefundModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsRefundModalOpen(false);
+        onClearExternalRefundOrder?.();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isRefundModalOpen, onClearExternalRefundOrder]);
+
+  // Background scroll locking for Refund modal
+  useEffect(() => {
+    if (isRefundModalOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isRefundModalOpen]);
+
   const handleVerifyPlugin = async (forceToggle = false) => {
     setIsVerifyingPlugin(true);
     try {
@@ -1603,7 +1627,7 @@ export function OrdersView({
       {/* ── TERAWALLET REFUND MODAL (MANDATE ENFORCED) ── */}
       {isRefundModalOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
+          className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => {
             setIsRefundModalOpen(false);
             onClearExternalRefundOrder?.();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Users,
   Search,
@@ -40,6 +40,29 @@ export function CustomersView({
 }: CustomersViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
+
+  // Global Escape key handler for customer drawer (Change 2)
+  useEffect(() => {
+    if (!selectedCustomer) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedCustomer(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedCustomer]);
+
+  // Background scroll locking for customer drawer (Change 2)
+  useEffect(() => {
+    if (selectedCustomer) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [selectedCustomer]);
 
   // Filter customers by search query
   const filteredCustomers = useMemo(() => {

@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import {
+  Activity,
   AlertCircle,
   ArrowDown,
   ArrowLeft,
@@ -83,6 +84,7 @@ import { MessagesView } from "./components/messages-view";
 import { CouponsView } from "./components/coupons-view";
 import { SettingsView } from "./components/settings-view";
 import { HelpView } from "./components/help-view";
+import { TrafficView } from "./components/traffic-view";
 import { BestSellerModal } from "./components/best-seller-modal";
 
 declare global {
@@ -154,6 +156,7 @@ export default function AppAdminPortalPage() {
     | "coupons"
     | "notifications"
     | "categories"
+    | "traffic"
     | "settings"
     | "sync"
     | "credentials"
@@ -367,17 +370,61 @@ export default function AppAdminPortalPage() {
     ].join(" ");
   };
 
+  // ── External Refund Order State (used by Escape handler & modals) ───────────
+  const [externalRefundOrder, setExternalRefundOrder] = useState<any | null>(null);
+
+  // ── Global Escape Key & Modal Dismissal (Change 2) ─────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (selectedBestSellerProduct) setSelectedBestSellerProduct(null);
+        else if (isFinderOpen) setIsFinderOpen(false);
+        else if (isAddProductModalOpen) setIsAddProductModalOpen(false);
+        else if (isAddCatModalOpen) setIsAddCatModalOpen(false);
+        else if (externalRefundOrder) setExternalRefundOrder(null);
         else if (selectedOrder) setSelectedOrder(null);
         else if (selectedPeriod) setSelectedPeriod(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedOrder, selectedPeriod, selectedBestSellerProduct]);
+  }, [
+    selectedOrder,
+    selectedPeriod,
+    selectedBestSellerProduct,
+    isFinderOpen,
+    isAddProductModalOpen,
+    isAddCatModalOpen,
+    externalRefundOrder,
+  ]);
+
+  // ── Background Scroll Locking when any modal/drawer is open ──────────────────
+  useEffect(() => {
+    const isAnyModalOpen = Boolean(
+      selectedOrder ||
+      selectedPeriod ||
+      selectedBestSellerProduct ||
+      isAddProductModalOpen ||
+      isFinderOpen ||
+      isAddCatModalOpen ||
+      externalRefundOrder
+    );
+    if (isAnyModalOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [
+    selectedOrder,
+    selectedPeriod,
+    selectedBestSellerProduct,
+    isAddProductModalOpen,
+    isFinderOpen,
+    isAddCatModalOpen,
+    externalRefundOrder,
+  ]);
 
   // ── 1. Fetch User Profile ──────────────────────────────────────────────────
   const { data: userData } = useQuery({
@@ -632,9 +679,6 @@ export default function AppAdminPortalPage() {
       showToast(err.message || "Failed to delete coupon.", "error");
     },
   });
-
-  // ── External Refund Order State ──────────────────────────────────────────
-  const [externalRefundOrder, setExternalRefundOrder] = useState<any | null>(null);
 
   // ── 14. Verify TeraWallet Mutation ─────────────────────────────────────────
   const verifyTeraWalletMutation = useMutation({
@@ -1694,6 +1738,19 @@ export default function AppAdminPortalPage() {
                     {rawCategories.length}
                   </span>
                 )}
+              </button>
+
+              <button
+                onClick={() => setActiveTab("traffic")}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition font-bold text-[13px] ${activeTab === "traffic"
+                  ? "bg-[var(--mav-side-pill)] text-[var(--mav-on-side-pill)]"
+                  : "text-[var(--mav-on-side)] hover:bg-[var(--mav-side-hover)]"
+                  }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Activity className="w-4 h-4 opacity-80" />
+                  <span>Traffic</span>
+                </div>
               </button>
             </div>
           </div>
@@ -3969,6 +4026,18 @@ export default function AppAdminPortalPage() {
         )}
 
         {/* ──────────────────────────────────────────────────────────────────── */}
+        {/* VIEW 8: TRAFFIC ANALYTICS (GROW SECTION)                            */}
+        {/* ──────────────────────────────────────────────────────────────────── */}
+        {activeTab === "traffic" && (
+          <TrafficView
+            ulid={ulid}
+            storeUrl={storeUrl}
+            appName={storeName}
+            showToast={showToast}
+          />
+        )}
+
+        {/* ──────────────────────────────────────────────────────────────────── */}
         {/* VIEW 8: STORE SYNC                                                   */}
         {/* ──────────────────────────────────────────────────────────────────── */}
         {activeTab === "sync" && (
@@ -4445,7 +4514,11 @@ export default function AppAdminPortalPage() {
                     {selectedPeriod.orders.map((o: any, oIdx: number) => (
                       <div
                         key={o.id || oIdx}
-                        onClick={() => setSelectedOrder(o.rawOrder || o)}
+                        onClick={() => {
+                          const targetOrder = o.rawOrder || o;
+                          setSelectedPeriod(null);
+                          setSelectedOrder(targetOrder);
+                        }}
                         className="p-3 rounded-2xl hover:bg-[#faf8f4] border border-[#f0eee8] hover:border-[#ded8ce] transition cursor-pointer flex items-center justify-between gap-3 group"
                         title="Click to view full order details"
                       >
@@ -4866,10 +4939,14 @@ export default function AppAdminPortalPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setExternalRefundOrder(selectedOrder);
+                      const orderToRefund = { ...selectedOrder };
+                      // 1. Close Order Details popup so it is not active underneath (Change 1)
+                      setSelectedOrder(null);
+                      // 2. Open Refund interface as active foreground interface with preserved order details
+                      setExternalRefundOrder(orderToRefund);
                       setActiveTab("orders");
                     }}
-                    className="py-3 px-3 rounded-2xl bg-white dark:bg-[#1e221b] border border-[#ded8ce] dark:border-[var(--mav-line)] hover:bg-[#eff5fc] dark:hover:bg-[#152438] text-[#2563EB] dark:text-[#60a5fa] font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-xs"
+                    className="py-3 px-3 rounded-2xl bg-white dark:bg-[#1e221b] border border-[#ded8ce] dark:border-[var(--mav-line)] hover:bg-[#eff5fc] dark:hover:bg-[#152438] text-[#2563EB] dark:text-[#60a5fa] font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition shadow-xs cursor-pointer"
                     title="Issue TeraWallet Store Credit Refund"
                   >
                     <Wallet className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#60a5fa] flex-shrink-0" />

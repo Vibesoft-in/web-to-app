@@ -560,6 +560,12 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::delete('/apps/{ulid}/admin-portal/coupons/{couponId}', [\App\Http\Controllers\Api\AppController::class, 'deleteCoupon'])
         ->name('api.apps.admin-portal.coupons.delete');
 
+    Route::get('/apps/{ulid}/admin-portal/site-kit-status', [\App\Http\Controllers\Api\AppController::class, 'getSiteKitStatus'])
+        ->name('api.apps.admin-portal.site-kit-status');
+
+    Route::post('/apps/{ulid}/admin-portal/site-kit-verify', [\App\Http\Controllers\Api\AppController::class, 'verifySiteKit'])
+        ->name('api.apps.admin-portal.site-kit-verify');
+
     Route::delete('/apps/{ulid}/admin-portal/products/{productId}', [\App\Http\Controllers\Api\AppController::class, 'deleteProduct'])
         ->name('api.apps.admin-portal.products.delete');
 
@@ -892,6 +898,12 @@ Route::get('/apps/{ulid}/admin-portal/terawallet-status', [\App\Http\Controllers
 
 Route::post('/apps/{ulid}/admin-portal/terawallet-verify', [\App\Http\Controllers\Api\AppController::class, 'verifyTeraWallet'])
     ->name('api.apps.admin-portal.terawallet-verify.direct');
+
+Route::get('/apps/{ulid}/admin-portal/site-kit-status', [\App\Http\Controllers\Api\AppController::class, 'getSiteKitStatus'])
+    ->name('api.apps.admin-portal.site-kit-status.direct');
+
+Route::post('/apps/{ulid}/admin-portal/site-kit-verify', [\App\Http\Controllers\Api\AppController::class, 'verifySiteKit'])
+    ->name('api.apps.admin-portal.site-kit-verify.direct');
 
 Route::post('/apps/{ulid}/admin-portal/refunds', [\App\Http\Controllers\Api\AppController::class, 'processRefund'])
     ->name('api.apps.admin-portal.refunds.direct');

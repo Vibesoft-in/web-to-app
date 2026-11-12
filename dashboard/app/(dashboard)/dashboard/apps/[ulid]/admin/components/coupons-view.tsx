@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Ticket,
   Plus,
@@ -99,6 +99,30 @@ export function CouponsView({
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | number | null>(null);
+
+  // Global Escape key handler for coupon modals (Change 2)
+  useEffect(() => {
+    if (!isCreateModalOpen && !deleteConfirmId) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (deleteConfirmId) setDeleteConfirmId(null);
+        else if (isCreateModalOpen) setIsCreateModalOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isCreateModalOpen, deleteConfirmId]);
+
+  // Background scroll locking when coupon modal is open (Change 2)
+  useEffect(() => {
+    if (isCreateModalOpen || deleteConfirmId) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isCreateModalOpen, deleteConfirmId]);
 
   // Modal active tab: matches WooCommerce coupon panels (General | Usage restriction | Usage limits)
   const [activeModalTab, setActiveModalTab] = useState<"general" | "usage_restriction" | "usage_limits">("general");
@@ -558,8 +582,14 @@ export function CouponsView({
 
       {/* ── Create Coupon Modal (Matches WooCommerce coupon fields) ─────── */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="w-full max-w-2xl rounded-3xl bg-[var(--mav-surface)] border border-[var(--mav-line)] shadow-2xl p-6 sm:p-7 space-y-5 animate-in fade-in zoom-in-95 duration-150 my-8 max-h-[90vh] overflow-y-auto">
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto"
+          onClick={() => setIsCreateModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-3xl bg-[var(--mav-surface)] border border-[var(--mav-line)] shadow-2xl p-6 sm:p-7 space-y-5 animate-in fade-in zoom-in-95 duration-150 my-8 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Title */}
             <div className="flex items-center justify-between pb-3 border-b border-[var(--mav-line)]">
               <div className="flex items-center gap-2.5">

@@ -3640,7 +3640,7 @@ export function AppDetailsView({
                         Push Notifications Campaign Engine Locked
                       </h3>
                       <p className="text-xs text-[#7E756B] mt-1.5 leading-relaxed max-w-md mx-auto">
-                        This feature is included in the <strong>Premium Plan</strong>. If you are on the Starter plan, you can upgrade your plan or purchase this feature solely as a standalone lifetime add-on.
+                        Purchase this feature as a standalone lifetime add-on to unlock unlimited push notifications and campaign broadcasting for this application.
                       </p>
                     </div>
                     <div className="pt-2">
@@ -3665,7 +3665,7 @@ export function AppDetailsView({
                         className="w-full sm:w-auto px-6 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >
                         <Sparkles className="w-4 h-4" />
-                        <span>{isProcessingCheckout ? "Opening..." : "Buy"}</span>
+                        <span>{isProcessingCheckout ? "Opening Checkout..." : "Buy Solely (₹999 Lifetime)"}</span>
                       </button>
                     </div>
                   </div>
@@ -3870,7 +3870,7 @@ export function AppDetailsView({
                         Branded Email Configuration Module Locked
                       </h3>
                       <p className="text-xs text-[#7E756B] mt-1.5 leading-relaxed max-w-md mx-auto">
-                        This feature is included in the <strong>Premium Plan</strong>. If you are on the Starter plan, you can upgrade your plan or purchase this feature solely as a standalone lifetime add-on.
+                        Purchase this feature as a standalone lifetime add-on to configure custom transactional SMTP routing for this application.
                       </p>
                     </div>
                     <div className="pt-2">
@@ -3895,7 +3895,7 @@ export function AppDetailsView({
                         className="w-full sm:w-auto px-6 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >
                         <Sparkles className="w-4 h-4" />
-                        <span>{isProcessingCheckout ? "Opening..." : "Buy"}</span>
+                        <span>{isProcessingCheckout ? "Opening Checkout..." : "Buy Solely (₹999 Lifetime)"}</span>
                       </button>
                     </div>
                   </div>
@@ -4103,7 +4103,7 @@ export function AppDetailsView({
                         WhatsApp Automated Order Sync &amp; Chat Locked
                       </h3>
                       <p className="text-xs text-[#7E756B] mt-1.5 leading-relaxed max-w-md mx-auto">
-                        This feature is included in the <strong>Premium Plan</strong>. If you are on the Starter plan, you can upgrade your plan or purchase this feature solely as a standalone lifetime add-on.
+                        Purchase this feature as a standalone lifetime add-on to enable automated WhatsApp order sync and live customer chat for this application.
                       </p>
                     </div>
                     <div className="pt-2">
@@ -4128,7 +4128,7 @@ export function AppDetailsView({
                         className="w-full sm:w-auto px-6 py-2.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                       >
                         <Sparkles className="w-4 h-4" />
-                        <span>{isProcessingCheckout ? "Opening..." : "Buy"}</span>
+                        <span>{isProcessingCheckout ? "Opening Checkout..." : "Buy Solely (₹999 Lifetime)"}</span>
                       </button>
                     </div>
                   </div>
