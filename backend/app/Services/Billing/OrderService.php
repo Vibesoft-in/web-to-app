@@ -145,16 +145,35 @@ class OrderService
             $appUlid = $app?->ulid;
         }
 
-        // If purchasing an add-on, guard against duplicate purchases for this app
+        // Enforce customer ownership of target app
+        if ($app && $user->tenant_id && $app->tenant_id !== $user->tenant_id && ! $user->isSuperAdmin()) {
+            throw new \Illuminate\Auth\Access\AuthorizationException("Unauthorized: You do not own the application '{$app->name}'.");
+        }
+
+        // If purchasing an add-on, guard against duplicate purchases & plan inclusions for this app
         if ($type === 'addon' && $app) {
             $existingAddonIds = $app->getPurchasedAddonIds();
             $existingAddonSlugs = $app->getPurchasedAddonSlugs();
+            $activePlan = $app->getActivePlan();
+            $planSlug = strtolower($activePlan?->slug ?? $activePlan?->name ?? '');
+            $isEnterprise = str_contains($planSlug, 'enterprise') || ($activePlan?->id === 3);
+            $isPremium = str_contains($planSlug, 'pro') || str_contains($planSlug, 'premium') || ($activePlan?->id === 2);
+
             foreach ($addonIds as $aId) {
                 $alreadyAddon = AddOn::find($aId);
-                $slug = $alreadyAddon?->slug ?? '';
+                $slug = strtolower($alreadyAddon?->slug ?? '');
+                $name = $alreadyAddon?->name ?? "Add-on #{$aId}";
+
                 if (in_array($aId, $existingAddonIds, true) || ($slug && in_array($slug, $existingAddonSlugs, true))) {
-                    $name = $alreadyAddon?->name ?? "Add-on #{$aId}";
                     throw new \InvalidArgumentException("{$app->name} already contains this add-on ({$name}).");
+                }
+
+                if ($isEnterprise) {
+                    throw new \InvalidArgumentException("{$app->name} is on the Enterprise Suite plan which already includes {$name}.");
+                }
+
+                if ($isPremium && (str_contains($slug, 'play_store') || str_contains($slug, 'admin_panel') || str_contains($slug, 'push_notifications') || str_contains($slug, 'white_label'))) {
+                    throw new \InvalidArgumentException("{$app->name} is on the Pro Combo plan which already includes {$name}.");
                 }
             }
         }

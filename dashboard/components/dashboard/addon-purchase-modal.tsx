@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   ShieldCheck,
   CreditCard,
+  Clock,
+  Info,
   Loader2,
   AlertCircle,
   ExternalLink,
@@ -150,6 +152,29 @@ export function AddonPurchaseModal({
 
     if (hasPaidOrder) {
       return { status: "active", label: "Active & Licensed", reason: "Official invoice verified. Add-on is permanently active." };
+    }
+
+    // 4. Cross-reference pending orders
+    const hasPendingOrder = myOrders?.some((order: any) => {
+      if (order.status !== "pending" && order.status !== "pending_payment" && order.status !== "created") return false;
+      const isSameApp =
+        (order.app_id && String(order.app_id) === String(targetApp.id)) ||
+        (order.app_ulid && order.app_ulid === targetApp.ulid);
+      if (!isSameApp) return false;
+
+      return order.items?.some((item: any) => {
+        const itemSlug = (item.slug || item.meta?.slug || "").toLowerCase();
+        const itemName = (item.name || "").toLowerCase();
+        const hasIdMatch = Boolean(addon.id && item.item_id && String(item.item_id) === String(addon.id));
+        const hasSlugMatch = Boolean(
+          addonSlug && (itemSlug === addonSlug || itemSlug.includes(addonSlug) || itemName.includes(addonSlug))
+        );
+        return hasIdMatch || hasSlugMatch;
+      });
+    });
+
+    if (hasPendingOrder) {
+      return { status: "pending", label: "Payment Pending", reason: "An order for this add-on is currently pending payment verification." };
     }
 
     return { status: "available", label: "Available to License", reason: "" };
@@ -376,18 +401,27 @@ export function AddonPurchaseModal({
                             </div>
                           </div>
 
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                               <h3 className="text-xs sm:text-sm font-black text-[#1C1917] truncate">
                                 {appItem.name}
                               </h3>
                               <span className="text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider bg-[#EFEAE2] text-[#78593D]">
                                 {appItem.platform === "woo" ? "WooCommerce" : appItem.platform === "shopify" ? "Shopify" : "Web"}
                               </span>
+                              <span className="text-[9.5px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
+                                {appItem.active_plan?.name || "Starter App"}
+                              </span>
                             </div>
                             <span className="text-[10px] text-[#7E756B] block truncate mt-0.5 font-mono">
-                              {appItem.website_url || appItem.site_url || appItem.package_name || "Configured Store"}
+                              {appItem.connection?.store_url || appItem.website_url || appItem.site_url || appItem.package_name || "https://yourstore.com"}
                             </span>
+                            {!isAvailable && entitlement.reason && (
+                              <p className="text-[10px] text-amber-800 font-semibold mt-1 leading-tight flex items-center gap-1">
+                                <Info className="w-3 h-3 text-amber-700 flex-shrink-0" />
+                                <span>{entitlement.reason}</span>
+                              </p>
+                            )}
                           </div>
                         </div>
 
@@ -402,6 +436,11 @@ export function AddonPurchaseModal({
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
                               <Sparkles className="w-3 h-3 text-indigo-600" />
                               <span>Included in Plan</span>
+                            </span>
+                          ) : entitlement.status === "pending" ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>Pending</span>
                             </span>
                           ) : (
                             <button

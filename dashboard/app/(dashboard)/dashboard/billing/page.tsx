@@ -34,12 +34,8 @@ import { apiClient } from "@/lib/api-client";
 import { openRazorpayModal, withSinglePaymentLock } from "@/lib/razorpay";
 
 export default function BillingPage() {
-  const isSwitchingPlanRef = useRef(false);
-  const [switchingPlanId, setSwitchingPlanId] = useState<number | null>(null);
-  const [switchMessage, setSwitchMessage] = useState<string | null>(null);
   const [resendingOrderId, setResendingOrderId] = useState<number | null>(null);
   const [invoiceNotice, setInvoiceNotice] = useState<string | null>(null);
-  const [isYearly, setIsYearly] = useState(false);
   const [selectedAppUlid, setSelectedAppUlid] = useState<string>("");
 
   // Filter & Search states
@@ -111,100 +107,6 @@ export default function BillingPage() {
     id: 1,
     name: "Starter App",
     price_monthly: 499900,
-  };
-
-  const plans = billingData?.plans || [
-    {
-      id: 1,
-      name: "Starter App",
-      price_monthly: 499900,
-      features: { wishlist: true, otp_login: true, notifications: true },
-      limits: { builds_per_month: 3, max_apps: 1 },
-    },
-    {
-      id: 2,
-      name: "Pro Combo",
-      price_monthly: 899900,
-      features: { wishlist: true, otp_login: true, notifications: true, reviews: true, whatsapp: true },
-      limits: { builds_per_month: 10, max_apps: 3 },
-    },
-    {
-      id: 3,
-      name: "Enterprise Suite",
-      price_monthly: 1499900,
-      features: { wishlist: true, otp_login: true, notifications: true, reviews: true, whatsapp: true },
-      limits: { builds_per_month: 50, max_apps: 10 },
-    },
-  ];
-
-  const handleSwitchPlan = async (planId: number, planName: string) => {
-    if (activeSub?.app?.ulid) {
-      if (isSwitchingPlanRef.current || switchingPlanId !== null) return;
-      isSwitchingPlanRef.current = true;
-      setSwitchingPlanId(planId);
-      setSwitchMessage(null);
-
-      await withSinglePaymentLock(async () => {
-        try {
-          const billingPeriod = isYearly ? "annual" : "one_time";
-
-          const orderRes = await apiClient(`/api/apps/${activeSub.app.ulid}/payment/create-order`, {
-            method: "POST",
-            body: JSON.stringify({
-              plan_id: planId,
-              billing_period: billingPeriod,
-            }),
-          });
-
-          if (orderRes?.success && orderRes?.order) {
-            const orderData = orderRes.order;
-
-            const paymentResponse = await openRazorpayModal({
-              orderId: orderData.order_id,
-              amount: orderData.amount,
-              currency: orderData.currency || "INR",
-              keyId: orderData.key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_SnbtbVtFnRIrAI",
-              name: "WebIntoApp",
-              description: `${planName} Subscription Upgrade`,
-              prefill: orderRes.prefill,
-              themeColor: "#78593D",
-            });
-
-            await apiClient(`/api/apps/${activeSub.app.ulid}/payment/verify`, {
-              method: "POST",
-              body: JSON.stringify({
-                order_id: paymentResponse.razorpay_order_id,
-                razorpay_order_id: paymentResponse.razorpay_order_id,
-                razorpay_payment_id: paymentResponse.razorpay_payment_id,
-                razorpay_signature: paymentResponse.razorpay_signature,
-                plan_id: planId,
-                billing_period: billingPeriod,
-              }),
-            });
-
-            setSwitchMessage(`Successfully upgraded to ${planName}! (Transaction ID: ${paymentResponse.razorpay_payment_id})`);
-          } else {
-            await apiClient(`/api/apps/${activeSub.app.ulid}/subscribe`, {
-              method: "POST",
-              body: JSON.stringify({ plan_id: planId, billing_period: billingPeriod }),
-            });
-            setSwitchMessage(`Successfully switched plan to ${planName}!`);
-          }
-
-          await refetch();
-          await refetchOrders();
-        } catch (err: any) {
-          if (err.message === "PAYMENT_CANCELLED") {
-            setSwitchMessage("Upgrade cancelled. Your current plan remains active.");
-          } else if (err.message !== "PAYMENT_ALREADY_IN_PROGRESS") {
-            setSwitchMessage(err.message || "Failed to switch plan.");
-          }
-        } finally {
-          isSwitchingPlanRef.current = false;
-          setSwitchingPlanId(null);
-        }
-      });
-    }
   };
 
   // Financial Metrics Calculation
@@ -333,7 +235,7 @@ export default function BillingPage() {
             Billing &amp; Invoices
           </h1>
           <p className="text-xs sm:text-sm text-[#7E756B] mt-1 max-w-2xl leading-relaxed">
-            Manage your mobile app subscription tiers, inspect official GST tax invoices, and review verified transaction records.
+            Inspect official GST tax invoices, review verified transaction records, and download payment receipts.
           </p>
         </div>
 
@@ -519,19 +421,6 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* Switch Message Notice */}
-      {switchMessage && (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center justify-between shadow-xs">
-          <span>{switchMessage}</span>
-          <button
-            type="button"
-            onClick={() => setSwitchMessage(null)}
-            className="p-1 hover:opacity-70 text-emerald-800"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
 
       {/* Invoice Dispatched Notice */}
       {invoiceNotice && (
@@ -809,168 +698,7 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* ── 5. PLAN SUBSCRIPTION & UPGRADE SECTION ── */}
-      <div className="bg-white border border-[#EBE6DF] rounded-3xl p-5 sm:p-7 shadow-sm space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#EBE6DF] gap-3">
-          <div>
-            <h3 className="font-black text-lg text-[#1C1917] tracking-tight">
-              Subscription Tiers &amp; Upgrades
-            </h3>
-            <p className="text-xs text-[#7E756B] mt-0.5">
-              Switch plans to unlock iOS builds, White Labeling, Priority Support, and Enterprise integrations.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 self-start sm:self-auto bg-[#FAF7F2] p-1 rounded-xl border border-[#EBE6DF]">
-            <button
-              type="button"
-              onClick={() => setIsYearly(false)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                !isYearly ? "bg-white text-[#1C1917] shadow-2xs" : "text-[#7E756B]"
-              }`}
-            >
-              Lifetime One-Time
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsYearly(true)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                isYearly ? "bg-white text-[#1C1917] shadow-2xs" : "text-[#7E756B]"
-              }`}
-            >
-              Annual Billing
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {plans.map((p: any) => {
-            const isCurrent = currentPlan.id === p.id;
-            const price = Math.round((p.price_monthly || 499900) / 100);
-
-            return (
-              <div
-                key={p.id}
-                className={`p-5 rounded-2xl border transition flex flex-col justify-between ${
-                  isCurrent
-                    ? "bg-[#FAF7F2] border-[#78593D] ring-2 ring-[#78593D]/20 shadow-xs"
-                    : "bg-white border-[#EBE6DF] hover:border-[#78593D]/30 shadow-2xs"
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-sm font-black text-[#1C1917]">{p.name}</h4>
-                    {isCurrent && (
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800">
-                        Active Tier
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-baseline gap-1 my-3">
-                    <span className="text-2xl font-black text-[#78593D]">
-                      ₹{price.toLocaleString("en-IN")}
-                    </span>
-                    <span className="text-[10px] text-[#7E756B]">/ lifetime</span>
-                  </div>
-
-                  <div className="space-y-2 text-xs text-[#57514B] pt-3 border-t border-[#EBE6DF]">
-                    {p.id === 1 ? (
-                      <>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>Android APK &amp; Web App Converter</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>Standard Mobile UI Theme</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>Basic Push Notifications</span>
-                        </div>
-                      </>
-                    ) : p.id === 2 ? (
-                      <>
-                        <div className="flex items-center gap-2 font-bold text-[#1C1917]">
-                          <Check className="w-3.5 h-3.5 text-[#78593D] flex-shrink-0" />
-                          <span>Both Android &amp; iOS Apps</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>All Curated Premium Themes</span>
-                        </div>
-                        <div className="flex items-center gap-2 font-bold text-[#1C1917]">
-                          <Check className="w-3.5 h-3.5 text-[#78593D] flex-shrink-0" />
-                          <span>Dedicated Admin Panel Included</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>WhatsApp &amp; Live Chat Support</span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-2 font-bold text-[#1C1917]">
-                          <Check className="w-3.5 h-3.5 text-[#78593D] flex-shrink-0" />
-                          <span>Complete Android &amp; iOS Suite</span>
-                        </div>
-                        <div className="flex items-center gap-2 font-bold text-[#1C1917]">
-                          <Check className="w-3.5 h-3.5 text-[#78593D] flex-shrink-0" />
-                          <span>All Premium Add-ons Included</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>Priority App Store Publishing</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>Custom ERP &amp; API Integration</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={isCurrent || switchingPlanId !== null}
-                  onClick={() => handleSwitchPlan(p.id, p.name)}
-                  className={`mt-5 w-full py-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer ${
-                    isCurrent
-                      ? "bg-[#EFEAE2] text-[#78593D] cursor-default font-black"
-                      : switchingPlanId !== null
-                      ? "bg-[#78593D]/50 text-white cursor-not-allowed"
-                      : "bg-[#78593D] hover:bg-[#634932] text-white shadow-xs"
-                  }`}
-                >
-                  {switchingPlanId === p.id ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Switching...</span>
-                    </>
-                  ) : isCurrent ? (
-                    "Active Tier"
-                  ) : (
-                    <span>Upgrade to {p.name}</span>
-                  )}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── 6. SECURE PAYMENT GATEWAY NOTICE ── */}
-      <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] text-xs text-[#7E756B] flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-          <span>All payments are encrypted and securely processed via Razorpay. PCI-DSS Level 1 Compliant.</span>
-        </div>
-        <span className="font-mono text-[11px] text-[#A8A199]">Instant Licensing Engine</span>
-      </div>
-
-      {/* ── 7. INVOICE PREVIEW MODAL ── */}
+      {/* ── INVOICE PREVIEW MODAL ── */}
       {previewInvoiceOrder && (
         <div
           className="fixed inset-0 z-[99999] w-screen h-screen bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
