@@ -16,25 +16,44 @@ import {
 } from "lucide-react";
 import { STANDARDIZED_ADDONS } from "@/lib/addons-data";
 import { AddonDetail, AddonLearnMoreModal } from "@/components/addons/addon-learn-more-modal";
+import { AddonPurchaseModal } from "@/components/dashboard/addon-purchase-modal";
 
 export default function AddonsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "available" | "active">("all");
   const [selectedLearnMoreAddon, setSelectedLearnMoreAddon] = useState<AddonDetail | null>(null);
+  const [selectedPurchaseAddon, setSelectedPurchaseAddon] = useState<any | null>(null);
   const [purchasingAddonId, setPurchasingAddonId] = useState<string | number | null>(null);
   const [activatedAddonIds, setActivatedAddonIds] = useState<(string | number)[]>([]);
   const [expandedAddonId, setExpandedAddonId] = useState<string | number | null>(null);
+
+  const { data: userData } = useQuery({
+    queryKey: ["auth-me"],
+    queryFn: () => apiClient("/api/auth/me"),
+  });
 
   const { data: billingData } = useQuery({
     queryKey: ["billing-data"],
     queryFn: () => apiClient("/api/billing"),
   });
 
-  const { data: appsData } = useQuery({
+  const { data: appsData, refetch: refetchApps } = useQuery({
     queryKey: ["apps"],
     queryFn: async () => {
       try {
         const res = await apiClient("/api/apps");
         return Array.isArray(res) ? res : res.apps || [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const { data: ordersData, refetch: refetchOrders } = useQuery({
+    queryKey: ["orders", "my-orders"],
+    queryFn: async () => {
+      try {
+        const res = await apiClient("/api/orders/my-orders");
+        return res?.orders || [];
       } catch {
         return [];
       }
@@ -108,13 +127,27 @@ export default function AddonsPage() {
     return resolvedAddons;
   }, [resolvedAddons, statusFilter]);
 
-  const handleBuyAddon = (addon: AddonDetail) => {
+  const handleBuyAddon = (addon: AddonDetail | any) => {
     if (addon.isActive) return;
-    setPurchasingAddonId(addon.id);
-    setTimeout(() => {
-      setActivatedAddonIds((prev) => [...prev, addon.id]);
-      setPurchasingAddonId(null);
-    }, 800);
+    const priceNum =
+      typeof addon.price === "number"
+        ? addon.price
+        : addon.id === "theme_bundle"
+        ? 149900
+        : addon.id === "dedicated_manager"
+        ? 299900
+        : 99900;
+
+    setSelectedPurchaseAddon({
+      id: addon.id,
+      slug: addon.id || addon.slug,
+      name: addon.name,
+      price: priceNum,
+      description: addon.description,
+      features: addon.features,
+      category: addon.category,
+      badge: addon.badge,
+    });
   };
 
   return (
@@ -302,7 +335,26 @@ export default function AddonsPage() {
         isOpen={Boolean(selectedLearnMoreAddon)}
         onClose={() => setSelectedLearnMoreAddon(null)}
         addon={selectedLearnMoreAddon}
-        onSelectOrBuy={handleBuyAddon}
+        onSelectOrBuy={(addon) => {
+          setSelectedLearnMoreAddon(null);
+          handleBuyAddon(addon);
+        }}
+      />
+
+      {/* ── MODAL: APPLICATION SELECTION & PURCHASE POPUP (Change 2) ── */}
+      <AddonPurchaseModal
+        isOpen={Boolean(selectedPurchaseAddon)}
+        onClose={() => setSelectedPurchaseAddon(null)}
+        addon={selectedPurchaseAddon}
+        apps={appsData || []}
+        myOrders={ordersData || []}
+        user={userData?.user || userData}
+        preselectedAppId={activeApp?.id || activeApp?.ulid || null}
+        onSuccess={async (targetApp, addon) => {
+          setActivatedAddonIds((prev) => [...prev, addon.id]);
+          await refetchApps();
+          await refetchOrders();
+        }}
       />
     </div>
   );

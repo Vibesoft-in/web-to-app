@@ -9,6 +9,7 @@ import { apiClient } from "@/lib/api-client";
 import { openRazorpayModal, withSinglePaymentLock } from "@/lib/razorpay";
 import { AppDetailsView } from "@/components/dashboard/app-details-view";
 import { DeleteAppModal } from "@/components/dashboard/delete-app-modal";
+import { AddonPurchaseModal } from "@/components/dashboard/addon-purchase-modal";
 import {
   AlertCircle,
   ArrowLeft,
@@ -169,7 +170,6 @@ function UserDashboardContent() {
   const [claimingFeatureKey, setClaimingFeatureKey] = useState<string | null>(null);
   const [claimedSuccessNotice, setClaimedSuccessNotice] = useState<{ appName: string; featureTitle: string } | null>(null);
   const [featureTabFilter, setFeatureTabFilter] = useState<Record<string, "unclaimed" | "claimed" | "all">>({});
-  const [appFilterTab, setAppFilterTab] = useState<"all" | "active" | "drafts">("all");
 
   // Upgrade Modal State
   const [upgradeTargetPkg, setUpgradeTargetPkg] = useState<any | null>(null);
@@ -1802,74 +1802,16 @@ function UserDashboardContent() {
             </div>
           )}
 
-          {/* Applications Filter Toolbar */}
+          {/* Applications Header (Tabs Removed for Clean Direct Listing) */}
           {apps && apps.length > 0 && (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAppFilterTab("all")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                    appFilterTab === "all"
-                      ? "bg-[#78593D] text-white shadow-xs"
-                      : "bg-white text-[#57514B] border border-[#EBE6DF] hover:bg-[#F7F5F0]"
-                  }`}
-                >
-                  <span>All Applications</span>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                      appFilterTab === "all"
-                        ? "bg-white/20 text-white"
-                        : "bg-[#EFEAE2] text-[#78593D]"
-                    }`}
-                  >
-                    {apps.length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAppFilterTab("active")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                    appFilterTab === "active"
-                      ? "bg-emerald-700 text-white shadow-xs"
-                      : "bg-white text-[#57514B] border border-[#EBE6DF] hover:bg-[#F7F5F0]"
-                  }`}
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Active &amp; Built</span>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                      appFilterTab === "active"
-                        ? "bg-white/20 text-white"
-                        : "bg-emerald-50 text-emerald-800"
-                    }`}
-                  >
-                    {apps.filter((a: any) => !isAppDraft(a)).length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAppFilterTab("drafts")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                    appFilterTab === "drafts"
-                      ? "bg-amber-600 text-white shadow-xs"
-                      : "bg-white text-[#57514B] border border-[#EBE6DF] hover:bg-[#F7F5F0]"
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5 text-amber-200" />
-                  <span>Drafts (Incomplete)</span>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                      appFilterTab === "drafts"
-                        ? "bg-white/20 text-white"
-                        : "bg-amber-100 text-amber-900"
-                    }`}
-                  >
-                    {apps.filter((a: any) => isAppDraft(a)).length}
-                  </span>
-                </button>
+              <div>
+                <h2 className="text-base sm:text-lg font-black text-[#1C1917] tracking-tight">
+                  Your Applications
+                </h2>
+                <p className="text-xs text-[#7E756B]">
+                  Manage, configure, and monitor all your mobile applications ({apps.length} {apps.length === 1 ? "app" : "apps"})
+                </p>
               </div>
 
               <Link
@@ -1953,38 +1895,7 @@ function UserDashboardContent() {
 
           {apps && apps.length > 0 ? (
             (() => {
-              const displayedApps = apps.filter((appItem: any) => {
-                if (appFilterTab === "drafts") return isAppDraft(appItem);
-                if (appFilterTab === "active") return !isAppDraft(appItem);
-                return true;
-              });
-
-              if (displayedApps.length === 0) {
-                return (
-                  <div className="bg-white border border-[#EBE6DF] rounded-3xl p-12 text-center space-y-4">
-                    <div className="w-14 h-14 rounded-2xl bg-[#F7F5F0] text-[#78593D] mx-auto flex items-center justify-center">
-                      <Clock className="w-7 h-7 text-amber-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-black text-[#1C1917]">
-                        No {appFilterTab === "drafts" ? "Draft" : "Active"} Applications Found
-                      </h3>
-                      <p className="text-xs text-[#7E756B] mt-1 max-w-md mx-auto">
-                        {appFilterTab === "drafts"
-                          ? "You don't have any in-progress drafts. All your apps are fully configured!"
-                          : "You don't have any completed apps yet. Continue setting up your draft app to build your first APK."}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setAppFilterTab("all")}
-                      className="px-4 py-2 bg-[#78593D] text-white rounded-xl text-xs font-bold transition hover:bg-[#634932] cursor-pointer"
-                    >
-                      View All Applications
-                    </button>
-                  </div>
-                );
-              }
+              const displayedApps = apps;
 
               if (viewMode === "grid") {
                 return (
@@ -3202,284 +3113,23 @@ function UserDashboardContent() {
         return mounted ? createPortal(upgradeMarkup, document.body) : upgradeMarkup;
       })()}
 
-      {/* ── ADD-ON PURCHASE MODAL (PREMIUM FIXED MODAL) ── */}
-      {selectedAddon && (() => {
-        const isPlayStore =
-          selectedAddon.slug?.includes("play_store") ||
-          selectedAddon.badge?.toLowerCase().includes("play store") ||
-          selectedAddon.name?.toLowerCase().includes("play store");
-        const isAdminPanel =
-          selectedAddon.slug?.includes("admin_panel") ||
-          selectedAddon.badge?.toLowerCase().includes("admin panel") ||
-          selectedAddon.name?.toLowerCase().includes("admin panel");
-        const isWhatsApp =
-          selectedAddon.slug?.includes("whatsapp") ||
-          selectedAddon.name?.toLowerCase().includes("whatsapp");
-        const isAnalytics =
-          selectedAddon.slug?.includes("analytics") ||
-          selectedAddon.name?.toLowerCase().includes("analytics");
-
-        const modalAppId = selectedAddonAppId || selectedAppByAddon[selectedAddon.id] || "";
-        const modalTargetApp = apps?.find((a: any) => String(a.id) === String(modalAppId)) || null;
-        const isModalAppActive = modalTargetApp ? appHasAddon(modalTargetApp, selectedAddon) : false;
-
-        const modalMarkup = (
-          <div
-            className="fixed inset-0 z-[99999] w-screen h-screen bg-black/75 backdrop-blur-md flex items-center justify-center p-4 overflow-hidden"
-            style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999 }}
-            onClick={(e) => {
-              if (e.target === e.currentTarget) setSelectedAddon(null);
-            }}
-          >
-            <div
-              className="bg-white rounded-[32px] max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[#EBE6DF] animate-in fade-in zoom-in-95 relative overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="flex items-start justify-between gap-3 border-b border-[#EBE6DF] pb-3.5 mb-3.5">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 border shadow-xs ${
-                      isModalAppActive
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : isAdminPanel
-                        ? "bg-amber-50 text-amber-900 border-amber-200"
-                        : isPlayStore
-                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                        : "bg-[#78593D]/10 text-[#78593D] border-[#78593D]/20"
-                    }`}
-                  >
-                    {isAdminPanel ? (
-                      <LayoutDashboard className="w-5 h-5" />
-                    ) : isPlayStore ? (
-                      <Rocket className="w-5 h-5" />
-                    ) : isWhatsApp ? (
-                      <MessageSquare className="w-5 h-5" />
-                    ) : isAnalytics ? (
-                      <Layers className="w-5 h-5" />
-                    ) : (
-                      <Sparkles className="w-5 h-5" />
-                    )}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/20">
-                        {isModalAppActive && modalTargetApp
-                          ? `Active on ${modalTargetApp.name}`
-                          : selectedAddon.badge || (isAdminPanel ? "Admin Panel" : isPlayStore ? "Play Store Build" : "Add-on Module")}
-                      </span>
-                      <span className="text-[10px] font-semibold text-[#7E756B]">
-                        Lifetime License
-                      </span>
-                    </div>
-                    <h3 className="font-black text-base sm:text-lg text-[#1C1917] tracking-tight mt-0.5">
-                      {selectedAddon.name}
-                    </h3>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedAddon(null)}
-                  className="w-8 h-8 rounded-full bg-[#F7F5F0] hover:bg-[#EBE6DF] text-[#7E756B] hover:text-[#1C1917] transition flex items-center justify-center font-bold text-base cursor-pointer flex-shrink-0"
-                  aria-label="Close modal"
-                >
-                  &times;
-                </button>
-              </div>
-
-              {/* Description */}
-              <p className="text-xs text-[#57514B] leading-relaxed mb-3">
-                {selectedAddon.description}
-              </p>
-
-              {/* Feature Highlights Grid */}
-              {Array.isArray(selectedAddon.features) && selectedAddon.features.length > 0 && (
-                <div className="mb-3.5 p-3 rounded-2xl bg-[#FDFCFB] border border-[#EBE6DF] grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                  {selectedAddon.features.map((feat: string, idx: number) => (
-                    <div key={idx} className="flex items-center gap-2 text-xs text-[#1C1917] font-medium">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                      <span className="truncate">{feat}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Target Application Selection */}
-              {apps && apps.length > 0 && (
-                <div className="mb-3.5 p-3 rounded-2xl bg-[#F7F5F0] border border-[#EBE6DF] space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="modal-app-select" className="text-[10px] font-black uppercase tracking-wider text-[#78593D] block">
-                      Target Application:
-                    </label>
-                    {isModalAppActive && modalTargetApp ? (
-                      <span className="text-[9px] font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <Check className="w-3 h-3 text-emerald-600" />
-                        Active on {modalTargetApp.name}
-                      </span>
-                    ) : modalTargetApp ? (
-                      <span className="text-[10px] font-bold text-emerald-700">
-                        Selected: {modalTargetApp.name}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-amber-700">
-                        Choose App Below
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <select
-                      id="modal-app-select"
-                      value={modalTargetApp?.id || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSelectedAddonAppId(val || null);
-                        if (selectedAddon?.id) {
-                          setSelectedAppByAddon((prev) => ({
-                            ...prev,
-                            [selectedAddon.id]: val,
-                          }));
-                        }
-                      }}
-                      className="w-full px-3 py-2 rounded-xl border border-[#EBE6DF] text-xs font-bold text-[#1C1917] bg-white focus:outline-none focus:ring-2 focus:ring-[#78593D]/20 cursor-pointer shadow-xs"
-                    >
-                      <option value="">-- Choose Application from Dropdown --</option>
-                      {apps.map((a: any) => {
-                        const alreadyHas = appHasAddon(a, selectedAddon);
-                        return (
-                          <option key={a.id} value={a.id}>
-                            {a.name} ({a.platform === "woo" ? "WooCommerce" : "Shopify"} - {a.active_plan?.name || "Basic"})
-                            {alreadyHas ? " — [Already Active]" : " — [Available to Add]"}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                  <span className="text-[9px] text-[#7E756B] block">
-                    {modalTargetApp
-                      ? `Add-on capability will be provisioned specifically for "${modalTargetApp.name}".`
-                      : "Please choose which application from the dropdown will receive this add-on."}
-                  </span>
-                </div>
-              )}
-
-              {/* Already Active / Entitlement Card */}
-              {isModalAppActive && modalTargetApp && (
-                <div className="mb-3.5 p-3 rounded-2xl bg-gradient-to-br from-emerald-50 via-emerald-50/50 to-white border border-emerald-200 shadow-xs">
-                  <div className="flex items-start gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
-                      <ShieldCheck className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <h4 className="font-extrabold text-xs text-emerald-950">
-                          Already Active on {modalTargetApp.name}
-                        </h4>
-                        <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
-                          Active &amp; Licensed
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-emerald-800 mt-0.5 leading-relaxed">
-                        This application has already claimed and unlocked this add-on capability. Your mobile app compilation includes full access.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Pricing & Billing Summary Card */}
-              <div className="p-3 rounded-2xl bg-[#F7F5F0] border border-[#EBE6DF] flex items-center justify-between mb-4">
-                <div>
-                  <span className="text-[11px] font-bold text-[#7E756B] block">
-                    {isModalAppActive ? "Billing Status" : "Payable Amount"}
-                  </span>
-                  {isModalAppActive ? (
-                    <span className="text-xs font-black text-emerald-700 flex items-center gap-1 mt-0.5">
-                      <Check className="w-3 h-3 text-emerald-600" />
-                      Already Licensed (₹0)
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-[#57514B] mt-0.5 block">
-                      One-time lifetime activation fee
-                    </span>
-                  )}
-                </div>
-
-                <div className="text-right">
-                  {isModalAppActive ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-[#7E756B] line-through">
-                        {formatPrice(selectedAddon.price)}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
-                        Included
-                      </span>
-                    </div>
-                  ) : (
-                    <div>
-                      <span className="text-base sm:text-lg font-black text-[#78593D] block leading-tight">
-                        {formatPrice(selectedAddon.price)}
-                      </span>
-                      <span className="text-[9px] text-[#7E756B]">Includes all taxes</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-2.5 text-xs">
-                {isModalAppActive && modalTargetApp ? (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAddon(null)}
-                    className="w-full py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold transition shadow-md shadow-emerald-700/20 flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>Already Active on {modalTargetApp.name} • Close</span>
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAddon(null)}
-                      className="flex-1 py-2.5 rounded-xl border border-[#EBE6DF] font-bold text-[#57514B] hover:bg-[#F7F5F0] transition cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isPurchasingAddon || !modalTargetApp}
-                      onClick={() => {
-                        if (!modalTargetApp) return;
-                        handlePurchaseAddon(selectedAddon, modalTargetApp);
-                      }}
-                      className={`flex-1 py-2.5 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white font-bold transition shadow-md shadow-[#78593D]/20 flex items-center justify-center gap-2 cursor-pointer ${
-                        isPurchasingAddon || !modalTargetApp ? "opacity-60 cursor-not-allowed" : ""
-                      }`}
-                    >
-                      {isPurchasingAddon ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Launching Checkout...</span>
-                        </>
-                      ) : !modalTargetApp ? (
-                        <span>Select App to Continue</span>
-                      ) : (
-                        <>
-                          <CreditCard className="w-3.5 h-3.5" />
-                          <span>Pay {formatPrice(selectedAddon.price)} for {modalTargetApp.name}</span>
-                        </>
-                      )}
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-
-        return mounted ? createPortal(modalMarkup, document.body) : modalMarkup;
-      })()}
+      {/* ── ADD-ON PURCHASE MODAL (Requirement: Multi-Step Application Selection & Confirmation) ── */}
+      {selectedAddon && (
+        <AddonPurchaseModal
+          isOpen={Boolean(selectedAddon)}
+          onClose={() => setSelectedAddon(null)}
+          addon={selectedAddon}
+          apps={apps || []}
+          myOrders={myOrders || []}
+          user={user}
+          preselectedAppId={selectedAddonAppId || selectedAppByAddon[selectedAddon.id] || null}
+          onSuccess={async (targetApp, addon) => {
+            setAddonMessage(`Add-on "${addon.name}" enabled successfully for ${targetApp.name}!`);
+            await refetchOrders();
+            await refetchApps();
+          }}
+        />
+      )}
 
       {/* ── CUSTOM FEATURE REQUEST MODAL ── */}
       {isCustomModalOpen && (() => {

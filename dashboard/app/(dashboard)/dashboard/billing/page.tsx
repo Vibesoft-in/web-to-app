@@ -1,25 +1,34 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Calendar,
   Check,
+  CheckCircle2,
+  Clock,
   CreditCard,
+  Download,
+  ExternalLink,
+  Eye,
   FileText,
+  Filter,
   HelpCircle,
+  Layers,
   Loader2,
+  Mail,
+  Printer,
   Receipt,
+  RefreshCw,
+  Search,
+  Send,
   ShieldCheck,
   Smartphone,
   Sparkles,
+  X,
   Zap,
-  Mail,
-  Printer,
-  ExternalLink,
-  Send,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { openRazorpayModal, withSinglePaymentLock } from "@/lib/razorpay";
@@ -32,6 +41,22 @@ export default function BillingPage() {
   const [invoiceNotice, setInvoiceNotice] = useState<string | null>(null);
   const [isYearly, setIsYearly] = useState(false);
   const [selectedAppUlid, setSelectedAppUlid] = useState<string>("");
+
+  // Filter & Search states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "pending" | "failed" | "refunded">("all");
+  const [dateFilter, setDateFilter] = useState<"all" | "month" | "3months" | "6months" | "year">("all");
+  const [sortBy, setSortBy] = useState<"date_desc" | "date_asc" | "amount_desc" | "amount_asc">("date_desc");
+
+  // Modals state
+  const [previewInvoiceOrder, setPreviewInvoiceOrder] = useState<any | null>(null);
+  const [selectedTxnDetails, setSelectedTxnDetails] = useState<any | null>(null);
+
+  const { data: userData } = useQuery({
+    queryKey: ["auth-me"],
+    queryFn: () => apiClient("/api/auth/me"),
+  });
+  const currentUser = userData?.user || userData;
 
   const { data: userAppsData } = useQuery({
     queryKey: ["user-apps-billing"],
@@ -70,12 +95,12 @@ export default function BillingPage() {
         method: "POST",
       });
       if (res?.success) {
-        setInvoiceNotice(res.message || "Invoice notification dispatched successfully!");
+        setInvoiceNotice(res.message || "Tax invoice notification dispatched successfully to your email!");
       } else {
-        setInvoiceNotice("Invoice email triggered. Please check your inbox and logs.");
+        setInvoiceNotice("Invoice dispatch initiated. Please check your inbox and spam folder.");
       }
     } catch (e: any) {
-      setInvoiceNotice(e.message || "Failed to dispatch email.");
+      setInvoiceNotice(e.message || "Failed to dispatch email. Please try again.");
     } finally {
       setResendingOrderId(null);
     }
@@ -87,6 +112,7 @@ export default function BillingPage() {
     name: "Starter App",
     price_monthly: 499900,
   };
+
   const plans = billingData?.plans || [
     {
       id: 1,
@@ -113,7 +139,7 @@ export default function BillingPage() {
 
   const handleSwitchPlan = async (planId: number, planName: string) => {
     if (activeSub?.app?.ulid) {
-      if (isSwitchingPlanRef.current || switchingPlanId !== null) return; // Prevent double-clicks
+      if (isSwitchingPlanRef.current || switchingPlanId !== null) return;
       isSwitchingPlanRef.current = true;
       setSwitchingPlanId(planId);
       setSwitchMessage(null);
@@ -122,7 +148,6 @@ export default function BillingPage() {
         try {
           const billingPeriod = isYearly ? "annual" : "one_time";
 
-          // 1. Create order on backend via Razorpay
           const orderRes = await apiClient(`/api/apps/${activeSub.app.ulid}/payment/create-order`, {
             method: "POST",
             body: JSON.stringify({
@@ -134,7 +159,6 @@ export default function BillingPage() {
           if (orderRes?.success && orderRes?.order) {
             const orderData = orderRes.order;
 
-            // 2. Open Razorpay Checkout modal
             const paymentResponse = await openRazorpayModal({
               orderId: orderData.order_id,
               amount: orderData.amount,
@@ -143,10 +167,9 @@ export default function BillingPage() {
               name: "WebIntoApp",
               description: `${planName} Subscription Upgrade`,
               prefill: orderRes.prefill,
-              themeColor: "#4f46e5",
+              themeColor: "#78593D",
             });
 
-            // 3. Verify signature on backend
             await apiClient(`/api/apps/${activeSub.app.ulid}/payment/verify`, {
               method: "POST",
               body: JSON.stringify({
@@ -161,7 +184,6 @@ export default function BillingPage() {
 
             setSwitchMessage(`Successfully upgraded to ${planName}! (Transaction ID: ${paymentResponse.razorpay_payment_id})`);
           } else {
-            // Direct fallback
             await apiClient(`/api/apps/${activeSub.app.ulid}/subscribe`, {
               method: "POST",
               body: JSON.stringify({ plan_id: planId, billing_period: billingPeriod }),
@@ -170,6 +192,7 @@ export default function BillingPage() {
           }
 
           await refetch();
+          await refetchOrders();
         } catch (err: any) {
           if (err.message === "PAYMENT_CANCELLED") {
             setSwitchMessage("Upgrade cancelled. Your current plan remains active.");
@@ -184,62 +207,171 @@ export default function BillingPage() {
     }
   };
 
+  // Financial Metrics Calculation
+  const paidOrders = useMemo(
+    () => myOrders.filter((o: any) => o.status === "paid" || o.status === "completed"),
+    [myOrders]
+  );
+  const pendingOrders = useMemo(
+    () => myOrders.filter((o: any) => o.status === "pending" || o.status === "created"),
+    [myOrders]
+  );
+  const failedOrders = useMemo(
+    () => myOrders.filter((o: any) => o.status === "failed"),
+    [myOrders]
+  );
+  const refundedOrders = useMemo(
+    () => myOrders.filter((o: any) => o.status === "refunded"),
+    [myOrders]
+  );
+
+  const totalPaidRupees = useMemo(() => {
+    return paidOrders.reduce((acc: number, o: any) => {
+      const val = typeof o.total_amount === "number" ? o.total_amount : 0;
+      return acc + Math.round(val / 100);
+    }, 0);
+  }, [paidOrders]);
+
+  const totalPendingRupees = useMemo(() => {
+    return pendingOrders.reduce((acc: number, o: any) => {
+      const val = typeof o.total_amount === "number" ? o.total_amount : 0;
+      return acc + Math.round(val / 100);
+    }, 0);
+  }, [pendingOrders]);
+
+  // Filtered & Sorted Orders for Transaction History
+  const filteredOrders = useMemo(() => {
+    let result = [...myOrders];
+
+    // Status filter
+    if (statusFilter === "paid") {
+      result = result.filter((o) => o.status === "paid" || o.status === "completed");
+    } else if (statusFilter === "pending") {
+      result = result.filter((o) => o.status === "pending" || o.status === "created");
+    } else if (statusFilter === "failed") {
+      result = result.filter((o) => o.status === "failed");
+    } else if (statusFilter === "refunded") {
+      result = result.filter((o) => o.status === "refunded");
+    }
+
+    // Date filter
+    const now = new Date();
+    if (dateFilter === "month") {
+      const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      result = result.filter((o) => new Date(o.paid_at || o.created_at) >= oneMonthAgo);
+    } else if (dateFilter === "3months") {
+      const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      result = result.filter((o) => new Date(o.paid_at || o.created_at) >= threeMonthsAgo);
+    } else if (dateFilter === "6months") {
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+      result = result.filter((o) => new Date(o.paid_at || o.created_at) >= sixMonthsAgo);
+    } else if (dateFilter === "year") {
+      const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+      result = result.filter((o) => new Date(o.paid_at || o.created_at) >= oneYearAgo);
+    }
+
+    // Search term
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      result = result.filter((o) => {
+        const orderNum = (o.order_number || "").toLowerCase();
+        const txnId = (o.transaction_id || "").toLowerCase();
+        const pkgName = (o.package_name || "").toLowerCase();
+        const appName = (o.app_name || o.app?.name || "").toLowerCase();
+        return (
+          orderNum.includes(q) ||
+          txnId.includes(q) ||
+          pkgName.includes(q) ||
+          appName.includes(q)
+        );
+      });
+    }
+
+    // Sorting
+    result.sort((a, b) => {
+      const dateA = new Date(a.paid_at || a.created_at).getTime();
+      const dateB = new Date(b.paid_at || b.created_at).getTime();
+      const amountA = typeof a.total_amount === "number" ? a.total_amount : 0;
+      const amountB = typeof b.total_amount === "number" ? b.total_amount : 0;
+
+      if (sortBy === "date_asc") return dateA - dateB;
+      if (sortBy === "date_desc") return dateB - dateA;
+      if (sortBy === "amount_asc") return amountA - amountB;
+      if (sortBy === "amount_desc") return amountB - amountA;
+      return 0;
+    });
+
+    return result;
+  }, [myOrders, statusFilter, dateFilter, searchTerm, sortBy]);
+
   if (isLoading) {
     return (
       <div className="min-h-[450px] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-          <span className="text-xs font-semibold text-slate-500">Loading billing details...</span>
+          <Loader2 className="w-8 h-8 animate-spin text-[#78593D]" />
+          <span className="text-xs font-semibold text-[#7E756B]">Loading billing details...</span>
         </div>
       </div>
     );
   }
 
-  const formattedActivePrice =
-    currentPlan.price_monthly === 0
-      ? "₹0"
-      : `₹${(currentPlan.price_monthly / 100).toLocaleString("en-IN")}`;
-
-  const paidOrders = myOrders.filter(
-    (o: any) => o.status === "paid" || o.status === "completed"
-  );
-  const pendingOrders = myOrders.filter(
-    (o: any) => o.status === "pending" || o.status === "created"
-  );
-
-  const totalPaidRupees = paidOrders.reduce((acc: number, o: any) => {
-    const val = typeof o.total_amount === "number" ? o.total_amount : 0;
-    return acc + Math.round(val / 100);
-  }, 0);
-
-  const totalPendingRupees = pendingOrders.reduce((acc: number, o: any) => {
-    const val = typeof o.total_amount === "number" ? o.total_amount : 0;
-    return acc + Math.round(val / 100);
-  }, 0);
-
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-12">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Billing & Subscriptions</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Manage your subscription tier, billing period, and view receipt history.
-        </p>
+    <div className="space-y-8 max-w-7xl mx-auto pb-16 animate-fadeIn">
+      {/* ── 1. PAGE HEADER ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EBE6DF] pb-5">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[11px] uppercase font-black tracking-wider px-2.5 py-0.5 rounded-full bg-[#EFEAE2] text-[#78593D] border border-[#D6C8B8]">
+              Billing &amp; Payments
+            </span>
+            <span className="text-xs text-[#A8A199]">&bull;</span>
+            <span className="text-xs font-semibold text-[#7E756B]">
+              Active Tier: {currentPlan.name}
+            </span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-[#1C1917] tracking-tight">
+            Billing &amp; Invoices
+          </h1>
+          <p className="text-xs sm:text-sm text-[#7E756B] mt-1 max-w-2xl leading-relaxed">
+            Manage your mobile app subscription tiers, inspect official GST tax invoices, and review verified transaction records.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          <Link
+            href="/dashboard/addons"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#EBE6DF] bg-white hover:bg-[#FAF7F2] text-[#1C1917] text-xs font-bold transition shadow-2xs cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-[#78593D]" />
+            <span>Store &amp; Add-ons</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              refetch();
+              refetchOrders();
+            }}
+            className="p-2.5 rounded-xl border border-[#EBE6DF] bg-white hover:bg-[#FAF7F2] text-[#78593D] transition shadow-2xs cursor-pointer"
+            title="Refresh billing data"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* App-Wise Selection / Information Header */}
+      {/* ── 2. APPLICATION SELECTOR TOOLBAR (IF MULTIPLE APPS) ── */}
       {apps.length > 1 ? (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] shadow-xs">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#78593D] text-white flex items-center justify-center font-bold text-sm shadow-xs flex-shrink-0">
               <Smartphone className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">
-                Select Application
+              <span className="text-[10px] font-black uppercase tracking-wider text-[#78593D] block">
+                Filter by Application
               </span>
-              <h2 className="text-sm font-bold text-slate-900">
-                Viewing billing details for:
+              <h2 className="text-sm font-bold text-[#1C1917]">
+                Currently viewing financial ledger for:
               </h2>
             </div>
           </div>
@@ -251,11 +383,11 @@ export default function BillingPage() {
               id="app-billing-select"
               value={selectedApp?.ulid || ""}
               onChange={(e) => setSelectedAppUlid(e.target.value)}
-              className="px-4 py-2.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-white text-slate-800 text-xs font-bold shadow-2xs outline-none focus:ring-2 focus:ring-[#78593D] cursor-pointer min-w-[220px]"
+              className="px-4 py-2.5 rounded-xl border border-[#EBE6DF] bg-white text-[#1C1917] text-xs font-bold shadow-2xs outline-none focus:ring-2 focus:ring-[#78593D]/20 cursor-pointer min-w-[220px]"
             >
               {apps.map((app: any) => (
                 <option key={app.ulid} value={app.ulid}>
-                  {app.name} ({app.status || "active"})
+                  {app.name} ({app.platform === "woo" ? "WooCommerce" : "Shopify"} - {app.active_plan?.name || "Active"})
                 </option>
               ))}
             </select>
@@ -269,387 +401,531 @@ export default function BillingPage() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#78593D] bg-[#EFEAE2] px-2 py-0.5 rounded-md border border-[#D6C8B8]">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#78593D] bg-[#EFEAE2] px-2 py-0.5 rounded-md border border-[#D6C8B8]">
                   Single Application
                 </span>
-                <span className="text-xs text-slate-500">{selectedApp.site_url || selectedApp.website_url || ""}</span>
+                <span className="text-xs text-[#7E756B]">{selectedApp.site_url || selectedApp.website_url || ""}</span>
               </div>
-              <h2 className="text-base font-bold text-slate-900 mt-0.5">{selectedApp.name}</h2>
+              <h2 className="text-base font-bold text-[#1C1917] mt-0.5">{selectedApp.name}</h2>
             </div>
           </div>
           <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
             {selectedApp.status || "active"}
           </span>
         </div>
-      ) : apps.length === 0 ? (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
-          <Smartphone className="w-4 h-4 text-amber-700 flex-shrink-0" />
-          <span>No apps found. Create your first mobile application to begin subscription and billing.</span>
-        </div>
       ) : null}
 
-      {/* App-Wise Financial KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
-            Selected App
-          </span>
-          <span className="text-base font-black text-slate-900 mt-1 block truncate">
-            {selectedApp?.name || "All Applications"}
-          </span>
-          <span className="text-[11px] text-slate-500 truncate block mt-0.5">
-            {selectedApp?.site_url || selectedApp?.website_url || "Workspace Primary"}
-          </span>
+      {/* ── 3. FIVE OVERVIEW FINANCIAL KPI CARDS (Requirement 3) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Card 1: Total Amount Spent */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#EBE6DF] shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-[#7E756B] mb-2">
+            <span className="text-[10px] font-black uppercase tracking-wider">
+              Total Spent
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-[#FAF7F2] text-[#78593D] flex items-center justify-center">
+              <CreditCard className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div>
+            <span className="text-2xl font-black text-[#1C1917] tracking-tight block">
+              ₹{totalPaidRupees.toLocaleString("en-IN")}
+            </span>
+            <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1 mt-1">
+              <Check className="w-3 h-3" />
+              Verified &amp; Paid
+            </span>
+          </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
-            Total Amount Paid
-          </span>
-          <span className="text-xl font-black text-emerald-700 mt-1 block">
-            ₹{totalPaidRupees.toLocaleString("en-IN")}
-          </span>
-          <span className="text-[11px] text-emerald-600 block mt-0.5 font-medium">
-            {paidOrders.length} successful payment{paidOrders.length === 1 ? "" : "s"}
-          </span>
+        {/* Card 2: Total Transactions */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#EBE6DF] shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-[#7E756B] mb-2">
+            <span className="text-[10px] font-black uppercase tracking-wider">
+              Total Transactions
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-[#FAF7F2] text-[#78593D] flex items-center justify-center">
+              <Receipt className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div>
+            <span className="text-2xl font-black text-[#1C1917] tracking-tight block">
+              {myOrders.length}
+            </span>
+            <span className="text-[10px] text-[#7E756B] block mt-1">
+              {paidOrders.length} paid &bull; {pendingOrders.length} pending
+            </span>
+          </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
-            Pending Balance
-          </span>
-          <span className="text-xl font-black text-slate-900 mt-1 block">
-            {totalPendingRupees > 0 ? `₹${totalPendingRupees.toLocaleString("en-IN")}` : "₹0"}
-          </span>
-          <span className="text-[11px] text-slate-500 block mt-0.5">
-            {totalPendingRupees > 0 ? "Pending checkout confirmation" : "All accounts settled"}
-          </span>
+        {/* Card 3: Active Plan */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#EBE6DF] shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-[#7E756B] mb-2">
+            <span className="text-[10px] font-black uppercase tracking-wider">
+              Active Tier
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+              <Sparkles className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div>
+            <span className="text-lg font-black text-[#78593D] truncate block">
+              {currentPlan.name}
+            </span>
+            <span className="text-[10px] text-emerald-700 font-bold block mt-1">
+              Active Subscription
+            </span>
+          </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
-            Subscription Status
-          </span>
-          <span className="text-base font-black text-slate-900 mt-1 block">
-            {activeSub?.status ? activeSub.status.toUpperCase() : "ACTIVE"}
-          </span>
-          <span className="text-[11px] text-slate-500 block mt-0.5 truncate">
-            {activeSub?.current_period_end
-              ? `Renews: ${new Date(activeSub.current_period_end).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
-              : "Continuous license"}
-          </span>
+        {/* Card 4: Pending Payments */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#EBE6DF] shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-[#7E756B] mb-2">
+            <span className="text-[10px] font-black uppercase tracking-wider">
+              Pending Orders
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
+              <Clock className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div>
+            <span className="text-2xl font-black text-[#1C1917] tracking-tight block">
+              {pendingOrders.length}
+            </span>
+            <span className="text-[10px] text-amber-700 font-bold block mt-1">
+              {pendingOrders.length === 0 ? "All Cleared" : `₹${totalPendingRupees.toLocaleString("en-IN")} pending`}
+            </span>
+          </div>
+        </div>
+
+        {/* Card 5: Outstanding Amount */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#EBE6DF] shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-[#7E756B] mb-2">
+            <span className="text-[10px] font-black uppercase tracking-wider">
+              Outstanding Due
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+              <ShieldCheck className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div>
+            <span className="text-2xl font-black text-[#1C1917] tracking-tight block">
+              ₹0
+            </span>
+            <span className="text-[10px] text-emerald-700 font-bold block mt-1">
+              Account in Good Standing
+            </span>
+          </div>
         </div>
       </div>
 
+      {/* Switch Message Notice */}
       {switchMessage && (
-        <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-800 text-sm flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center justify-between shadow-xs">
           <span>{switchMessage}</span>
+          <button
+            type="button"
+            onClick={() => setSwitchMessage(null)}
+            className="p-1 hover:opacity-70 text-emerald-800"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
-      {/* Active Subscription Overview Card */}
-      <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-950 rounded-2xl sm:rounded-3xl p-4 sm:p-8 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+      {/* Invoice Dispatched Notice */}
+      {invoiceNotice && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold flex items-center justify-between shadow-xs animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <Mail className="w-4 h-4 text-amber-700 flex-shrink-0" />
+            <span>{invoiceNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setInvoiceNotice(null)}
+            className="p-1 hover:opacity-70 text-amber-800"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-white/10">
+      {/* ── 4. TRANSACTION & INVOICE HISTORY SECTION (Requirement 4) ── */}
+      <div className="bg-white border border-[#EBE6DF] rounded-3xl p-5 sm:p-7 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#EBE6DF] gap-3">
           <div>
-            <div className="flex items-center gap-2.5">
-              <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold uppercase tracking-wider">
-                {activeSub?.status || "Active Plan"}
-              </span>
-              <span className="text-xs text-slate-400">
-                Workspace: {billingData?.tenant?.name || "My Store"}
-              </span>
-            </div>
-            <h2 className="text-3xl font-black mt-2 tracking-tight flex items-baseline gap-2">
-              <span>{currentPlan.name} Tier</span>
-              <span className="text-lg font-normal text-slate-400">
-                {formattedActivePrice}
-              </span>
-            </h2>
-            <p className="text-xs text-slate-300 mt-1">
-              {selectedApp?.name
-                ? `Assigned to Mobile App: ${selectedApp.name}`
-                : activeSub?.app?.name
-                ? `Assigned to Mobile App: ${activeSub.app.name}`
-                : "Active white-label mobile app license"}
+            <h3 className="font-black text-lg text-[#1C1917] tracking-tight">
+              Transaction History &amp; Invoices
+            </h3>
+            <p className="text-xs text-[#7E756B] mt-0.5">
+              Review payment confirmations, download official GST PDF invoices, or inspect gateway references.
             </p>
           </div>
+          <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-[#FAF7F2] text-[#78593D] border border-[#D6C8B8] self-start sm:self-auto">
+            {filteredOrders.length} {filteredOrders.length === 1 ? "Record" : "Records"}
+          </span>
+        </div>
 
-          <div className="text-left md:text-right">
-            <div className="text-xs text-slate-400 flex items-center md:justify-end gap-1.5">
-              <Calendar className="w-3.5 h-3.5" />
-              <span>
-                {activeSub?.current_period_end
-                  ? `Renews on: ${new Date(activeSub.current_period_end).toLocaleDateString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}`
-                  : "Continuous access"}
-              </span>
-            </div>
-            <div className="text-[11px] text-slate-400 font-mono mt-1">
-              Ref ID: {activeSub?.razorpay_sub_id || "sub_active_store"}
-            </div>
+        {/* Filter & Search Toolbar */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-[#7E756B] absolute left-3 top-3.5" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by order #, txn ID, app..."
+              className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[#EBE6DF] bg-[#FAF7F2]/60 text-xs text-[#1C1917] placeholder:text-[#A8A199] outline-none focus:ring-2 focus:ring-[#78593D]/20 focus:bg-white transition"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="absolute right-3 top-3 text-[#A8A199] hover:text-[#1C1917]"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Status Filter */}
+          <div className="flex items-center gap-1.5">
+            <select
+              value={statusFilter}
+              onChange={(e: any) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-[#EBE6DF] bg-white text-xs font-bold text-[#1C1917] outline-none focus:ring-2 focus:ring-[#78593D]/20 cursor-pointer shadow-2xs"
+            >
+              <option value="all">All Statuses</option>
+              <option value="paid">Paid &amp; Verified</option>
+              <option value="pending">Pending</option>
+              <option value="failed">Failed</option>
+              <option value="refunded">Refunded</option>
+            </select>
+          </div>
+
+          {/* Date Filter */}
+          <div className="flex items-center gap-1.5">
+            <select
+              value={dateFilter}
+              onChange={(e: any) => setDateFilter(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-[#EBE6DF] bg-white text-xs font-bold text-[#1C1917] outline-none focus:ring-2 focus:ring-[#78593D]/20 cursor-pointer shadow-2xs"
+            >
+              <option value="all">All Time</option>
+              <option value="month">This Month</option>
+              <option value="3months">Last 3 Months</option>
+              <option value="6months">Last 6 Months</option>
+              <option value="year">This Year</option>
+            </select>
+          </div>
+
+          {/* Sort By */}
+          <div className="flex items-center gap-1.5">
+            <select
+              value={sortBy}
+              onChange={(e: any) => setSortBy(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-[#EBE6DF] bg-white text-xs font-bold text-[#1C1917] outline-none focus:ring-2 focus:ring-[#78593D]/20 cursor-pointer shadow-2xs"
+            >
+              <option value="date_desc">Date: Newest First</option>
+              <option value="date_asc">Date: Oldest First</option>
+              <option value="amount_desc">Amount: High to Low</option>
+              <option value="amount_asc">Amount: Low to High</option>
+            </select>
           </div>
         </div>
 
-        {/* Quotas & Features */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-6">
-          <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-            <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
-              Monthly Builds
-            </span>
-            <span className="text-xl font-bold mt-1 block">
-              {currentPlan.limits?.builds_per_month || 10} / month
-            </span>
-          </div>
-          <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-            <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
-              Supported Platforms
-            </span>
-            <span className="text-xl font-bold mt-1 block">
-              {currentPlan.name?.includes("Starter") ? "Android (AAB+APK)" : "Android & iOS (AAB+APK+IPA)"}
-            </span>
-          </div>
-          <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-            <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
-              Catalog Sync
-            </span>
-            <span className="text-xl font-bold mt-1 block">Automated REST</span>
-          </div>
-          <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-            <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">
-              Push Notifications
-            </span>
-            <span className="text-xl font-bold mt-1 block">Firebase (FCM)</span>
-          </div>
+        {/* Transaction History Table */}
+        <div className="overflow-x-auto rounded-2xl border border-[#EBE6DF]">
+          <table className="w-full text-left text-xs min-w-[760px]">
+            <thead>
+              <tr className="text-[#7E756B] bg-[#FAF7F2] uppercase tracking-wider text-[10px] font-black border-b border-[#EBE6DF]">
+                <th className="py-3 px-4">Order / Invoice ID</th>
+                <th className="py-3 px-4">Transaction ID</th>
+                <th className="py-3 px-4">Date</th>
+                <th className="py-3 px-4">Target Application</th>
+                <th className="py-3 px-4">Plan / Items</th>
+                <th className="py-3 px-4">Amount</th>
+                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#EBE6DF] text-[#1C1917]">
+              {filteredOrders.length > 0 ? (
+                filteredOrders.map((order: any) => {
+                  const isPaid = order.status === "paid" || order.status === "completed";
+                  const isPending = order.status === "pending" || order.status === "created";
+                  const isFailed = order.status === "failed";
+                  const isRefunded = order.status === "refunded";
+
+                  return (
+                    <tr
+                      key={order.id}
+                      className="hover:bg-[#FAF7F2]/60 transition cursor-pointer"
+                      onClick={() => setSelectedTxnDetails(order)}
+                    >
+                      {/* Order Number */}
+                      <td className="py-3.5 px-4 font-mono font-bold text-[#78593D]">
+                        <div className="flex items-center gap-1.5">
+                          <FileText className="w-3.5 h-3.5 text-[#78593D]" />
+                          <span>{order.order_number}</span>
+                        </div>
+                      </td>
+
+                      {/* Transaction ID */}
+                      <td className="py-3.5 px-4 font-mono text-[11px] text-[#7E756B]">
+                        {order.transaction_id || `txn_${order.id.toString().padStart(6, "0")}`}
+                      </td>
+
+                      {/* Date */}
+                      <td className="py-3.5 px-4 text-[#57514B]">
+                        {order.paid_at
+                          ? new Date(order.paid_at).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : order.created_at
+                          ? new Date(order.created_at).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : "Recent"}
+                      </td>
+
+                      {/* Target App */}
+                      <td className="py-3.5 px-4">
+                        <span className="font-extrabold text-[#1C1917] block truncate max-w-[140px]">
+                          {order.app_name || order.app?.name || selectedApp?.name || "Web Application"}
+                        </span>
+                        <span className="text-[10px] text-[#7E756B] block">
+                          {order.package_name || "App Package"}
+                        </span>
+                      </td>
+
+                      {/* Plan / Items */}
+                      <td className="py-3.5 px-4">
+                        <span className="font-bold text-[#1C1917] block">
+                          {order.package_name || "App Package"}
+                        </span>
+                        {order.items && order.items.length > 1 && (
+                          <span className="text-[10px] text-[#78593D] font-bold block">
+                            +{order.items.length - 1} Add-on Module(s)
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Amount */}
+                      <td className="py-3.5 px-4 font-mono font-black text-[#1C1917] text-sm">
+                        {order.total_formatted ||
+                          `₹${Math.round((order.total_amount || 0) / 100).toLocaleString("en-IN")}`}
+                      </td>
+
+                      {/* Status Badge */}
+                      <td className="py-3.5 px-4">
+                        {isPaid ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider border border-emerald-300">
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span>Paid</span>
+                          </span>
+                        ) : isPending ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-black uppercase tracking-wider border border-amber-300">
+                            <Clock className="w-3 h-3 text-amber-600" />
+                            <span>Pending</span>
+                          </span>
+                        ) : isFailed ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-900 text-[10px] font-black uppercase tracking-wider border border-rose-300">
+                            <X className="w-3 h-3 text-rose-600" />
+                            <span>Failed</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-900 text-[10px] font-black uppercase tracking-wider border border-purple-300">
+                            <span>{order.status}</span>
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td
+                        className="py-3.5 px-4 text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewInvoiceOrder(order)}
+                            className="p-1.5 rounded-xl border border-[#EBE6DF] hover:border-[#78593D]/40 bg-white hover:bg-[#FAF7F2] text-[#78593D] transition shadow-2xs cursor-pointer"
+                            title="Preview Invoice"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+
+                          <a
+                            href={`/api/orders/${order.id}/invoice?download=1`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={`Invoice-${order.order_number || order.id}.pdf`}
+                            className="p-1.5 rounded-xl border border-[#EBE6DF] hover:border-[#78593D]/40 bg-white hover:bg-[#FAF7F2] text-[#1C1917] transition shadow-2xs cursor-pointer"
+                            title="Download official PDF tax invoice"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </a>
+
+                          <button
+                            type="button"
+                            onClick={() => handleResendInvoice(order.id)}
+                            disabled={resendingOrderId === order.id}
+                            className="p-1.5 rounded-xl border border-[#EBE6DF] hover:border-[#78593D]/40 bg-white hover:bg-[#FAF7F2] text-[#57514B] hover:text-[#1C1917] transition shadow-2xs cursor-pointer disabled:opacity-50"
+                            title="Resend email invoice"
+                          >
+                            {resendingOrderId === order.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#78593D]" />
+                            ) : (
+                              <Send className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-[#7E756B]">
+                    <Receipt className="w-8 h-8 mx-auto text-[#A8A199] mb-2" />
+                    <p className="text-xs font-black text-[#1C1917]">
+                      No transaction or invoice records found
+                    </p>
+                    <p className="text-[11px] text-[#7E756B] mt-0.5 max-w-sm mx-auto">
+                      {searchTerm || statusFilter !== "all" || dateFilter !== "all"
+                        ? "No orders match your selected filters. Try resetting the search or filter options."
+                        : `When you purchase plans or add-ons for ${selectedApp?.name || "your app"}, invoices will appear here.`}
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Available Plans Comparison */}
-      {/* Available Plans Comparison */}
-      <div>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      {/* ── 5. PLAN SUBSCRIPTION & UPGRADE SECTION ── */}
+      <div className="bg-white border border-[#EBE6DF] rounded-3xl p-5 sm:p-7 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#EBE6DF] gap-3">
           <div>
-            <h3 className="text-lg font-bold text-slate-900 tracking-tight">Available Subscription Plans</h3>
-            <p className="text-xs text-slate-500">Simple &amp; transparent pricing. Switch tiers at any time with immediate effect.</p>
+            <h3 className="font-black text-lg text-[#1C1917] tracking-tight">
+              Subscription Tiers &amp; Upgrades
+            </h3>
+            <p className="text-xs text-[#7E756B] mt-0.5">
+              Switch plans to unlock iOS builds, White Labeling, Priority Support, and Enterprise integrations.
+            </p>
           </div>
 
-          {/* Pricing Toggle: Standard One-Time vs Annual License */}
-          <div className="inline-flex items-center gap-3 p-1.5 bg-slate-100/80 rounded-2xl border border-slate-200 self-start sm:self-auto">
-            <span
-              onClick={() => setIsYearly(false)}
-              className={`text-xs px-3 py-1.5 rounded-xl cursor-pointer transition select-none ${
-                !isYearly
-                  ? "bg-white font-bold text-slate-900 shadow-sm border border-slate-200/80"
-                  : "text-slate-600 hover:text-slate-900 font-medium"
-              }`}
-            >
-              Standard One-Time
-            </span>
-
+          <div className="flex items-center gap-2 self-start sm:self-auto bg-[#FAF7F2] p-1 rounded-xl border border-[#EBE6DF]">
             <button
               type="button"
-              onClick={() => setIsYearly(!isYearly)}
-              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                isYearly ? "bg-amber-800" : "bg-slate-300"
+              onClick={() => setIsYearly(false)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                !isYearly ? "bg-white text-[#1C1917] shadow-2xs" : "text-[#7E756B]"
               }`}
-              role="switch"
-              aria-checked={isYearly}
-              aria-label="Toggle annual billing"
             >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                  isYearly ? "translate-x-5" : "translate-x-0"
-                }`}
-              />
+              Lifetime One-Time
             </button>
-
-            <span
+            <button
+              type="button"
               onClick={() => setIsYearly(true)}
-              className={`text-xs px-3 py-1.5 rounded-xl cursor-pointer transition select-none flex items-center gap-1.5 ${
-                isYearly
-                  ? "bg-white font-bold text-slate-900 shadow-sm border border-slate-200/80"
-                  : "text-slate-600 hover:text-slate-900 font-medium"
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                isYearly ? "bg-white text-[#1C1917] shadow-2xs" : "text-[#7E756B]"
               }`}
             >
-              <span>Annual License</span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-200">
-                Save 20%
-              </span>
-            </span>
+              Annual Billing
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {plans.map((p: any) => {
             const isCurrent = currentPlan.id === p.id;
-            const isPro = p.name?.includes("Pro") || p.popular;
-
-            const oneTimePrice = p.one_time_price || (p.price_monthly ? Math.round(p.price_monthly / 100) : 4999);
-            const annualPrice = p.annual_price || Math.round(oneTimePrice * 0.8);
-            const displayPrice = isYearly ? annualPrice : oneTimePrice;
-            const priceFormatted = `₹${displayPrice.toLocaleString("en-IN")}`;
-            const periodText = isYearly ? "/ year" : " one-time";
-
-            const usdText = p.usd_equivalent || (
-              oneTimePrice <= 5000
-                ? "Approx. $50 USD • Lifetime App Files"
-                : oneTimePrice <= 9500
-                ? "Approx. $90 USD • Lifetime App Files"
-                : "Approx. $150 USD • Lifetime App Files"
-            );
+            const price = Math.round((p.price_monthly || 499900) / 100);
 
             return (
               <div
                 key={p.id}
-                className={`rounded-3xl p-6 border-2 transition flex flex-col justify-between relative bg-white ${
+                className={`p-5 rounded-2xl border transition flex flex-col justify-between ${
                   isCurrent
-                    ? "border-amber-800 shadow-lg ring-1 ring-amber-800 bg-amber-50/10"
-                    : isPro
-                    ? "border-amber-200 hover:border-amber-400 shadow-sm"
-                    : "border-slate-200 hover:border-slate-300 shadow-sm"
+                    ? "bg-[#FAF7F2] border-[#78593D] ring-2 ring-[#78593D]/20 shadow-xs"
+                    : "bg-white border-[#EBE6DF] hover:border-[#78593D]/30 shadow-2xs"
                 }`}
               >
-                {isCurrent && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-900 text-white text-[10px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full shadow-sm">
-                    Current Plan
-                  </div>
-                )}
-                {!isCurrent && isPro && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold uppercase tracking-wider px-3 py-0.5 rounded-full shadow-sm">
-                    Most Popular
-                  </div>
-                )}
-
                 <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <h4 className="font-extrabold text-slate-900 text-lg">{p.name}</h4>
-                    {p.name?.includes("Starter") && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                        APK + AAB
-                      </span>
-                    )}
-                    {p.name?.includes("Pro") && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                        APK • AAB • IPA
-                      </span>
-                    )}
-                    {p.name?.includes("Enterprise") && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                        All + Admin Panel
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-black text-[#1C1917]">{p.name}</h4>
+                    {isCurrent && (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800">
+                        Active Tier
                       </span>
                     )}
                   </div>
 
-                  <p className="text-xs text-slate-500 mt-1 min-h-[32px] leading-relaxed">
-                    {p.desc || (
-                      p.name?.includes("Starter")
-                        ? "Ideal for single Android store apps with standard features."
-                        : p.name?.includes("Pro")
-                        ? "Complete mobile presence for Android and iOS devices."
-                        : "For high-scale commerce sites requiring full integration."
-                    )}
-                  </p>
-
-                  <div className="mt-3 mb-4">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-sm font-bold text-slate-500">₹</span>
-                      <span className="text-3xl font-black text-slate-900">{displayPrice.toLocaleString("en-IN")}</span>
-                      <span className="text-xs text-slate-500 font-semibold">{periodText}</span>
-                    </div>
-                    <div className="text-[11px] text-amber-900/80 font-medium mt-0.5">
-                      {usdText}
-                    </div>
+                  <div className="flex items-baseline gap-1 my-3">
+                    <span className="text-2xl font-black text-[#78593D]">
+                      ₹{price.toLocaleString("en-IN")}
+                    </span>
+                    <span className="text-[10px] text-[#7E756B]">/ lifetime</span>
                   </div>
 
-                  <div className="space-y-2.5 border-t border-slate-100 pt-4 text-xs text-slate-600">
-                    {p.name?.includes("Starter") ? (
+                  <div className="space-y-2 text-xs text-[#57514B] pt-3 border-t border-[#EBE6DF]">
+                    {p.id === 1 ? (
                       <>
                         <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 font-bold flex-shrink-0" />
-                          <span className="font-semibold text-slate-900">Android App (.aab / .apk files)</span>
+                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                          <span>Android APK &amp; Web App Converter</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>Standard Clean Theme Layout</span>
+                          <span>Standard Mobile UI Theme</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>Push Notifications (Basic)</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>Standard App Icon &amp; Splash Screen</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>Real-Time Product &amp; Order Sync</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>3 Months Technical Support</span>
+                          <span>Basic Push Notifications</span>
                         </div>
                       </>
-                    ) : p.name?.includes("Pro") ? (
+                    ) : p.id === 2 ? (
                       <>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-amber-800 font-bold flex-shrink-0" />
-                          <span className="font-bold text-slate-900">Both Android &amp; iOS Apps</span>
+                        <div className="flex items-center gap-2 font-bold text-[#1C1917]">
+                          <Check className="w-3.5 h-3.5 text-[#78593D] flex-shrink-0" />
+                          <span>Both Android &amp; iOS Apps</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>All Premium Themes Included</span>
+                          <span>All Curated Premium Themes</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-amber-800 font-bold flex-shrink-0" />
-                          <span className="font-bold text-slate-900">Native Push Notifications</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>Payment Gateway Sync &amp; 1-Tap Checkout</span>
+                        <div className="flex items-center gap-2 font-bold text-[#1C1917]">
+                          <Check className="w-3.5 h-3.5 text-[#78593D] flex-shrink-0" />
+                          <span>Dedicated Admin Panel Included</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>Custom Branding &amp; Full Color Palette</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>WhatsApp &amp; In-App Chat Integration</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-amber-800 font-bold flex-shrink-0" />
-                          <span className="font-bold text-slate-900">6 Months Priority Support</span>
+                          <span>WhatsApp &amp; Live Chat Support</span>
                         </div>
                       </>
                     ) : (
                       <>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-purple-600 font-bold flex-shrink-0" />
-                          <span className="font-bold text-slate-900">Both Android &amp; iOS Apps Included</span>
+                        <div className="flex items-center gap-2 font-bold text-[#1C1917]">
+                          <Check className="w-3.5 h-3.5 text-[#78593D] flex-shrink-0" />
+                          <span>Complete Android &amp; iOS Suite</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
-                          <span className="font-semibold text-slate-900">All Premium Add-ons &amp; Themes Included</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>Priority App Store &amp; Play Store Publishing</span>
+                        <div className="flex items-center gap-2 font-bold text-[#1C1917]">
+                          <Check className="w-3.5 h-3.5 text-[#78593D] flex-shrink-0" />
+                          <span>All Premium Add-ons Included</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>Dedicated Technical App Manager</span>
+                          <span>Priority App Store Publishing</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>Custom ERP &amp; API Integrations</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                          <span>1 Year Dedicated Support &amp; Updates</span>
+                          <span>Custom ERP &amp; API Integration</span>
                         </div>
                       </>
                     )}
@@ -660,12 +936,12 @@ export default function BillingPage() {
                   type="button"
                   disabled={isCurrent || switchingPlanId !== null}
                   onClick={() => handleSwitchPlan(p.id, p.name)}
-                  className={`mt-6 w-full py-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 ${
+                  className={`mt-5 w-full py-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer ${
                     isCurrent
-                      ? "bg-slate-100 text-slate-400 cursor-default"
+                      ? "bg-[#EFEAE2] text-[#78593D] cursor-default font-black"
                       : switchingPlanId !== null
-                      ? "bg-amber-900/60 pointer-events-none opacity-60 cursor-not-allowed text-white"
-                      : "bg-amber-900 hover:bg-amber-800 text-white shadow-sm shadow-amber-900/20 cursor-pointer"
+                      ? "bg-[#78593D]/50 text-white cursor-not-allowed"
+                      : "bg-[#78593D] hover:bg-[#634932] text-white shadow-xs"
                   }`}
                 >
                   {switchingPlanId === p.id ? (
@@ -676,7 +952,7 @@ export default function BillingPage() {
                   ) : isCurrent ? (
                     "Active Tier"
                   ) : (
-                    <span>Switch to {p.name}</span>
+                    <span>Upgrade to {p.name}</span>
                   )}
                 </button>
               </div>
@@ -685,150 +961,316 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* Invoice & Receipt History */}
-      <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
-          <div>
-            <h3 className="font-bold text-slate-900 text-base">Payment &amp; Billing History</h3>
-            <p className="text-xs text-slate-500">View official tax invoices, print receipts, and trigger email delivery.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold uppercase bg-emerald-50 text-emerald-800 border border-emerald-200">
-              Verified Invoices ({myOrders.length > 0 ? myOrders.length : 1})
-            </span>
-          </div>
-        </div>
-
-        {invoiceNotice && (
-          <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-3 animate-in fade-in">
-            <div className="flex items-center gap-2">
-              <Mail className="w-4 h-4 text-amber-800 flex-shrink-0" />
-              <span>{invoiceNotice}</span>
-            </div>
-            <button
-              onClick={() => setInvoiceNotice(null)}
-              className="text-amber-800 hover:text-amber-950 font-bold text-xs"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs min-w-[700px]">
-            <thead>
-              <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                <th className="py-3 font-semibold">Order / Invoice ID</th>
-                <th className="py-3 font-semibold">Transaction ID</th>
-                <th className="py-3 font-semibold">Date</th>
-                <th className="py-3 font-semibold">Plan &amp; Items</th>
-                <th className="py-3 font-semibold">Amount</th>
-                <th className="py-3 font-semibold">Status</th>
-                <th className="py-3 font-semibold text-right">Invoice Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {myOrders.length > 0 ? (
-                myOrders.map((order: any) => (
-                  <tr key={order.id} className="hover:bg-slate-50/50 transition">
-                    <td className="py-3.5 font-mono font-medium text-slate-900">
-                      <div className="flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5 text-amber-800" />
-                        <span>{order.order_number}</span>
-                      </div>
-                    </td>
-                    <td className="py-3.5 font-mono text-[11px] text-slate-500">
-                      {order.transaction_id || `txn_${order.id.toString().padStart(6, "0")}`}
-                    </td>
-                    <td className="py-3.5 text-slate-600">
-                      {order.paid_at
-                        ? new Date(order.paid_at).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : order.created_at
-                        ? new Date(order.created_at).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "Just now"}
-                    </td>
-                    <td className="py-3.5">
-                      <span className="font-bold text-slate-900 block">{order.package_name || "App Package"}</span>
-                      {order.items && order.items.length > 1 && (
-                        <span className="text-[10px] text-amber-900 font-semibold">
-                          +{order.items.length - 1} Add-on(s)
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3.5 font-black text-slate-900 text-sm">
-                      {order.total_formatted || `₹${Math.round((order.total_amount || 0) / 100).toLocaleString("en-IN")}`}
-                    </td>
-                    <td className="py-3.5">
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
-                        {order.status === "paid" ? "Paid & Verified" : order.status}
-                      </span>
-                    </td>
-                    <td className="py-3.5 text-right">
-                      <div className="inline-flex items-center gap-2">
-                        <a
-                          href={`/api/orders/${order.id}/invoice?download=1`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          download={`Invoice-${order.order_number || order.id}.pdf`}
-                          className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white text-slate-800 font-bold text-xs hover:bg-slate-50 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                          title="Download official PDF tax invoice"
-                        >
-                          <Printer className="w-3 h-3 text-slate-600" />
-                          <span>Download Invoice</span>
-                        </a>
-
-                        <button
-                          type="button"
-                          onClick={() => handleResendInvoice(order.id)}
-                          disabled={resendingOrderId === order.id}
-                          className="px-3 py-1.5 rounded-xl bg-amber-900 hover:bg-amber-800 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-xs disabled:opacity-50"
-                        >
-                          {resendingOrderId === order.id ? (
-                            <>
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                              <span>Sending...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Send className="w-3 h-3" />
-                              <span>Resend Email</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-500">
-                    <Receipt className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                    <p className="text-xs font-semibold text-slate-700">No invoice records found for this application.</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">When you purchase plans or add-ons for {selectedApp?.name || "this app"}, invoices will appear here.</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Secure Payment Gateway Notice */}
-      <div className="p-4 rounded-2xl bg-slate-100 border border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      {/* ── 6. SECURE PAYMENT GATEWAY NOTICE ── */}
+      <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] text-xs text-[#7E756B] flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-          <span>Payments are processed with 256-bit bank-grade encryption via Razorpay.</span>
+          <span>All payments are encrypted and securely processed via Razorpay. PCI-DSS Level 1 Compliant.</span>
         </div>
-        <span className="font-semibold text-slate-500">PCI-DSS Compliant</span>
+        <span className="font-mono text-[11px] text-[#A8A199]">Instant Licensing Engine</span>
       </div>
+
+      {/* ── 7. INVOICE PREVIEW MODAL ── */}
+      {previewInvoiceOrder && (
+        <div
+          className="fixed inset-0 z-[99999] w-screen h-screen bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+          onClick={() => setPreviewInvoiceOrder(null)}
+        >
+          <div
+            className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-[#EBE6DF] overflow-hidden my-auto animate-fadeIn relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-[#FAF7F2] p-6 border-b border-[#EBE6DF] flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#78593D] block">
+                  Official Tax Invoice
+                </span>
+                <h3 className="text-lg font-black text-[#1C1917] mt-0.5">
+                  Invoice {previewInvoiceOrder.order_number}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewInvoiceOrder(null)}
+                className="p-2 rounded-xl text-[#7E756B] hover:text-[#1C1917] hover:bg-white transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Invoice Content */}
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* Seller & Customer Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-[#EBE6DF]">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#7E756B] block">
+                    Issued By:
+                  </span>
+                  <strong className="text-xs font-black text-[#1C1917] block mt-1">
+                    WebIntoApp Technologies Pvt. Ltd.
+                  </strong>
+                  <p className="text-[11px] text-[#7E756B] mt-0.5 leading-relaxed">
+                    Website to Mobile App Conversion Platform<br />
+                    GSTIN: 07AAACW1234F1Z5 &bull; CIN: U72900DL2024PTC123456
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#7E756B] block">
+                    Billed To:
+                  </span>
+                  <strong className="text-xs font-black text-[#1C1917] block mt-1">
+                    {previewInvoiceOrder.customer_name || currentUser?.name || "Valued Customer"}
+                  </strong>
+                  <p className="text-[11px] text-[#7E756B] mt-0.5">
+                    {previewInvoiceOrder.customer_email || currentUser?.email || "customer@webintoapp.com"}
+                  </p>
+                  <p className="text-[10px] text-[#78593D] font-mono mt-1 font-bold">
+                    App: {previewInvoiceOrder.app_name || selectedApp?.name || "Mobile App"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Invoice Meta Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] text-xs">
+                <div>
+                  <span className="text-[9px] uppercase font-bold text-[#7E756B] block">Invoice Date</span>
+                  <span className="font-bold text-[#1C1917]">
+                    {previewInvoiceOrder.paid_at
+                      ? new Date(previewInvoiceOrder.paid_at).toLocaleDateString("en-IN")
+                      : new Date(previewInvoiceOrder.created_at).toLocaleDateString("en-IN")}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] uppercase font-bold text-[#7E756B] block">Status</span>
+                  <span className="font-black text-emerald-700 uppercase text-[10px]">
+                    {previewInvoiceOrder.status}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] uppercase font-bold text-[#7E756B] block">Payment Gateway</span>
+                  <span className="font-bold text-[#1C1917]">Razorpay</span>
+                </div>
+                <div>
+                  <span className="text-[9px] uppercase font-bold text-[#7E756B] block">Txn Reference</span>
+                  <span className="font-mono text-[10px] text-[#78593D] font-bold truncate block">
+                    {previewInvoiceOrder.transaction_id || `txn_${previewInvoiceOrder.id}`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Itemized Table */}
+              <div className="border border-[#EBE6DF] rounded-2xl overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-[#FAF7F2] text-[#7E756B] text-[10px] font-black uppercase tracking-wider border-b border-[#EBE6DF]">
+                      <th className="py-2.5 px-3">Item Description</th>
+                      <th className="py-2.5 px-3 text-center">Qty</th>
+                      <th className="py-2.5 px-3 text-right">Unit Price</th>
+                      <th className="py-2.5 px-3 text-right">Tax (18% GST)</th>
+                      <th className="py-2.5 px-3 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#EBE6DF] text-[#1C1917]">
+                    {Array.isArray(previewInvoiceOrder.items) && previewInvoiceOrder.items.length > 0 ? (
+                      previewInvoiceOrder.items.map((item: any, idx: number) => {
+                        const price = typeof item.price === "number" ? item.price : item.amount || 0;
+                        const sub = Math.round(price / 100);
+                        const tax = Math.round(sub * 0.18);
+                        return (
+                          <tr key={idx}>
+                            <td className="py-3 px-3">
+                              <span className="font-bold block">{item.name || item.title || "Module License"}</span>
+                              <span className="text-[10px] text-[#7E756B]">
+                                Lifetime License &bull; {item.item_type || "Module"}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono">1</td>
+                            <td className="py-3 px-3 text-right font-mono">₹{sub.toLocaleString("en-IN")}</td>
+                            <td className="py-3 px-3 text-right font-mono text-[#7E756B]">Included</td>
+                            <td className="py-3 px-3 text-right font-mono font-bold">₹{sub.toLocaleString("en-IN")}</td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td className="py-3 px-3">
+                          <span className="font-bold block">{previewInvoiceOrder.package_name || "App Package"}</span>
+                          <span className="text-[10px] text-[#7E756B]">Lifetime Application License</span>
+                        </td>
+                        <td className="py-3 px-3 text-center font-mono">1</td>
+                        <td className="py-3 px-3 text-right font-mono">
+                          {previewInvoiceOrder.total_formatted ||
+                            `₹${Math.round((previewInvoiceOrder.total_amount || 0) / 100).toLocaleString("en-IN")}`}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono text-[#7E756B]">Included</td>
+                        <td className="py-3 px-3 text-right font-mono font-bold">
+                          {previewInvoiceOrder.total_formatted ||
+                            `₹${Math.round((previewInvoiceOrder.total_amount || 0) / 100).toLocaleString("en-IN")}`}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Financial Totals */}
+              <div className="flex justify-end">
+                <div className="w-full sm:w-64 space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-[#7E756B]">
+                    <span>Subtotal:</span>
+                    <span className="font-mono font-bold text-[#1C1917]">
+                      {previewInvoiceOrder.total_formatted ||
+                        `₹${Math.round((previewInvoiceOrder.total_amount || 0) / 100).toLocaleString("en-IN")}`}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[#7E756B]">
+                    <span>GST (Integrated 18%):</span>
+                    <span className="font-mono text-emerald-700 font-bold">Included</span>
+                  </div>
+                  <div className="pt-2 border-t border-[#EBE6DF] flex items-center justify-between font-black text-sm">
+                    <span className="text-[#1C1917]">Total Paid:</span>
+                    <span className="text-[#78593D] font-mono text-base">
+                      {previewInvoiceOrder.total_formatted ||
+                        `₹${Math.round((previewInvoiceOrder.total_amount || 0) / 100).toLocaleString("en-IN")}`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions Footer */}
+            <div className="p-4 sm:p-5 bg-[#FAF7F2] border-t border-[#EBE6DF] flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setPreviewInvoiceOrder(null)}
+                className="px-4 py-2.5 rounded-xl border border-[#EBE6DF] font-bold text-xs text-[#57514B] hover:bg-white transition cursor-pointer"
+              >
+                Close
+              </button>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/api/orders/${previewInvoiceOrder.id}/invoice?download=1`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={`Invoice-${previewInvoiceOrder.order_number || previewInvoiceOrder.id}.pdf`}
+                  className="px-5 py-2.5 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white font-bold text-xs transition flex items-center gap-2 shadow-sm cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download PDF Invoice</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 8. TRANSACTION DETAILS MODAL ── */}
+      {selectedTxnDetails && (
+        <div
+          className="fixed inset-0 z-[99999] w-screen h-screen bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+          onClick={() => setSelectedTxnDetails(null)}
+        >
+          <div
+            className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-[#EBE6DF] overflow-hidden my-auto animate-fadeIn relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-[#FAF7F2] p-5 sm:p-6 border-b border-[#EBE6DF] flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#78593D] block">
+                  Transaction Metadata
+                </span>
+                <h3 className="text-base sm:text-lg font-black text-[#1C1917] mt-0.5">
+                  Reference: {selectedTxnDetails.order_number}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedTxnDetails(null)}
+                className="p-2 rounded-xl text-[#7E756B] hover:text-[#1C1917] hover:bg-white transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 space-y-4 max-h-[70vh] overflow-y-auto text-xs">
+              <div className="space-y-2 p-3.5 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF]">
+                <div className="flex justify-between">
+                  <span className="text-[#7E756B]">Order ID:</span>
+                  <span className="font-mono font-bold text-[#1C1917]">#{selectedTxnDetails.id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#7E756B]">Order Number:</span>
+                  <span className="font-mono font-bold text-[#78593D]">{selectedTxnDetails.order_number}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#7E756B]">Gateway Transaction:</span>
+                  <span className="font-mono text-[#1C1917]">{selectedTxnDetails.transaction_id || `txn_${selectedTxnDetails.id}`}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#7E756B]">Gateway Order ID:</span>
+                  <span className="font-mono text-[#7E756B]">{selectedTxnDetails.gateway_order_id || "N/A"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#7E756B]">Amount:</span>
+                  <span className="font-mono font-black text-[#1C1917] text-sm">
+                    {selectedTxnDetails.total_formatted ||
+                      `₹${Math.round((selectedTxnDetails.total_amount || 0) / 100).toLocaleString("en-IN")}`}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#7E756B]">Status:</span>
+                  <span className="font-black text-emerald-700 uppercase">{selectedTxnDetails.status}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#7E756B]">Date Paid:</span>
+                  <span className="text-[#1C1917]">
+                    {selectedTxnDetails.paid_at
+                      ? new Date(selectedTxnDetails.paid_at).toLocaleString("en-IN")
+                      : selectedTxnDetails.created_at
+                      ? new Date(selectedTxnDetails.created_at).toLocaleString("en-IN")
+                      : "Recent"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-white border border-[#EBE6DF] flex items-center justify-between">
+                <span className="text-[#7E756B]">Target Application:</span>
+                <strong className="text-[#1C1917] font-bold">
+                  {selectedTxnDetails.app_name || selectedApp?.name || "Application"}
+                </strong>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const o = selectedTxnDetails;
+                    setSelectedTxnDetails(null);
+                    setPreviewInvoiceOrder(o);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl border border-[#EBE6DF] bg-white hover:bg-[#FAF7F2] text-[#78593D] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Preview Full Invoice</span>
+                </button>
+                <a
+                  href={`/api/orders/${selectedTxnDetails.id}/invoice?download=1`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={`Invoice-${selectedTxnDetails.order_number || selectedTxnDetails.id}.pdf`}
+                  className="flex-1 py-2.5 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white font-bold transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download PDF</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

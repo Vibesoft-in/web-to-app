@@ -1281,8 +1281,27 @@ export function AppDetailsView({
             </button>
             <div className="h-6 w-[1px] bg-[#EBE6DF] hidden sm:block" />
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#78593D] to-[#C2A88F] text-white font-extrabold text-sm flex items-center justify-center shadow-xs flex-shrink-0">
-                {appName.charAt(0).toUpperCase()}
+              <div className="relative w-10 h-10 rounded-xl overflow-hidden border border-[#EBE6DF] bg-white shadow-2xs flex-shrink-0 flex items-center justify-center">
+                {appLogoUrl ? (
+                  <img
+                    src={appLogoUrl}
+                    alt={appName}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = "none";
+                      if (e.currentTarget.nextElementSibling) {
+                        (e.currentTarget.nextElementSibling as HTMLElement).style.display = "flex";
+                      }
+                    }}
+                  />
+                ) : null}
+                <div
+                  className={`w-full h-full bg-gradient-to-tr from-[#78593D] to-[#C2A88F] text-white font-extrabold text-sm items-center justify-center ${
+                    appLogoUrl ? "hidden" : "flex"
+                  }`}
+                >
+                  {(appName || "A").charAt(0).toUpperCase()}
+                </div>
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -1373,8 +1392,27 @@ export function AppDetailsView({
                 </button>
 
                 <div className="flex items-center gap-2.5 px-3 py-2 bg-[#FAF7F2] rounded-2xl border border-[#EBE6DF]">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#78593D] to-[#C2A88F] text-white font-extrabold text-xs flex items-center justify-center shadow-xs flex-shrink-0">
-                    {appName.charAt(0).toUpperCase()}
+                  <div className="relative w-9 h-9 rounded-xl overflow-hidden border border-[#EBE6DF] bg-white shadow-2xs flex-shrink-0 flex items-center justify-center">
+                    {appLogoUrl ? (
+                      <img
+                        src={appLogoUrl}
+                        alt={appName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLElement).style.display = "none";
+                          if (e.currentTarget.nextElementSibling) {
+                            (e.currentTarget.nextElementSibling as HTMLElement).style.display = "flex";
+                          }
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className={`w-full h-full bg-gradient-to-tr from-[#78593D] to-[#C2A88F] text-white font-extrabold text-xs items-center justify-center ${
+                        appLogoUrl ? "hidden" : "flex"
+                      }`}
+                    >
+                      {(appName || "A").charAt(0).toUpperCase()}
+                    </div>
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="text-xs font-extrabold text-[#1C1917] block truncate">{appName}</span>
