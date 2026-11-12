@@ -633,22 +633,26 @@ export function TrafficView({ ulid, storeUrl, appName = "Mobile Application", sh
         </div>
       </div>
 
-      {/* ── REQUIREMENT 3: PROPER HORIZONTAL TAB NAVIGATION BAR ── */}
-      <div className="border-b border-[var(--mav-border)] overflow-x-auto scrollbar-none">
-        <nav className="flex items-center gap-2 sm:gap-4 -mb-px" aria-label="Traffic Analytics Navigation Tabs">
+      {/* ── REQUIREMENT 3: BOXED BUTTON NAVIGATION TABS ── */}
+      <div className="overflow-x-auto scrollbar-none pb-1">
+        <nav className="flex items-center gap-2.5 sm:gap-3" aria-label="Traffic Analytics Navigation Tabs">
           {/* Tab 1: Combined Overview */}
           <button
             type="button"
             onClick={() => setActiveTab("combined")}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-3 font-black text-xs sm:text-[13px] border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-2xl font-black text-xs sm:text-[13px] transition-all cursor-pointer whitespace-nowrap border shadow-2xs active:scale-98 ${
               activeTab === "combined"
-                ? "border-[#78593D] text-[#78593D] dark:text-amber-400 dark:border-amber-400 shadow-xs"
-                : "border-transparent text-[var(--mav-muted)] hover:text-[var(--mav-text)] hover:border-[var(--mav-border)]"
+                ? "bg-[#78593D] text-white border-[#78593D] shadow-md"
+                : "bg-[var(--mav-surface)] text-[var(--mav-muted)] border-[var(--mav-border)] hover:text-[var(--mav-text)] hover:border-[#78593D]/40 hover:bg-[var(--mav-well)]"
             }`}
           >
-            <Layers className="w-4 h-4 flex-shrink-0" />
+            <Layers className={`w-4 h-4 flex-shrink-0 ${activeTab === "combined" ? "text-amber-200" : "text-[#78593D] dark:text-amber-400"}`} />
             <span>Combined Overview</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[var(--mav-well)] text-[var(--mav-muted)]">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+              activeTab === "combined"
+                ? "bg-white/20 text-white"
+                : "bg-[var(--mav-well)] text-[var(--mav-muted)] border border-[var(--mav-border)]"
+            }`}>
               Web + App
             </span>
           </button>
@@ -657,15 +661,19 @@ export function TrafficView({ ulid, storeUrl, appName = "Mobile Application", sh
           <button
             type="button"
             onClick={() => setActiveTab("app")}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-3 font-black text-xs sm:text-[13px] border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-2xl font-black text-xs sm:text-[13px] transition-all cursor-pointer whitespace-nowrap border shadow-2xs active:scale-98 ${
               activeTab === "app"
-                ? "border-[#78593D] text-[#78593D] dark:text-amber-400 dark:border-amber-400 shadow-xs"
-                : "border-transparent text-[var(--mav-muted)] hover:text-[var(--mav-text)] hover:border-[var(--mav-border)]"
+                ? "bg-[#78593D] text-white border-[#78593D] shadow-md"
+                : "bg-[var(--mav-surface)] text-[var(--mav-muted)] border-[var(--mav-border)] hover:text-[var(--mav-text)] hover:border-[#78593D]/40 hover:bg-[var(--mav-well)]"
             }`}
           >
-            <Smartphone className="w-4 h-4 flex-shrink-0" />
+            <Smartphone className={`w-4 h-4 flex-shrink-0 ${activeTab === "app" ? "text-emerald-300" : "text-emerald-600 dark:text-emerald-400"}`} />
             <span>Mobile App</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+              activeTab === "app"
+                ? "bg-emerald-400/25 text-emerald-100 border border-emerald-300/30"
+                : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40"
+            }`}>
               Native SDK
             </span>
           </button>
@@ -674,21 +682,29 @@ export function TrafficView({ ulid, storeUrl, appName = "Mobile Application", sh
           <button
             type="button"
             onClick={() => setActiveTab("web")}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-3 font-black text-xs sm:text-[13px] border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-2xl font-black text-xs sm:text-[13px] transition-all cursor-pointer whitespace-nowrap border shadow-2xs active:scale-98 ${
               activeTab === "web"
-                ? "border-[#78593D] text-[#78593D] dark:text-amber-400 dark:border-amber-400 shadow-xs"
-                : "border-transparent text-[var(--mav-muted)] hover:text-[var(--mav-text)] hover:border-[var(--mav-border)]"
+                ? "bg-[#78593D] text-white border-[#78593D] shadow-md"
+                : "bg-[var(--mav-surface)] text-[var(--mav-muted)] border-[var(--mav-border)] hover:text-[var(--mav-text)] hover:border-[#78593D]/40 hover:bg-[var(--mav-well)]"
             }`}
           >
-            <Globe className="w-4 h-4 flex-shrink-0" />
+            <Globe className={`w-4 h-4 flex-shrink-0 ${activeTab === "web" ? "text-blue-200" : "text-blue-600 dark:text-blue-400"}`} />
             <span>Web (Google Site Kit)</span>
             {isSiteKitConnected ? (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1.5 ${
+                activeTab === "web"
+                  ? "bg-emerald-400/25 text-emerald-100 border border-emerald-300/30"
+                  : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40"
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${activeTab === "web" ? "bg-emerald-300" : "bg-emerald-600"}`} />
                 Connected
               </span>
             ) : (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900">
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                activeTab === "web"
+                  ? "bg-amber-400/25 text-amber-100 border border-amber-300/30"
+                  : "bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40"
+              }`}>
                 Setup Required
               </span>
             )}
