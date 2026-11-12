@@ -1600,22 +1600,6 @@ function UserDashboardContent() {
               <p className="text-xs sm:text-sm text-[#57514B] mt-1">
                 {user?.email || "owner@store.com"}
               </p>
-              <div className="flex flex-wrap items-center gap-3 mt-3 text-xs text-[#7E756B]">
-                <span className="flex items-center gap-1.5 font-semibold text-[#1C1917]">
-                  <Smartphone className="w-3.5 h-3.5 text-[#78593D]" />
-                  <span>{apps?.length ?? 0} {apps?.length === 1 ? "App" : "Apps"} Configured</span>
-                </span>
-                <span>&bull;</span>
-                <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Per-App Lifetime Licensing</span>
-                </span>
-                <span>&bull;</span>
-                <span className="flex items-center gap-1.5 text-[#57514B]">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Independent App Packages</span>
-                </span>
-              </div>
             </div>
           </div>
 
@@ -1666,6 +1650,81 @@ function UserDashboardContent() {
             </div>
           </div>
         </div>
+
+        {/* ── DASHBOARD NAVIGATION TABS (INTEGRATED INSIDE WELCOME PANEL) ── */}
+        <div className="pt-5 border-t border-[#EBE6DF] flex items-center gap-2 overflow-x-auto scrollbar-none">
+          <button
+            onClick={() => handleTabChange("apps")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === "apps"
+                ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
+                : "text-[#57514B] hover:text-[#1C1917] hover:bg-[#FAF7F2]"
+            }`}
+          >
+            <Smartphone className="w-4 h-4" />
+            <span>My Apps &amp; Downloads</span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange("builds")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === "builds"
+                ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
+                : "text-[#57514B] hover:text-[#1C1917] hover:bg-[#FAF7F2]"
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            <span>Build Artifacts ({builds.length})</span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange("purchases")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === "purchases"
+                ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
+                : "text-[#57514B] hover:text-[#1C1917] hover:bg-[#FAF7F2]"
+            }`}
+          >
+            <Receipt className="w-4 h-4" />
+            <span>My Purchases &amp; Invoices ({myOrders.length})</span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange("plans")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === "plans"
+                ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
+                : "text-[#57514B] hover:text-[#1C1917] hover:bg-[#FAF7F2]"
+            }`}
+          >
+            <Shield className="w-4 h-4" />
+            <span>Plans &amp; Packages</span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange("addons")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === "addons"
+                ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
+                : "text-[#57514B] hover:text-[#1C1917] hover:bg-[#FAF7F2]"
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Add-on Marketplace</span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange("custom_features")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === "custom_features"
+                ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
+                : "text-[#57514B] hover:text-[#1C1917] hover:bg-[#FAF7F2]"
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>Custom Quotes ({myCustomRequests.length})</span>
+          </button>
+        </div>
       </div>
 
       {/* Global Action Messages */}
@@ -1681,81 +1740,6 @@ function UserDashboardContent() {
           <span>{customActionMessage}</span>
         </div>
       )}
-
-      {/* ── DASHBOARD NAVIGATION TABS ── */}
-      <div className="flex items-center gap-2 border-b border-[#EBE6DF] pb-2 overflow-x-auto scrollbar-none">
-        <button
-          onClick={() => handleTabChange("apps")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-            activeTab === "apps"
-              ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
-              : "text-[#57514B] hover:text-[#1C1917] hover:bg-[#EFEAE2]"
-          }`}
-        >
-          <Smartphone className="w-4 h-4" />
-          <span>My Apps &amp; Downloads</span>
-        </button>
-
-        <button
-          onClick={() => handleTabChange("builds")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-            activeTab === "builds"
-              ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
-              : "text-[#57514B] hover:text-[#1C1917] hover:bg-[#EFEAE2]"
-          }`}
-        >
-          <Package className="w-4 h-4" />
-          <span>Build Artifacts ({builds.length})</span>
-        </button>
-
-        <button
-          onClick={() => handleTabChange("purchases")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-            activeTab === "purchases"
-              ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
-              : "text-[#57514B] hover:text-[#1C1917] hover:bg-[#EFEAE2]"
-          }`}
-        >
-          <Receipt className="w-4 h-4" />
-          <span>My Purchases &amp; Invoices ({myOrders.length})</span>
-        </button>
-
-        <button
-          onClick={() => handleTabChange("plans")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-            activeTab === "plans"
-              ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
-              : "text-[#57514B] hover:text-[#1C1917] hover:bg-[#EFEAE2]"
-          }`}
-        >
-          <Shield className="w-4 h-4" />
-          <span>Plans &amp; Packages</span>
-        </button>
-
-        <button
-          onClick={() => handleTabChange("addons")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-            activeTab === "addons"
-              ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
-              : "text-[#57514B] hover:text-[#1C1917] hover:bg-[#EFEAE2]"
-          }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>Add-on Marketplace</span>
-        </button>
-
-        <button
-          onClick={() => handleTabChange("custom_features")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-            activeTab === "custom_features"
-              ? "bg-[#78593D] text-white shadow-md shadow-[#78593D]/20"
-              : "text-[#57514B] hover:text-[#1C1917] hover:bg-[#EFEAE2]"
-          }`}
-        >
-          <MessageSquare className="w-4 h-4" />
-          <span>Custom Quotes ({myCustomRequests.length})</span>
-        </button>
-      </div>
 
       {/* ── TAB 1: MY APPS & ENTITLED DOWNLOADS ── */}
       {activeTab === "apps" && (
