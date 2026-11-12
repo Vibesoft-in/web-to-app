@@ -1500,4 +1500,15 @@ Route::post('/apps/{ulid}/addons/purchase', function (Request $request, string $
     ]);
 })->name('api.apps.addons.purchase');
 
+// ── App Telemetry & Analytics Endpoints ─────────────────────────────────────
+Route::post('/apps/{ulid}/telemetry/events', [\App\Http\Controllers\Api\AnalyticsController::class, 'ingest'])
+    ->name('api.apps.telemetry.events');
+
+Route::get('/apps/{ulid}/analytics', [\App\Http\Controllers\Api\AnalyticsController::class, 'index'])
+    ->name('api.apps.analytics.index');
+
+Route::get('/apps/{ulid}/analytics/export', [\App\Http\Controllers\Api\AnalyticsController::class, 'export'])
+    ->name('api.apps.analytics.export');
+
+
 

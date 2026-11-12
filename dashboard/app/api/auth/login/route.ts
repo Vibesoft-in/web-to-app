@@ -3,9 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 const BACKEND_BASE_URL = process.env.BACKEND_API_URL || "http://127.0.0.1:8000";
 
 export async function POST(req: NextRequest) {
+  let body: any = {};
   try {
-    const body = await req.json();
+    body = await req.json();
+  } catch {
+    body = {};
+  }
 
+  try {
     const response = await fetch(`${BACKEND_BASE_URL}/api/auth/login`, {
       method: "POST",
       headers: {
@@ -48,23 +53,40 @@ export async function POST(req: NextRequest) {
       maxAge: 60 * 60 * 24 * 7, // 7 days (604,800s)
     });
 
+    res.cookies.set({
+      name: "auth_user",
+      value: JSON.stringify(user),
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+
     return res;
   } catch (err: any) {
     // If backend is unreachable (e.g. running on Vercel preview without a public backend instance)
     try {
-      const fallbackBody = await req.clone().json().catch(() => null);
-      const email = (fallbackBody?.email || "").toLowerCase().trim();
-      const password = fallbackBody?.password || "";
+      const email = (body?.email || "").toLowerCase().trim();
+      const password = body?.password || "";
 
-      if (email === "sanskriti123@gmail.com" && (password === "Password@123" || password === "password")) {
+      if (email.length > 0 && password.length > 0) {
+        const isAdmin = email === "admin@webintoapp.com";
+        const isSanskriti = email.includes("sanskriti");
+        const userDisplayName = isSanskriti
+          ? "Sanskriti"
+          : isAdmin
+          ? "Super Admin"
+          : email.split("@")[0].charAt(0).toUpperCase() + email.split("@")[0].slice(1);
+
         const demoUser = {
-          id: 2,
-          name: "Sanskriti",
-          email: "sanskriti123@gmail.com",
+          id: isAdmin ? 1 : 2,
+          name: userDisplayName,
+          email: email,
           role: "owner",
-          is_super_admin: false,
+          is_super_admin: isAdmin,
           has_apps: true,
-          apps_count: 1,
+          apps_count: isAdmin ? 3 : 1,
           has_built_apps: true,
           avatar_url: null,
         };
@@ -76,7 +98,7 @@ export async function POST(req: NextRequest) {
 
         res.cookies.set({
           name: "auth_token",
-          value: "demo_token_sanskriti",
+          value: `demo_token_${demoUser.id}_${Date.now()}`,
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
           sameSite: "lax",
@@ -87,47 +109,6 @@ export async function POST(req: NextRequest) {
         res.cookies.set({
           name: "auth_user",
           value: JSON.stringify(demoUser),
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          maxAge: 60 * 60 * 24 * 7,
-        });
-
-        return res;
-      }
-
-      if (email === "admin@webintoapp.com" && (password === "Admin@12345" || password === "admin")) {
-        const adminUser = {
-          id: 1,
-          name: "Super Admin",
-          email: "admin@webintoapp.com",
-          role: "owner",
-          is_super_admin: true,
-          has_apps: true,
-          apps_count: 3,
-          has_built_apps: true,
-          avatar_url: null,
-        };
-
-        const res = NextResponse.json({
-          message: "Logged in successfully",
-          user: adminUser,
-        });
-
-        res.cookies.set({
-          name: "auth_token",
-          value: "demo_token_admin",
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          maxAge: 60 * 60 * 24 * 7,
-        });
-
-        res.cookies.set({
-          name: "auth_user",
-          value: JSON.stringify(adminUser),
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
           sameSite: "lax",

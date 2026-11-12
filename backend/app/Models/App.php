@@ -45,11 +45,17 @@ class App extends Model
         'active_plan',
         'can_apk',
         'can_aab',
+        'can_ipa',
         'has_admin_panel',
         'assigned_theme_key',
         'is_completed',
         'is_draft',
     ];
+
+    public function getCanIpaAttribute(): bool
+    {
+        return $this->canDownloadIpa();
+    }
 
     public function getIsCompletedAttribute(): bool
     {
@@ -157,6 +163,11 @@ class App extends Model
     public function notificationCampaigns(): HasMany
     {
         return $this->hasMany(NotificationCampaign::class);
+    }
+
+    public function analyticsEvents(): HasMany
+    {
+        return $this->hasMany(AppAnalyticsEvent::class);
     }
 
     public function orders(): HasMany
