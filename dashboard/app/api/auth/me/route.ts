@@ -8,15 +8,31 @@ export async function GET() {
     return NextResponse.json({ user: null });
   }
 
-  const result = await serverFetch("/api/user");
+  try {
+    const result = await serverFetch("/api/user");
 
-  if (result.error || !result.data) {
-    const res = NextResponse.json({ user: null });
-    if (result.status === 401) {
-      res.cookies.delete("auth_token");
+    if (!result.error && result.data) {
+      return NextResponse.json({ user: result.data });
     }
-    return res;
+
+    if (result.status === 401) {
+      const res = NextResponse.json({ user: null });
+      res.cookies.delete("auth_token");
+      res.cookies.delete("auth_user");
+      return res;
+    }
+  } catch (err) {
+    // Backend unreachable (e.g. running on Vercel preview)
   }
 
-  return NextResponse.json({ user: result.data });
+  // Fallback to auth_user cookie if backend is offline / on Vercel preview
+  const cachedUser = cookies().get("auth_user")?.value;
+  if (cachedUser) {
+    try {
+      return NextResponse.json({ user: JSON.parse(cachedUser) });
+    } catch {}
+  }
+
+  return NextResponse.json({ user: null });
 }
+

@@ -524,6 +524,93 @@ function UserDashboardContent() {
       .join(", ");
   })();
 
+  // Incomplete Apps tracking (Change 2)
+  const incompleteApps = (apps || []).filter((appItem: any) => isAppDraft(appItem));
+
+  // Current Plan Resolution for Main Customer Dashboard (Change 3)
+  const currentPlanInfo = (() => {
+    // 1. Subscription-level active plan
+    if (activeSub?.plan) {
+      const priceFormatted = activeSub.plan.price_monthly
+        ? formatPrice(activeSub.plan.price_monthly)
+        : activeSub.plan.price_formatted || "₹8,999";
+      return {
+        name: activeSub.plan.name || "Commercial Plan",
+        price: priceFormatted,
+        billingType: activeSub.ends_at ? "Subscription" : "Lifetime License",
+        status: (activeSub.status || "active").toUpperCase() === "ACTIVE" ? "Active" : activeSub.status,
+        validity: activeSub.ends_at
+          ? `Renews ${new Date(activeSub.ends_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+          : "Perpetual (No Expiration)",
+        isLifetime: !activeSub.ends_at,
+        scope: "Account Subscription",
+      };
+    }
+
+    // 2. Highest active app plan or primary app plan
+    const appsWithPlans = (apps || []).filter(
+      (a: any) => a.active_plan && a.active_plan.name && a.active_plan.name !== "None"
+    );
+
+    if (appsWithPlans.length > 0) {
+      const enterpriseApp = appsWithPlans.find((a: any) =>
+        (a.active_plan.name || "").toLowerCase().includes("enterprise")
+      );
+      const proApp = appsWithPlans.find((a: any) =>
+        (a.active_plan.name || "").toLowerCase().includes("pro")
+      );
+      const chosenApp = enterpriseApp || proApp || appsWithPlans[0];
+      const p = chosenApp.active_plan;
+      const priceFormatted = p.price_monthly
+        ? formatPrice(p.price_monthly)
+        : p.price_formatted || ((p.name || "").includes("Enterprise") ? "₹14,999" : (p.name || "").includes("Pro") ? "₹8,999" : "₹2,999");
+
+      return {
+        name: p.name,
+        price: priceFormatted,
+        billingType: "Lifetime License",
+        status: "Active",
+        validity: "Perpetual (No Expiration)",
+        isLifetime: true,
+        scope: appsWithPlans.length > 1
+          ? `Active on ${chosenApp.name} (+${appsWithPlans.length - 1} more)`
+          : `Licensed for ${chosenApp.name}`,
+      };
+    }
+
+    // 3. User verified orders
+    if (myOrders && myOrders.length > 0) {
+      const latestOrder = myOrders[0];
+      return {
+        name: latestOrder.item_name || latestOrder.package_name || "Commercial App Package",
+        price: latestOrder.amount ? `₹${((latestOrder.amount) / 100).toLocaleString("en-IN")}` : "₹8,999",
+        billingType: "Lifetime License",
+        status: "Active",
+        validity: "Perpetual (No Expiration)",
+        isLifetime: true,
+        scope: "Commercial Order",
+      };
+    }
+
+    // 4. Default / Starter tier if no paid plans purchased yet
+    return {
+      name: "Starter Tier",
+      price: "Free",
+      billingType: "Standard Plan",
+      status: "Active",
+      validity: "Perpetual",
+      isLifetime: true,
+      scope: "Account",
+    };
+  })();
+
+  const distinctAppPlans = (apps || [])
+    .filter((a: any) => a.active_plan?.name && a.active_plan.name !== "None")
+    .map((a: any) => `${a.name}: ${a.active_plan.name}`);
+  const multiplePlansNote = distinctAppPlans.length > 1
+    ? `${distinctAppPlans.length} Active Licenses (${distinctAppPlans.slice(0, 2).join(", ")}${distinctAppPlans.length > 2 ? "..." : ""})`
+    : null;
+
   const fallbackCommercialPackages = [
     {
       id: 1,
@@ -1532,28 +1619,51 @@ function UserDashboardContent() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => handleTabChange("plans")}
-              className="px-4 py-2.5 rounded-xl border border-[#78593D] bg-[#EFEAE2]/60 hover:bg-[#EFEAE2] text-[#78593D] text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
-            >
-              <Package className="w-4 h-4 text-[#78593D]" />
-              <span>All Plans &amp; Packages</span>
-            </button>
-            <button
-              onClick={() => handleTabChange("addons")}
-              className="px-4 py-2.5 rounded-xl border border-[#EBE6DF] bg-white hover:bg-[#F7F5F0] text-[#57514B] text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4 text-[#78593D]" />
-              <span>Add Features</span>
-            </button>
-            <Link
-              href="/dashboard/apps/new"
-              className="px-4 py-2.5 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white text-xs font-bold transition flex items-center gap-2 shadow-md shadow-[#78593D]/20"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Build New App</span>
-            </Link>
+          {/* Current Plan Information (Change 3: Replaces Action Buttons) */}
+          <div className="bg-[#FAF7F2] border border-[#EBE6DF] rounded-2xl p-4 min-w-[270px] max-w-sm shadow-2xs self-stretch sm:self-auto flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-3 pb-2 border-b border-[#EBE6DF]">
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-[#78593D]" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#7E756B]">
+                  Current Plan
+                </span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
+                <span>{currentPlanInfo.status}</span>
+              </span>
+            </div>
+
+            <div className="pt-2 space-y-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <h3 className="text-sm sm:text-base font-black text-[#1C1917] tracking-tight">
+                  {currentPlanInfo.name}
+                </h3>
+                <span className="text-xs sm:text-sm font-black text-[#78593D]">
+                  {currentPlanInfo.price}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-[#7E756B] pt-0.5">
+                <span className="font-semibold text-[#57514B] flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-amber-600 flex-shrink-0" />
+                  <span>{currentPlanInfo.billingType}</span>
+                </span>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                  {currentPlanInfo.validity}
+                </span>
+              </div>
+
+              {multiplePlansNote ? (
+                <div className="text-[10px] text-[#8A837A] pt-1.5 border-t border-[#EBE6DF]/70 mt-1 truncate" title={multiplePlansNote}>
+                  {multiplePlansNote}
+                </div>
+              ) : currentPlanInfo.scope ? (
+                <div className="text-[10px] text-[#8A837A] pt-1 border-t border-[#EBE6DF]/70 mt-1 truncate">
+                  {currentPlanInfo.scope}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
@@ -1769,6 +1879,75 @@ function UserDashboardContent() {
                 <Plus className="w-4 h-4" />
                 <span>Create New App</span>
               </Link>
+            </div>
+          )}
+
+          {/* ── CHANGE 2: COMPACT INCOMPLETE APPLICATIONS SECTION ── */}
+          {incompleteApps.length > 0 && (
+            <div className="bg-[#FAF7F2] border border-amber-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-3 animate-fadeIn">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#EBE6DF]">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-700" />
+                  <h3 className="text-sm font-black text-[#1C1917]">
+                    Incomplete Apps
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-200">
+                    {incompleteApps.length} {incompleteApps.length === 1 ? "Pending Setup" : "Pending Setups"}
+                  </span>
+                </div>
+                <span className="text-[11px] text-[#7E756B]">
+                  Quickly resume your unfinished application configuration from the exact next step
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {incompleteApps.map((incApp: any) => {
+                  const pendingStepObj =
+                    Array.isArray(incApp.pending_steps) && incApp.pending_steps.length > 0
+                      ? incApp.pending_steps[0]
+                      : null;
+                  const currentStepKey =
+                    pendingStepObj?.step || incApp.setup_step || "platform";
+                  const stepInfo = SETUP_STEP_DETAILS[currentStepKey] || {
+                    stepNumber: 1,
+                    title: "Setup In Progress",
+                    nextAction: "Continue Setup",
+                  };
+                  const buildPercentage = Math.min(
+                    100,
+                    Math.max(10, (stepInfo.stepNumber / 10) * 100)
+                  );
+
+                  return (
+                    <div
+                      key={incApp.ulid}
+                      className="p-3 bg-white rounded-xl border border-[#EBE6DF] hover:border-amber-300 transition-all shadow-2xs flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-[#FAF7F2] border border-[#EBE6DF] flex items-center justify-center text-sm font-black text-[#78593D] flex-shrink-0">
+                          {(incApp.name || "A").charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <strong className="text-xs font-black text-[#1C1917] block truncate">
+                            {incApp.name || "Untitled App"}
+                          </strong>
+                          <span className="text-[10px] text-amber-800 font-bold block truncate">
+                            Step {stepInfo.stepNumber}/10 &bull; {stepInfo.title} ({buildPercentage}%)
+                          </span>
+                        </div>
+                      </div>
+
+                      <Link
+                        href={`/dashboard/apps/${incApp.ulid}/setup/${currentStepKey}`}
+                        className="px-3 py-1.5 bg-[#78593D] hover:bg-[#634932] text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs flex-shrink-0 cursor-pointer active:scale-98"
+                      >
+                        <span>Continue Setup</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -1993,169 +2172,67 @@ function UserDashboardContent() {
                             )}
                           </div>
 
-                          {/* Bottom Action Buttons (Short-Card 2-Row Layout) */}
-                          <div className="pt-3 border-t border-[#EBE6DF] mt-3 space-y-2">
+                          {/* Bottom Action Buttons (Simplified per Change 1) */}
+                          <div className="pt-3 border-t border-[#EBE6DF] mt-3">
                             {isDraft ? (
-                              <div className="grid grid-cols-12 gap-2">
+                              <div className="grid grid-cols-2 gap-2">
                                 <button
                                   type="button"
-                                  onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem); }}
-                                  className="col-span-5 py-2 px-2 bg-[#EFEAE2]/80 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 truncate"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenAppDetails(appItem);
+                                  }}
+                                  className="w-full py-2.5 px-3 bg-[#FAF7F2] hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
                                 >
                                   <Eye className="w-3.5 h-3.5 text-[#78593D] flex-shrink-0" />
-                                  <span className="truncate">App Dashboard</span>
+                                  <span>View Dashboard</span>
                                 </button>
 
                                 <Link
                                   href={`/dashboard/apps/${appItem.ulid}/setup/${currentStepKey}`}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="col-span-5 py-2 px-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs text-center active:scale-98 cursor-pointer truncate"
+                                  className="w-full py-2.5 px-3 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs text-center active:scale-98 cursor-pointer"
                                 >
-                                  <span className="truncate">Continue</span>
+                                  <span>Continue Setup</span>
                                   <ArrowRight className="w-3.5 h-3.5 flex-shrink-0" />
                                 </Link>
-
+                              </div>
+                            ) : appHasAdmin ? (
+                              <div className="grid grid-cols-2 gap-2">
                                 <button
                                   type="button"
-                                  onClick={(e) => { e.stopPropagation(); setAppToDelete(appItem); }}
-                                  className="col-span-2 py-2 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer active:scale-98"
-                                  title="Delete Draft"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenAppDetails(appItem);
+                                  }}
+                                  className="w-full py-2.5 px-3 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                  <Eye className="w-3.5 h-3.5 text-white flex-shrink-0" />
+                                  <span>View Dashboard</span>
                                 </button>
+
+                                <Link
+                                  href={`/dashboard/apps/${appItem.ulid}/admin`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="w-full py-2.5 px-3 bg-[#FAF7F2] hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98"
+                                  title="Open App Admin Panel"
+                                >
+                                  <LayoutDashboard className="w-3.5 h-3.5 text-[#78593D] flex-shrink-0" />
+                                  <span>Admin Panel</span>
+                                </Link>
                               </div>
                             ) : (
-                              <div className="space-y-2">
-                                {(() => {
-                                  const hasPaidPlan = Boolean(
-                                    (appPlan && appPlan.id !== "free" && appPlan.name !== "Free Plan" && appPlan.name !== "None") ||
-                                    appItem.active_plan ||
-                                    appItem.can_apk === true
-                                  );
-                                  const hasReadyBuild = Boolean(
-                                    appBuilds.length > 0 && appTargetBuildId
-                                  );
-                                  const isApkDownloadUnlocked = Boolean(
-                                    hasPaidPlan &&
-                                    hasReadyBuild &&
-                                    (appItem.can_apk !== false)
-                                  );
-
-                                  return (
-                                    <>
-                                      {/* Row 1: Primary Action(s) */}
-                                      {appHasAdmin ? (
-                                        <div className="grid grid-cols-2 gap-2">
-                                          {isApkDownloadUnlocked ? (
-                                            <a
-                                              href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
-                                              download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
-                                              onClick={(e) => e.stopPropagation()}
-                                              className="py-2 px-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5 truncate"
-                                              title={`Download APK (v${appLatestBuild?.version_code || 1})`}
-                                            >
-                                              <Download className="w-3.5 h-3.5 flex-shrink-0" />
-                                              <span className="truncate">Download APK</span>
-                                            </a>
-                                          ) : !hasPaidPlan ? (
-                                            <Link
-                                              href={`/dashboard/apps/${appItem.ulid}/setup/payment`}
-                                              onClick={(e) => e.stopPropagation()}
-                                              className="py-2 px-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs truncate"
-                                              title="Choose a plan or package to unlock APK download"
-                                            >
-                                              <Lock className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                                              <span className="truncate">Plan Required</span>
-                                            </Link>
-                                          ) : (
-                                            <Link
-                                              href={`/dashboard/apps/${appItem.ulid}/setup/${currentStepKey}`}
-                                              onClick={(e) => e.stopPropagation()}
-                                              className="py-2 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs truncate"
-                                              title="Complete setup steps to unlock APK download"
-                                            >
-                                              <Lock className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-                                              <span className="truncate">Setup Incomplete</span>
-                                            </Link>
-                                          )}
-
-                                          <Link
-                                            href={`/dashboard/apps/${appItem.ulid}/admin`}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="py-2 px-2 bg-gradient-to-r from-[#4A3B32] to-[#2E241E] hover:from-[#3D2F27] hover:to-[#221A15] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98 border border-[#3D2F27] truncate"
-                                            title="Open App Admin Panel"
-                                          >
-                                            <LayoutDashboard className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
-                                            <span className="truncate">Admin Panel</span>
-                                          </Link>
-                                        </div>
-                                      ) : (
-                                        isApkDownloadUnlocked ? (
-                                          <a
-                                            href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
-                                            download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5"
-                                          >
-                                            <Download className="w-3.5 h-3.5" />
-                                            <span>Download APK (v{appLatestBuild?.version_code || 1}.0.0)</span>
-                                          </a>
-                                        ) : !hasPaidPlan ? (
-                                          <Link
-                                            href={`/dashboard/apps/${appItem.ulid}/setup/payment`}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                                            title="Choose a plan or package to unlock APK download"
-                                          >
-                                            <Lock className="w-3.5 h-3.5 text-amber-600" />
-                                            <span>Download APK (Locked &mdash; Plan Payment Required)</span>
-                                          </Link>
-                                        ) : (
-                                          <Link
-                                            href={`/dashboard/apps/${appItem.ulid}/setup/${currentStepKey}`}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                                            title="Complete setup steps to unlock APK download"
-                                          >
-                                            <Lock className="w-3.5 h-3.5 text-slate-500" />
-                                            <span>Download APK (Locked &mdash; Setup Incomplete)</span>
-                                          </Link>
-                                        )
-                                      )}
-                                    </>
-                                  );
-                                })()}
-
-                                {/* Row 2: Secondary Actions (Details & Add-ons & Delete) */}
-                                <div className="grid grid-cols-12 gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem); }}
-                                    className="col-span-5 py-2 px-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98 truncate"
-                                  >
-                                    <Eye className="w-3.5 h-3.5 text-white flex-shrink-0" />
-                                    <span className="truncate">App Dashboard</span>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem, "addons"); }}
-                                    className="col-span-5 py-2 px-2 bg-[#EFEAE2]/80 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer active:scale-98 truncate"
-                                  >
-                                    <Sparkles className="w-3 h-3 text-[#78593D]" />
-                                    <span className="truncate">Add-ons</span>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); setAppToDelete(appItem); }}
-                                    className="col-span-2 py-2 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer active:scale-98"
-                                    title="Delete App"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                                  </button>
-                                </div>
-                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenAppDetails(appItem);
+                                }}
+                                className="w-full py-2.5 px-3 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-98"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-white flex-shrink-0" />
+                                <span>View Dashboard</span>
+                              </button>
                             )}
                           </div>
                         </div>
@@ -2239,138 +2316,55 @@ function UserDashboardContent() {
                           </div>
                         </div>
 
-                        {/* Actions in list view */}
+                        {/* Actions in list view (Simplified per Change 1) */}
                         <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto flex-shrink-0">
                           {isDraft ? (
                             <>
                               <button
                                 type="button"
-                                onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem); }}
-                                className="px-4 py-2 bg-[#EFEAE2]/80 hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenAppDetails(appItem);
+                                }}
+                                className="px-3.5 py-2 bg-[#FAF7F2] hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-98"
                               >
                                 <Eye className="w-3.5 h-3.5 text-[#78593D]" />
-                                <span>App Dashboard</span>
+                                <span>View Dashboard</span>
                               </button>
                               <Link
                                 href={`/dashboard/apps/${appItem.ulid}/setup/${currentStepKey}`}
                                 onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-50 to-[#FAF7F2] border border-amber-300/80 hover:border-amber-400 hover:shadow-xs transition group"
-                                title="Click to resume setup"
+                                className="px-3.5 py-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-98"
                               >
-                                <div className="relative w-7 h-7 flex-shrink-0 flex items-center justify-center">
-                                  <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                                    <circle cx="18" cy="18" r="14" stroke="#E8DFD5" strokeWidth="3.5" fill="none" />
-                                    <circle
-                                      cx="18"
-                                      cy="18"
-                                      r="14"
-                                      stroke="#78593D"
-                                      strokeWidth="3.5"
-                                      fill="none"
-                                      strokeDasharray={circumference}
-                                      strokeDashoffset={strokeDashoffset}
-                                      strokeLinecap="round"
-                                      className="transition-all duration-700 ease-out"
-                                    />
-                                  </svg>
-                                  <span className="absolute text-[8px] font-black text-[#78593D]">
-                                    {buildPercentage}%
-                                  </span>
-                                </div>
-                                <div className="text-left">
-                                  <span className="text-xs font-extrabold text-[#78593D] block group-hover:underline">
-                                    {buildPercentage}% Completed
-                                  </span>
-                                  <span className="text-[10px] text-amber-800/80 font-medium block">
-                                    Step {stepInfo.stepNumber}/10 • Resume →
-                                  </span>
-                                </div>
+                                <span>Continue Setup</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
                               </Link>
                             </>
                           ) : (
                             <>
-                              {(() => {
-                                const hasPaidPlan = Boolean(
-                                  (appPlan && appPlan.id !== "free" && appPlan.name !== "Free Plan" && appPlan.name !== "None") ||
-                                  appItem.active_plan ||
-                                  appItem.can_apk === true
-                                );
-                                const hasReadyBuild = Boolean(
-                                  appBuilds.length > 0 && appTargetBuildId
-                                );
-                                const isListApkUnlocked = Boolean(
-                                  hasPaidPlan &&
-                                  hasReadyBuild &&
-                                  (appItem.can_apk !== false)
-                                );
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenAppDetails(appItem);
+                                }}
+                                className="px-4 py-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-98"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-white" />
+                                <span>View Dashboard</span>
+                              </button>
 
-                                if (isListApkUnlocked) {
-                                  return (
-                                    <a
-                                      href={`/api/apps/${appItem.ulid}/builds/${appTargetBuildId}/download-file?format=apk&app_name=${encodeURIComponent(appItem.name || "app")}&version=${appLatestBuild?.version_code || 1}`}
-                                      download={`${(appItem.name || "app").toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-v${appLatestBuild?.version_code || 1}.apk`}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                                    >
-                                      <Download className="w-3.5 h-3.5" />
-                                      <span>Download APK</span>
-                                    </a>
-                                  );
-                                }
-
-                                if (!hasPaidPlan) {
-                                  return (
-                                    <Link
-                                      href={`/dashboard/apps/${appItem.ulid}/setup/payment`}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                                      title="Choose a plan or package to unlock APK download"
-                                    >
-                                      <Lock className="w-3.5 h-3.5 text-amber-600" />
-                                      <span>Plan Required</span>
-                                    </Link>
-                                  );
-                                }
-
-                                return (
-                                  <Link
-                                    href={`/dashboard/apps/${appItem.ulid}/setup/${currentStepKey}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                                    title="Complete setup steps to unlock APK download"
-                                  >
-                                    <Lock className="w-3.5 h-3.5 text-slate-500" />
-                                    <span>Setup Incomplete</span>
-                                  </Link>
-                                );
-                              })()}
                               {appHasAdmin && (
                                 <Link
                                   href={`/dashboard/apps/${appItem.ulid}/admin`}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="px-4 py-2 bg-gradient-to-r from-[#4A3B32] to-[#2E241E] hover:from-[#3D2F27] hover:to-[#221A15] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs border border-[#3D2F27]"
+                                  className="px-4 py-2 bg-[#FAF7F2] hover:bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-98"
+                                  title="Open App Admin Panel"
                                 >
-                                  <LayoutDashboard className="w-3.5 h-3.5 text-amber-300" />
-                                  <span>Open App Admin Panel</span>
+                                  <LayoutDashboard className="w-3.5 h-3.5 text-[#78593D]" />
+                                  <span>Admin Panel</span>
                                 </Link>
                               )}
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem); }}
-                                className="px-4 py-2 bg-[#78593D] hover:bg-[#634932] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-                              >
-                                <Eye className="w-3.5 h-3.5 text-white" />
-                                <span>App Dashboard</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); handleOpenAppDetails(appItem, "addons"); }}
-                                className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-[#78593D] border border-amber-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                              >
-                                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                                <span>Buy Add-ons</span>
-                              </button>
                             </>
                           )}
                         </div>

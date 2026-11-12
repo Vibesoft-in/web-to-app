@@ -309,8 +309,16 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
                     <AlertCircle className="w-4 h-4 stroke-[2.2]" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <strong className="text-xs font-bold text-rose-950 block">Invalid Login Credentials</strong>
-                    <p className="text-xs text-rose-700 leading-relaxed mt-0.5">{errorMessage}</p>
+                    <strong className="text-xs font-bold text-rose-950 block">
+                      {errorMessage.toLowerCase().includes("fetch failed") || errorMessage.toLowerCase().includes("network")
+                        ? "Backend Server Connection Error"
+                        : "Invalid Login Credentials"}
+                    </strong>
+                    <p className="text-xs text-rose-700 leading-relaxed mt-0.5">
+                      {errorMessage.toLowerCase().includes("fetch failed") || errorMessage.toLowerCase().includes("network")
+                        ? "The cloud deployment cannot reach your local backend. Please test your login locally at http://localhost:3000/login where the database is running."
+                        : errorMessage}
+                    </p>
                   </div>
                   <button
                     type="button"
