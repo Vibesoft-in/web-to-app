@@ -178,6 +178,16 @@ export default function DashboardLayout({
               >
                 Billing &amp; Invoices
               </Link>
+              <Link
+                href="/dashboard/settings"
+                className={`py-5 transition ${
+                  isSettings
+                    ? "text-[#78593D] border-b-2 border-[#78593D] font-bold"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                Settings
+              </Link>
               {isAdmin && (
                 <a
                   href="http://localhost:8000/admin"
@@ -190,13 +200,6 @@ export default function DashboardLayout({
                   <span>Filament Admin ↗</span>
                 </a>
               )}
-              <Link
-                href="/"
-                className="py-5 text-slate-400 hover:text-slate-700 text-xs font-semibold flex items-center gap-1"
-                title="View public website"
-              >
-                <span>Main Website</span>
-              </Link>
             </nav>
           </div>
 
