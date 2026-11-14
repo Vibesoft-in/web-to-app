@@ -14,6 +14,7 @@ import { DeleteAppModal } from "@/components/dashboard/delete-app-modal";
 import {
   ArrowRight,
   Check,
+  ExternalLink,
   Globe,
   Loader2,
   Palette,
@@ -353,13 +354,21 @@ export default function NewAppPage() {
           <p className="text-xs text-slate-500 leading-relaxed max-w-md mx-auto">
             As a Super Admin, you have system-wide oversight to inspect customer applications, store syncs, and subscriptions. Personal app creation and builds are disabled for admin profiles.
           </p>
-          <div className="pt-2">
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#78593D] hover:bg-[#634830] text-white rounded-xl text-xs font-bold transition shadow-sm"
+            >
+              <span>Return to Dashboard</span>
+            </Link>
             <a
               href="http://localhost:8000/admin"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-sm"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition border border-slate-200"
             >
-              <span>Go to Filament Admin Panel</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>Filament Admin</span>
+              <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>
         </div>

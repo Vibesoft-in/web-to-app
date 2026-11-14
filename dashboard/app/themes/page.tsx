@@ -229,14 +229,8 @@ export default function ThemesPage() {
     }
 
     if (user) {
-      if (isAdmin) {
-        triggerToast("Super Admin oversight active. Redirecting to Filament Admin...");
-        window.location.href = "http://localhost:8000/admin";
-        return;
-      } else {
-        triggerToast(`Selected ${theme.name}! Opening app builder...`);
-        router.push(`/dashboard/apps/new?theme=${theme.slug}`);
-      }
+      triggerToast(`Selected ${theme.name}! Opening app builder...`);
+      router.push(`/dashboard/apps/new?theme=${theme.slug}`);
     } else {
       triggerToast(`Selected ${theme.name}! Redirecting to create account...`);
       router.push(`/signup?theme=${theme.slug}`);

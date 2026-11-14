@@ -235,13 +235,6 @@ function UserDashboardContent() {
   const user = userData?.user;
   const isAdmin = Boolean(user?.is_super_admin || user?.email === "admin@webintoapp.com");
 
-  // Redirect admin users to the dedicated Admin Oversight Dashboard
-  useEffect(() => {
-    if (!isUserLoading && user && isAdmin) {
-      router.replace("/dashboard/admin");
-    }
-  }, [isUserLoading, user, isAdmin, router]);
-
   // 2. Fetch User's Applications (with builds & connections)
   const {
     data: apps,

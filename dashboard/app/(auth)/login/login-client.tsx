@@ -48,17 +48,18 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
   }, [showErrorPopup]);
 
   const navigateByAccountState = (currentUser: any, explicitRedirect?: string | null) => {
+    if (explicitRedirect && !explicitRedirect.includes("/dashboard/apps/new")) {
+      router.push(explicitRedirect);
+      return;
+    }
+
     if (currentUser?.is_super_admin || currentUser?.email === "admin@webintoapp.com") {
-      window.location.href = "http://localhost:8000/admin";
+      router.push("/dashboard");
       return;
     }
 
     if (currentUser?.has_built_apps) {
-      if (explicitRedirect && !explicitRedirect.includes("/dashboard/apps/new")) {
-        router.push(explicitRedirect);
-      } else {
-        router.push("/dashboard");
-      }
+      router.push("/dashboard");
       return;
     }
 

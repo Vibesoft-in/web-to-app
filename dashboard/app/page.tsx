@@ -144,9 +144,7 @@ export default function HomePage() {
   };
 
   const convertTargetHref = user
-    ? isAdmin
-      ? "http://localhost:8000/admin"
-      : primaryTargetHref
+    ? primaryTargetHref
     : "/signup";
 
   return (
@@ -560,13 +558,7 @@ export default function HomePage() {
               <div className="platforms-cards-strip">
                 {/* WordPress Card */}
                 <Link
-                  href={
-                    user
-                      ? isAdmin
-                        ? "http://localhost:8000/admin"
-                        : "/dashboard/apps/new?platform=woo"
-                      : "/signup?platform=wordpress"
-                  }
+                  href={user ? "/dashboard/apps/new?platform=woo" : "/signup?platform=wordpress"}
                   className="platform-pill-card platform-pill-card-wp"
                   style={{ textDecoration: "none", color: "inherit", display: "flex" }}
                 >
@@ -590,13 +582,7 @@ export default function HomePage() {
 
                 {/* WooCommerce Card */}
                 <Link
-                  href={
-                    user
-                      ? isAdmin
-                        ? "http://localhost:8000/admin"
-                        : "/dashboard/apps/new?platform=woo"
-                      : "/signup?platform=woocommerce"
-                  }
+                  href={user ? "/dashboard/apps/new?platform=woo" : "/signup?platform=woocommerce"}
                   className="platform-pill-card platform-pill-card-woo"
                   style={{ textDecoration: "none", color: "inherit", display: "flex" }}
                 >
@@ -620,13 +606,7 @@ export default function HomePage() {
 
                 {/* Shopify Card */}
                 <Link
-                  href={
-                    user
-                      ? isAdmin
-                        ? "http://localhost:8000/admin"
-                        : "/dashboard/apps/new?platform=shopify"
-                      : "/signup?platform=shopify"
-                  }
+                  href={user ? "/dashboard/apps/new?platform=shopify" : "/signup?platform=shopify"}
                   className="platform-pill-card platform-pill-card-shopify"
                   style={{ textDecoration: "none", color: "inherit", display: "flex" }}
                 >
@@ -1567,13 +1547,7 @@ export default function HomePage() {
                     </li>
                   </ul>
                   <Link
-                    href={
-                      user
-                        ? isAdmin
-                          ? "http://localhost:8000/admin"
-                          : "/dashboard/apps/new?plan=starter-app"
-                        : "/signup?plan=starter-app"
-                    }
+                    href={user ? "/dashboard/apps/new?plan=starter-app" : "/signup?plan=starter-app"}
                     className="btn-plan btn-plan-outline"
                   >
                     Get Started
@@ -1624,13 +1598,7 @@ export default function HomePage() {
                     </li>
                   </ul>
                   <Link
-                    href={
-                      user
-                        ? isAdmin
-                          ? "http://localhost:8000/admin"
-                          : "/dashboard/apps/new?plan=pro-combo"
-                        : "/signup?plan=pro-combo"
-                    }
+                    href={user ? "/dashboard/apps/new?plan=pro-combo" : "/signup?plan=pro-combo"}
                     className="btn-plan btn-plan-primary"
                   >
                     Get Pro Combo
@@ -1676,13 +1644,7 @@ export default function HomePage() {
                     </li>
                   </ul>
                   <Link
-                    href={
-                      user
-                        ? isAdmin
-                          ? "http://localhost:8000/admin"
-                          : "/dashboard/apps/new?plan=enterprise-suite"
-                        : "/signup?plan=enterprise-suite"
-                    }
+                    href={user ? "/dashboard/apps/new?plan=enterprise-suite" : "/signup?plan=enterprise-suite"}
                     className="btn-plan btn-plan-outline"
                   >
                     Get Enterprise

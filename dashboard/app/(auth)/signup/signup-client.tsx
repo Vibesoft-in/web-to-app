@@ -68,7 +68,7 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
         const meRes = await apiClient("/api/auth/me");
         if (meRes?.user && isMounted) {
           if (meRes.user.is_super_admin || meRes.user.email === "admin@webintoapp.com") {
-            window.location.href = "http://localhost:8000/admin";
+            router.replace("/dashboard");
             return;
           }
           if (meRes.user.has_built_apps) {
