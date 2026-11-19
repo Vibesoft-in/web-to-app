@@ -12,9 +12,9 @@ backend/.env
 backend/.env.backup
 
 # Databases & logs
-*.sqlite
+# *.sqlite
 *.sqlite-journal
-backend/database/*.sqlite
+# backend/database/*.sqlite
 backend/database/*.sqlite-journal
 backend/storage/logs/*.log
 backend/storage/framework/cache/data/
@@ -61,7 +61,6 @@ mobile/.flutter-plugins
 mobile/.flutter-plugins-dependencies
 mobile/android/.gradle/
 mobile/android/local.properties
-mobile/android/build/
 mobile/android/app/build/
 mobile/scratch/
 mobile/scratch_find_logo.js
