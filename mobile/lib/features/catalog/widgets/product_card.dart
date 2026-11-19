@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/providers/shop_providers.dart';
+import '../../../core/widgets/bottom_notification.dart';
 import '../models/product_model.dart';
 
 class ProductCard extends ConsumerStatefulWidget {
@@ -34,8 +35,8 @@ class _ProductCardState extends ConsumerState<ProductCard> {
     final isWishlisted = widget.isWishlisted;
     final onWishlistTap = widget.onWishlistTap;
     final onTap = widget.onTap;
-    const primaryColor = Color(0xFF704FEE);
-    const darkTextColor = Color(0xFF1E1B4B);
+    const primaryColor = Color(0xFFE53935);
+    const darkTextColor = Color(0xFF111111);
 
     final hasDiscount = product.compareAtPrice != null &&
         product.compareAtPrice! > product.price;
@@ -335,32 +336,12 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                               image: product.images.isNotEmpty ? product.images.first : '',
                               quantity: _quantity,
                             );
-                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Row(
-                                  children: [
-                                    const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'Added $_quantity "${product.title}" to cart',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                action: SnackBarAction(
-                                  label: 'VIEW',
-                                  textColor: Colors.yellowAccent,
-                                  onPressed: () => context.push('/cart'),
-                                ),
-                                duration: const Duration(seconds: 2),
-                                backgroundColor: darkTextColor,
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
+                            BottomNotification.show(
+                              context,
+                              message: 'Added $_quantity "${product.title}" to cart 🛒',
+                              isSuccess: true,
+                              actionLabel: 'VIEW CART',
+                              onAction: () => context.push('/cart'),
                             );
                           },
                           borderRadius: BorderRadius.circular(9),
@@ -368,9 +349,9 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                             width: 36,
                             height: 32,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFEDE9FE).withOpacity(0.4),
+                              color: const Color(0xFFFEF2F2).withOpacity(0.4),
                               borderRadius: BorderRadius.circular(9),
-                              border: Border.all(color: const Color(0xFFDDD6FE), width: 1.2),
+                              border: Border.all(color: const Color(0xFFFECACA), width: 1.2),
                             ),
                             child: const Center(
                               child: Icon(

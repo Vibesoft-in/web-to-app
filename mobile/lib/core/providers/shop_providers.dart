@@ -433,12 +433,14 @@ class WishlistNotifier extends StateNotifier<Set<String>> {
         images: product.images,
         description: product.description,
         features: product.features,
-        categories: [],
+        categories: product.categories,
         categoryIds: [],
         colors: product.colors,
-        sizes: [],
+        sizes: product.sizes,
         rating: product.rating,
         reviewsCount: product.reviewsCount,
+        inStock: product.inStock,
+        stockQuantity: product.stockQuantity,
       ));
     } else if (wcProduct != null) {
       _productDetailsCache[cleanId] = wcProduct.toDetailedProduct();
@@ -473,6 +475,7 @@ class CartItem {
   final String image;
   int quantity;
   final String selectedColor;
+  final String selectedSize;
 
   CartItem({
     required this.id,
@@ -481,10 +484,13 @@ class CartItem {
     required this.image,
     this.quantity = 1,
     this.selectedColor = '',
+    this.selectedSize = '',
   });
 
   CartItem copyWith({
     int? quantity,
+    String? selectedColor,
+    String? selectedSize,
   }) {
     return CartItem(
       id: id,
@@ -492,7 +498,8 @@ class CartItem {
       price: price,
       image: image,
       quantity: quantity ?? this.quantity,
-      selectedColor: selectedColor,
+      selectedColor: selectedColor ?? this.selectedColor,
+      selectedSize: selectedSize ?? this.selectedSize,
     );
   }
 }
@@ -510,8 +517,12 @@ class CartItemsNotifier extends StateNotifier<List<CartItem>> {
     required String image,
     int quantity = 1,
     String selectedColor = '',
+    String selectedSize = '',
   }) {
-    final existingIndex = state.indexWhere((item) => item.id == id);
+    final existingIndex = state.indexWhere((item) =>
+        item.id == id &&
+        item.selectedColor == selectedColor &&
+        item.selectedSize == selectedSize);
     if (existingIndex >= 0) {
       final updated = [...state];
       updated[existingIndex] = updated[existingIndex].copyWith(
@@ -528,6 +539,7 @@ class CartItemsNotifier extends StateNotifier<List<CartItem>> {
           image: image,
           quantity: quantity,
           selectedColor: selectedColor,
+          selectedSize: selectedSize,
         ),
       ];
     }
@@ -639,8 +651,8 @@ class NotificationsNotifier extends StateNotifier<List<AppNotification>> {
                 'Big discounts on Ultra Blue Halogen Lamps, LED Fog Lamps and car jump starters!',
             time: '10 mins ago',
             icon: Icons.flash_on_rounded,
-            iconBgColor: Color(0xFFEDE9FE),
-            iconColor: Color(0xFF704FEE),
+            iconBgColor: Color(0xFFFEF2F2),
+            iconColor: Color(0xFFE53935),
             isRead: false,
           ),
           const AppNotification(
@@ -693,6 +705,10 @@ class NotificationsNotifier extends StateNotifier<List<AppNotification>> {
   void removeNotification(String id) {
     state = state.where((n) => n.id != id).toList();
   }
+
+  void addNotification(AppNotification notification) {
+    state = [notification, ...state];
+  }
 }
 
 final notificationsProvider =
@@ -704,5 +720,109 @@ final notificationsProvider =
 final unreadNotificationsCountProvider = Provider<int>((ref) {
   final notifs = ref.watch(notificationsProvider);
   return notifs.where((n) => !n.isRead).length;
+});
+
+/// Persistent "Notify Me" back-in-stock subscriptions (keyed by productId|color|size)
+class StockAlertsNotifier extends StateNotifier<Set<String>> {
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  static const String _storageKey = 'stock_notify_alerts_v1';
+
+  StockAlertsNotifier() : super(const <String>{}) {
+    _load();
+  }
+
+  static String alertKey(String productId, {String color = '', String size = ''}) {
+    return '${productId.trim()}|${color.trim().toLowerCase()}|${size.trim().toLowerCase()}';
+  }
+
+  Future<void> _load() async {
+    try {
+      final raw = await _storage.read(key: _storageKey);
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          state = decoded.map((e) => e.toString()).toSet();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading stock alerts: $e');
+    }
+  }
+
+  Future<void> subscribe(String productId, {String color = '', String size = ''}) async {
+    final key = alertKey(productId, color: color, size: size);
+    if (state.contains(key)) return;
+    final next = {...state, key};
+    state = next;
+    try {
+      await _storage.write(key: _storageKey, value: jsonEncode(next.toList()));
+    } catch (e) {
+      debugPrint('Error saving stock alerts: $e');
+    }
+  }
+
+  bool isSubscribed(String productId, {String color = '', String size = ''}) {
+    return state.contains(alertKey(productId, color: color, size: size));
+  }
+}
+
+final stockAlertsProvider =
+    StateNotifierProvider<StockAlertsNotifier, Set<String>>((ref) {
+  return StockAlertsNotifier();
+});
+
+/// Persistent local store of orders placed in-app so newly placed orders
+/// are always visible immediately in "My Orders" and merged with live WooCommerce orders.
+class LocalOrdersNotifier extends StateNotifier<List<Map<String, dynamic>>> {
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  static const String _storageKey = 'local_placed_orders_v1';
+
+  LocalOrdersNotifier() : super(const []) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final raw = await _storage.read(key: _storageKey);
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          state = decoded
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading local orders: $e');
+    }
+  }
+
+  Future<void> addOrder(Map<String, dynamic> order) async {
+    final newId = (order['id'] ?? order['order_number'] ?? '').toString();
+    final filtered = state.where((o) {
+      final existingId = (o['id'] ?? o['order_number'] ?? '').toString();
+      return existingId != newId;
+    }).toList();
+    final updated = [order, ...filtered];
+    state = updated;
+    try {
+      await _storage.write(key: _storageKey, value: jsonEncode(updated));
+    } catch (e) {
+      debugPrint('Error saving local order: $e');
+    }
+  }
+
+  Future<void> clear() async {
+    state = const [];
+    try {
+      await _storage.delete(key: _storageKey);
+    } catch (_) {}
+  }
+}
+
+final localOrdersProvider =
+    StateNotifierProvider<LocalOrdersNotifier, List<Map<String, dynamic>>>((ref) {
+  return LocalOrdersNotifier();
 });
 

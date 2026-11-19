@@ -7,11 +7,11 @@ import '../config/app_config_model.dart';
 class ThemeEngine {
   ThemeEngine._();
 
-  static const Color defaultPrimary = Color(0xFF704FEE);
-  static const Color defaultSecondary = Color(0xFF1E1B4B);
+  static const Color defaultPrimary = Color(0xFFE53935);
+  static const Color defaultSecondary = Color(0xFF111111);
   static const Color defaultBackground = Color(0xFFFFFFFF);
   static const Color defaultSurface = Color(0xFFF9FAFB);
-  static const Color defaultText = Color(0xFF1E1B4B);
+  static const Color defaultText = Color(0xFF111111);
 
   /// Safely converts a hex string (#RRGGBB or #AARRGGBB) to a Color with fallback.
   static Color parseColor(String? hexString, Color fallback) {

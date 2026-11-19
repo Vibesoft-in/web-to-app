@@ -88,11 +88,11 @@ class AppConfig {
       theme: const ThemeConfig(
         layout: 'theme_a',
         colors: ThemeColors(
-          primary: '#704FEE',
-          secondary: '#1E1B4B',
+          primary: '#E53935',
+          secondary: '#111111',
           background: '#FFFFFF',
           surface: '#F9FAFB',
-          text: '#1E1B4B',
+          text: '#111111',
         ),
         radius: 12.0,
         font: 'Poppins',

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers/shop_providers.dart';
+import '../../core/services/razorpay_service.dart';
 import '../../core/services/woocommerce_service.dart';
+import '../../core/widgets/bottom_notification.dart';
 import '../orders/orders_screen.dart';
 
 class CartScreen extends ConsumerStatefulWidget {
@@ -15,6 +17,7 @@ class CartScreen extends ConsumerStatefulWidget {
 
 class _CartScreenState extends ConsumerState<CartScreen> {
   final TextEditingController _promoController = TextEditingController();
+  final RazorpayPaymentService _razorpayService = RazorpayPaymentService();
   bool _promoApplied = false;
   double _promoDiscount = 0.0;
   String _appliedCouponCode = '';
@@ -25,17 +28,17 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   @override
   void dispose() {
     _promoController.dispose();
+    _razorpayService.dispose();
     super.dispose();
   }
 
   Future<void> _applyPromo(double subtotal) async {
     final code = _promoController.text.trim();
     if (code.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a coupon code.'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      BottomNotification.show(
+        context,
+        message: 'Please enter a coupon code.',
+        isError: true,
       );
       return;
     }
@@ -53,12 +56,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         _appliedCouponCode = result.code;
         _promoDiscount = discountVal;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Coupon "${result.code}" applied! Saved ₹${discountVal.toStringAsFixed(0)} 🎉'),
-          backgroundColor: const Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-        ),
+      BottomNotification.show(
+        context,
+        message: 'Coupon "${result.code}" applied! Saved ₹${discountVal.toStringAsFixed(0)} 🎉',
+        isSuccess: true,
       );
     } else {
       setState(() {
@@ -66,12 +67,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         _appliedCouponCode = '';
         _promoDiscount = 0.0;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.message ?? 'Invalid coupon code.'),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
+      BottomNotification.show(
+        context,
+        message: result.message ?? 'Invalid coupon code.',
+        isError: true,
       );
     }
   }
@@ -83,11 +82,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       _promoDiscount = 0.0;
       _promoController.clear();
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Coupon removed.'),
-        behavior: SnackBarBehavior.floating,
-      ),
+    BottomNotification.show(
+      context,
+      message: 'Coupon removed.',
+      icon: Icons.remove_circle_outline_rounded,
     );
   }
 
@@ -98,8 +96,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     final wishlistedIds = ref.watch(wishlistProvider);
     final unreadNotifCount = ref.watch(unreadNotificationsCountProvider);
 
-    const primaryColor = Color(0xFF704FEE);
-    const darkTextColor = Color(0xFF1E1B4B);
+    const primaryColor = Color(0xFFE53935);
+    const darkTextColor = Color(0xFF111111);
 
     final subtotal = cartItems.fold<double>(
       0.0,
@@ -139,7 +137,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
           _buildHeaderIconButton(
             icon: Icons.favorite_border_rounded,
             badgeCount: wishlistedIds.isNotEmpty ? wishlistedIds.length : null,
-            onTap: () => context.push('/wishlist'),
+            onTap: () => context.go('/wishlist'),
           ),
           const SizedBox(width: 8),
 
@@ -275,9 +273,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               child: CachedNetworkImage(
                 imageUrl: item.image,
                 fit: BoxFit.cover,
-                placeholder: (_, __) => const Center(
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+                memCacheWidth: 180,
+                fadeInDuration: const Duration(milliseconds: 120),
+                placeholder: (_, __) => const ColoredBox(color: Color(0xFFF3F4F6)),
                 errorWidget: (_, __, ___) =>
                     const Icon(Icons.image, color: Colors.grey),
               ),
@@ -300,6 +298,22 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     color: darkTextColor,
                   ),
                 ),
+                if (item.selectedSize.isNotEmpty || item.selectedColor.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    [
+                      if (item.selectedSize.isNotEmpty) 'Size: ${item.selectedSize}',
+                      if (item.selectedColor.isNotEmpty) 'Color: ${item.selectedColor}',
+                    ].join(' • '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Text(
                   '₹${item.price.toStringAsFixed(0)}',
@@ -540,16 +554,16 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: const [
-              Icon(Icons.payment_rounded, size: 18, color: Color(0xFF704FEE)),
+          const Row(
+            children: [
+              Icon(Icons.payment_rounded, size: 18, color: Color(0xFFE53935)),
               SizedBox(width: 6),
               Text(
-                'Payment Options (From Website)',
+                'Payment Options',
                 style: TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF1E1B4B),
+                  color: Color(0xFF111111),
                 ),
               ),
             ],
@@ -588,8 +602,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               return Column(
                 children: activeGateways.map((g) {
                   final isSelected = (_selectedGatewayId ?? activeGateways.first.id) == g.id;
+                  final isRazorpay = g.id.toLowerCase().contains('razorpay');
                   IconData iconData = Icons.account_balance_wallet_outlined;
-                  if (g.id == 'razorpay') {
+                  if (isRazorpay) {
                     iconData = Icons.credit_card_rounded;
                   } else if (g.id == 'cod') {
                     iconData = Icons.local_shipping_outlined;
@@ -639,13 +654,40 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    g.title,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: darkTextColor,
-                                    ),
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          g.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            color: darkTextColor,
+                                          ),
+                                        ),
+                                      ),
+                                      if (isRazorpay) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFEFF6FF),
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                                          ),
+                                          child: Text(
+                                            RazorpayPaymentService.isTestMode ? 'RAZORPAY TEST' : 'RAZORPAY',
+                                            style: const TextStyle(
+                                              fontSize: 8.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: Color(0xFF1D4ED8),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                   if (g.description.isNotEmpty) ...[
                                     const SizedBox(height: 2),
@@ -681,8 +723,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       children: [
         _buildGatewayOptionCard(
           id: 'razorpay',
-          title: 'UPI, Cards, NetBanking',
-          subtitle: 'Pay via Google Pay, PhonePe, Paytm, or Card',
+          title: 'Pay via UPI, GPay & Other Options',
+          subtitle: 'Google Pay, PhonePe, Paytm, Credit/Debit Cards & NetBanking',
           icon: Icons.credit_card_rounded,
           primaryColor: primaryColor,
           darkTextColor: darkTextColor,
@@ -708,7 +750,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     required Color primaryColor,
     required Color darkTextColor,
   }) {
-    final isSelected = (_selectedGatewayId ?? 'cod') == id;
+    final isSelected = (_selectedGatewayId ?? 'razorpay') == id;
     return InkWell(
       onTap: () => setState(() => _selectedGatewayId = id),
       borderRadius: BorderRadius.circular(12),
@@ -847,7 +889,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
   }
 
-  /// Real WooCommerce Checkout Flow
+  /// Real WooCommerce + Razorpay Checkout Flow
   Widget _buildCheckoutButtons({
     required Color primaryColor,
     required Color darkTextColor,
@@ -855,6 +897,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     required double subtotal,
     required List<CartItem> cartItems,
   }) {
+    final isRazorpaySelected =
+        (_selectedGatewayId ?? 'razorpay').toLowerCase().contains('razorpay');
+
     return Column(
       children: [
         SizedBox(
@@ -889,7 +934,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                       const Icon(Icons.lock_outline_rounded, size: 18),
                       const SizedBox(width: 8),
                       Text(
-                        'Place Order • ₹${total.toStringAsFixed(0)}',
+                        isRazorpaySelected
+                            ? 'Pay via Razorpay • ₹${total.toStringAsFixed(0)}'
+                            : 'Place Order • ₹${total.toStringAsFixed(0)}',
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
@@ -906,7 +953,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
             Icon(Icons.verified_user_rounded, size: 14, color: Colors.grey.shade500),
             const SizedBox(width: 4),
             Text(
-              '100% Secure Checkout via livaan.in',
+              isRazorpaySelected
+                  ? '100% Secure Payment via Razorpay'
+                  : '100% Secure Checkout via livaan.in',
               style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
             ),
           ],
@@ -926,20 +975,95 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     final user = ref.read(userProfileProvider);
     final wcService = ref.read(wcServiceProvider);
 
-    final selectedGatewayId = _selectedGatewayId ?? 'cod';
-    final selectedGatewayTitle = selectedGatewayId == 'razorpay'
-        ? 'UPI, Cards, NetBanking'
-        : 'Cash on delivery';
+    final selectedGatewayId = _selectedGatewayId ?? 'razorpay';
+    final isRazorpay = selectedGatewayId.toLowerCase().contains('razorpay');
+    final gateways = ref.read(wcPaymentGatewaysProvider).valueOrNull ?? const [];
+    final matchedGateway = gateways.where((g) => g.id == selectedGatewayId).firstOrNull;
+    final selectedGatewayTitle = matchedGateway?.title ??
+        (isRazorpay ? 'Pay via UPI, GPay & Other Options' : 'Cash on delivery');
 
+    RazorpayPaymentResult? rzpPayment;
+
+    // 1. If Razorpay is selected, create a Razorpay order & open Razorpay Checkout first
+    if (isRazorpay) {
+      if (total < 1) {
+        if (!mounted) return;
+        setState(() => _isPlacingOrder = false);
+        BottomNotification.show(
+          context,
+          message: 'Order total must be at least ₹1 for online payment.',
+          isError: true,
+        );
+        return;
+      }
+
+      final receipt = 'livaan_${DateTime.now().millisecondsSinceEpoch}';
+      final rzpOrderId = await _razorpayService.createRazorpayOrder(
+        amountInRupees: total,
+        receipt: receipt,
+        notes: {
+          'store': WooCommerceService.storeName,
+          'customer_email': user.email,
+          'items_count': '${cartItems.length}',
+          if (_promoApplied) 'coupon_code': _appliedCouponCode,
+        },
+      );
+
+      if (!mounted) return;
+
+      rzpPayment = await _razorpayService.openCheckout(
+        amountInRupees: total,
+        merchantName: WooCommerceService.storeName,
+        description:
+            'Order (${cartItems.length} ${cartItems.length == 1 ? 'item' : 'items'})',
+        razorpayOrderId: rzpOrderId,
+        customerName: user.name,
+        customerEmail: user.email,
+        customerPhone: user.phone,
+        themeColorHex: '#E53935',
+        notes: {
+          'store': WooCommerceService.storeName,
+          if (_promoApplied) 'coupon_code': _appliedCouponCode,
+        },
+      );
+
+      if (!mounted) return;
+
+      if (!rzpPayment.success) {
+        setState(() => _isPlacingOrder = false);
+        BottomNotification.show(
+          context,
+          message: rzpPayment.errorMessage ?? 'Payment could not be completed.',
+          isError: !rzpPayment.cancelled,
+        );
+        return;
+      }
+    }
+
+    // 2. Record the order in WooCommerce (marked paid if paid via Razorpay)
     final lineItems = cartItems.map((item) {
       final pId = int.tryParse(item.id) ?? 0;
+      final itemMeta = <Map<String, dynamic>>[
+        if (item.selectedSize.isNotEmpty) {'key': 'Size', 'value': item.selectedSize},
+        if (item.selectedColor.isNotEmpty) {'key': 'Color', 'value': item.selectedColor},
+      ];
       return {
         if (pId > 0) 'product_id': pId,
         'name': item.title,
         'quantity': item.quantity,
         'total': (item.price * item.quantity).toStringAsFixed(2),
+        if (itemMeta.isNotEmpty) 'meta_data': itemMeta,
       };
     }).toList();
+
+    final orderMetaData = <Map<String, dynamic>>[
+      if (rzpPayment?.paymentId != null && rzpPayment!.paymentId!.isNotEmpty)
+        {'key': '_razorpay_payment_id', 'value': rzpPayment.paymentId},
+      if (rzpPayment?.orderId != null && rzpPayment!.orderId!.isNotEmpty)
+        {'key': '_razorpay_order_id', 'value': rzpPayment.orderId},
+      if (rzpPayment?.signature != null && rzpPayment!.signature!.isNotEmpty)
+        {'key': '_razorpay_signature', 'value': rzpPayment.signature},
+    ];
 
     final orderResult = await wcService.createOrder(
       customerId: user.id > 0 ? user.id : 0,
@@ -947,14 +1071,17 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       lastName: user.name.isNotEmpty ? user.name.split(' ').skip(1).join(' ') : '',
       email: user.email,
       phone: user.phone.isNotEmpty ? user.phone : '9876543210',
-      address: 'Main Store Delivery',
-      city: 'Delhi',
-      state: 'DL',
-      postcode: '110001',
+      address: user.address.isNotEmpty ? user.address : 'Main Store Delivery',
+      city: user.city.isNotEmpty ? user.city : 'Delhi',
+      state: user.state.isNotEmpty ? user.state : 'DL',
+      postcode: user.postcode.isNotEmpty ? user.postcode : '110001',
       paymentMethodId: selectedGatewayId,
       paymentMethodTitle: selectedGatewayTitle,
       lineItems: lineItems,
       couponCode: _promoApplied ? _appliedCouponCode : null,
+      setPaid: rzpPayment?.success == true,
+      transactionId: rzpPayment?.paymentId,
+      metaData: orderMetaData.isNotEmpty ? orderMetaData : null,
     );
 
     if (!mounted) return;
@@ -963,6 +1090,42 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     final orderId = orderResult?['id']?.toString() ??
         orderResult?['order_number']?.toString() ??
         '${DateTime.now().millisecondsSinceEpoch % 100000}';
+
+    // Persist order locally immediately so it is ALWAYS visible in "My Orders"
+    final savedOrderRecord = orderResult != null
+        ? Map<String, dynamic>.from(orderResult)
+        : <String, dynamic>{
+            'id': orderId,
+            'order_number': orderId,
+            'status': 'processing',
+            'total': total.toStringAsFixed(2),
+            'date_created': DateTime.now().toIso8601String(),
+            'payment_method': selectedGatewayId,
+            'payment_method_title': selectedGatewayTitle,
+            if (rzpPayment?.paymentId != null) 'transaction_id': rzpPayment!.paymentId,
+            'line_items': lineItems,
+            'billing': {
+              'first_name': user.name.isNotEmpty ? user.name.split(' ').first : 'Customer',
+              'email': user.email,
+              'phone': user.phone,
+            },
+          };
+    await ref.read(localOrdersProvider.notifier).addOrder(savedOrderRecord);
+
+    // Add order confirmation notification
+    ref.read(notificationsProvider.notifier).addNotification(
+          AppNotification(
+            id: 'order_$orderId',
+            title: 'Order Confirmed #$orderId 🎉',
+            message:
+                'Your order of ₹${total.toStringAsFixed(0)} via $selectedGatewayTitle has been placed successfully.',
+            time: 'Just now',
+            icon: Icons.shopping_bag_rounded,
+            iconBgColor: const Color(0xFFECFDF5),
+            iconColor: const Color(0xFF059669),
+            isRead: false,
+          ),
+        );
 
     // Clear cart after placing order
     ref.read(cartItemsProvider.notifier).clearCart();
@@ -973,6 +1136,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       total: total,
       paymentMethod: selectedGatewayTitle,
       primaryColor: primaryColor,
+      paymentId: rzpPayment?.paymentId,
     );
   }
 
@@ -981,7 +1145,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     required double total,
     required String paymentMethod,
     required Color primaryColor,
+    String? paymentId,
   }) {
+    final isPaidOnline = paymentId != null && paymentId.isNotEmpty;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1002,13 +1169,13 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 child: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 40),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Order Placed Successfully!',
+              Text(
+                isPaidOnline ? 'Payment & Order Confirmed!' : 'Order Placed Successfully!',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF1E1B4B),
+                  color: Color(0xFF111111),
                 ),
               ),
               const SizedBox(height: 8),
@@ -1051,9 +1218,38 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Payment Mode:', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                        Text(paymentMethod, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        Flexible(
+                          child: Text(
+                            paymentMethod,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ),
                       ],
                     ),
+                    if (isPaidOnline) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Payment ID:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          Flexible(
+                            child: Text(
+                              paymentId,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF059669),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1107,13 +1303,13 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               width: 90,
               height: 90,
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F3FF),
+                color: const Color(0xFFFEF2F2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.remove_shopping_cart_outlined,
                 size: 42,
-                color: Color(0xFF704FEE),
+                color: Color(0xFFE53935),
               ),
             ),
             const SizedBox(height: 20),
@@ -1172,7 +1368,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Icon(icon, size: 19, color: const Color(0xFF1E1B4B)),
+            Icon(icon, size: 19, color: const Color(0xFF111111)),
             if (badgeCount != null)
               Positioned(
                 top: 3,
@@ -1180,7 +1376,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(3),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF704FEE),
+                    color: Color(0xFFE53935),
                     shape: BoxShape.circle,
                   ),
                   constraints: const BoxConstraints(minWidth: 16, minHeight: 16),

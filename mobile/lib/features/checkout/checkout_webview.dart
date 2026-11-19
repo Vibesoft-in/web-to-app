@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/providers/core_providers.dart';
 import '../../core/security/url_allowlist.dart';
+import '../../core/widgets/bottom_notification.dart';
 import '../../core/widgets/error_view.dart';
 
 class CheckoutWebviewScreen extends ConsumerStatefulWidget {
@@ -45,10 +46,10 @@ class _CheckoutWebviewScreenState extends ConsumerState<CheckoutWebviewScreen> {
               return NavigationDecision.navigate;
             }
             // Block navigation to untrusted domain
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Navigation to external domain blocked for your security.'),
-              ),
+            BottomNotification.show(
+              context,
+              message: 'Navigation to external domain blocked for security.',
+              isError: true,
             );
             return NavigationDecision.prevent;
           },

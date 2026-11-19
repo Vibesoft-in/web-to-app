@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:webintoapp_mobile/core/config/app_config_model.dart';
+import 'package:webintoapp_mobile/features/catalog/models/product_model.dart';
 import 'package:webintoapp_mobile/features/home/section_renderer.dart';
 import 'package:webintoapp_mobile/features/home/widgets/banner_section.dart';
 import 'package:webintoapp_mobile/features/home/widgets/categories_section.dart';
@@ -34,14 +35,20 @@ void main() {
       const section = HomeSection(type: 'categories');
 
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
+        ProviderScope(
+          overrides: [
+            categoriesProvider.overrideWith((ref) => [
+              const Category(id: '1', name: 'Skincare', slug: 'skincare'),
+            ]),
+          ],
+          child: const MaterialApp(
             home: Scaffold(
               body: SectionRenderer(section: section),
             ),
           ),
         ),
       );
+      await tester.pumpAndSettle();
 
       expect(find.byType(CategoriesSection), findsOneWidget);
       expect(find.text('Shop by Category'), findsOneWidget);

@@ -7,12 +7,43 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/mock_products.dart';
 
+// Precompiled RegExps to avoid recompiling thousands of regexes on the UI thread
+final RegExp _reHtmlEntity = RegExp(r'&[^;]+;');
+final RegExp _reDelPrice = RegExp(r'<del[^>]*>[\s\S]*?([0-9]+(?:,[0-9]+)*(?:\.[0-9]+)?)[\s\S]*?<\/del>');
+final RegExp _reInsPrice = RegExp(r'<ins[^>]*>[\s\S]*?([0-9]+(?:,[0-9]+)*(?:\.[0-9]+)?)[\s\S]*?<\/ins>');
+final RegExp _reHtmlTag = RegExp(r'<[^>]*>');
+final RegExp _reWhitespace = RegExp(r'\s+');
+final RegExp _reLiTag = RegExp(r'<li[^>]*>(.*?)<\/li>', caseSensitive: false, dotAll: true);
+final RegExp _reTrTag = RegExp(
+  r'<tr[^>]*>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<\/tr>',
+  caseSensitive: false,
+  dotAll: true,
+);
+final RegExp _rePTag = RegExp(r'<p[^>]*>(.*?)<\/p>', caseSensitive: false, dotAll: true);
+final RegExp _reUlBlock = RegExp(r'<ul[^>]*>[\s\S]*?<\/ul>');
+final RegExp _reKeyFeaturesPrefix = RegExp(r'^key features:\s*', caseSensitive: false);
+
+/// Top-level isolate worker for parsing WooCommerce product lists off the UI thread
+List<WcProduct> _parseWcProducts(List<dynamic> rawList) {
+  final list = <WcProduct>[];
+  for (final item in rawList) {
+    if (item is Map<String, dynamic>) {
+      final p = WcProduct.fromJson(item);
+      if (p.price > 0 || p.images.isNotEmpty) {
+        list.add(p);
+      }
+    }
+  }
+  return list;
+}
+
 class WcCategory {
   final int id;
   final String name;
   final String slug;
   final int count;
   final String? image;
+  final int parent;
 
   const WcCategory({
     required this.id,
@@ -20,6 +51,7 @@ class WcCategory {
     required this.slug,
     this.count = 0,
     this.image,
+    this.parent = 0,
   });
 
   factory WcCategory.fromJson(Map<String, dynamic> json) {
@@ -46,6 +78,7 @@ class WcCategory {
       slug: (json['slug'] as String?)?.trim() ?? '',
       count: (json['count'] as num?)?.toInt() ?? 0,
       image: imgUrl,
+      parent: (json['parent'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -119,6 +152,7 @@ class WcProduct {
   final double rating;
   final int reviewsCount;
   final bool inStock;
+  final int? stockQuantity;
 
   const WcProduct({
     required this.id,
@@ -138,6 +172,7 @@ class WcProduct {
     this.rating = 4.8,
     this.reviewsCount = 120,
     this.inStock = true,
+    this.stockQuantity,
   });
 
   String get primaryImage {
@@ -177,7 +212,7 @@ class WcProduct {
                 .replaceAll('&#8217;', "'")
                 .replaceAll('&#8243;', '"')
                 .replaceAll('&#8211;', '-')
-                .replaceAll(RegExp(r'&[^;]+;'), ' ')
+                .replaceAll(_reHtmlEntity, ' ')
                 .trim();
             catNames.add(cn);
           }
@@ -205,17 +240,24 @@ class WcProduct {
               }
             }
           }
-          final isColorAttr = name == 'color' ||
-              name == 'colour' ||
-              slug == 'pa_color' ||
-              slug == 'pa_colour' ||
-              slug == 'color';
-          final isSizeAttr = name == 'size' || slug == 'pa_size' || slug == 'size';
+          final isColorAttr = name.contains('color') ||
+              name.contains('colour') ||
+              slug.contains('color') ||
+              slug.contains('colour');
+          final isSizeAttr = name.contains('size') || slug.contains('size');
 
           if (isColorAttr) {
-            colorOptions.addAll(optList);
+            for (final opt in optList) {
+              if (!colorOptions.any((c) => c.toLowerCase() == opt.toLowerCase())) {
+                colorOptions.add(opt);
+              }
+            }
           } else if (isSizeAttr) {
-            sizeOptions.addAll(optList);
+            for (final opt in optList) {
+              if (!sizeOptions.any((s) => s.toLowerCase() == opt.toLowerCase())) {
+                sizeOptions.add(opt);
+              }
+            }
           }
         }
       }
@@ -243,18 +285,16 @@ class WcProduct {
     // For variable products, WooCommerce sends regular & sale prices in price_html
     final rawPriceHtml = (json['price_html'] as String?) ?? '';
     if (rawPriceHtml.isNotEmpty) {
-      final cleanPriceHtml = rawPriceHtml.replaceAll(RegExp(r'&[^;]+;'), '');
+      final cleanPriceHtml = rawPriceHtml.replaceAll(_reHtmlEntity, '');
       if (parsedRegPrice == null || parsedRegPrice == 0.0) {
-        final delRegex = RegExp(r'<del[^>]*>[\s\S]*?([0-9]+(?:,[0-9]+)*(?:\.[0-9]+)?)[\s\S]*?<\/del>');
-        final m = delRegex.firstMatch(cleanPriceHtml);
+        final m = _reDelPrice.firstMatch(cleanPriceHtml);
         if (m != null) {
           final numStr = m.group(1)!.replaceAll(',', '');
           parsedRegPrice = double.tryParse(numStr);
         }
       }
       if (parsedSalePrice == null || parsedSalePrice == 0.0) {
-        final insRegex = RegExp(r'<ins[^>]*>[\s\S]*?([0-9]+(?:,[0-9]+)*(?:\.[0-9]+)?)[\s\S]*?<\/ins>');
-        final m = insRegex.firstMatch(cleanPriceHtml);
+        final m = _reInsPrice.firstMatch(cleanPriceHtml);
         if (m != null) {
           final numStr = m.group(1)!.replaceAll(',', '');
           parsedSalePrice = double.tryParse(numStr);
@@ -287,8 +327,8 @@ class WcProduct {
           .replaceAll('&#8221;', '"')
           .replaceAll('&#8216;', "'")
           .replaceAll('&nbsp;', ' ')
-          .replaceAll(RegExp(r'<[^>]*>'), ' ')
-          .replaceAll(RegExp(r'\s+'), ' ')
+          .replaceAll(_reHtmlTag, ' ')
+          .replaceAll(_reWhitespace, ' ')
           .trim();
     }
 
@@ -298,8 +338,7 @@ class WcProduct {
     // Extract dynamic features: check both rawDesc and rawShort
     final extractedFeatures = <String>[];
     final combinedHtml = '$rawDesc $rawShort';
-    final liMatches = RegExp(r'<li[^>]*>(.*?)<\/li>', caseSensitive: false, dotAll: true)
-        .allMatches(combinedHtml);
+    final liMatches = _reLiTag.allMatches(combinedHtml);
     for (final m in liMatches) {
       final item = cleanHtml(m.group(1) ?? '');
       if (item.isNotEmpty && !extractedFeatures.contains(item) && item.length <= 160) {
@@ -309,8 +348,7 @@ class WcProduct {
 
     // If <li> items were not found, extract from table rows
     if (extractedFeatures.isEmpty) {
-      final trMatches = RegExp(r'<tr[^>]*>\s*<td[^>]*>(.*?)<\/td>\s*<td[^>]*>(.*?)<\/td>\s*<\/tr>', caseSensitive: false, dotAll: true)
-          .allMatches(combinedHtml);
+      final trMatches = _reTrTag.allMatches(combinedHtml);
       for (final m in trMatches) {
         final key = cleanHtml(m.group(1) ?? '');
         final val = cleanHtml(m.group(2) ?? '');
@@ -332,7 +370,7 @@ class WcProduct {
 
     // Extract clean readable paragraphs for description
     String cleanDesc = '';
-    final pMatches = RegExp(r'<p[^>]*>(.*?)<\/p>', caseSensitive: false, dotAll: true).allMatches(rawDesc);
+    final pMatches = _rePTag.allMatches(rawDesc);
     if (pMatches.isNotEmpty) {
       final pTexts = <String>[];
       for (final pm in pMatches) {
@@ -348,15 +386,15 @@ class WcProduct {
     }
 
     if (cleanDesc.isEmpty) {
-      final withoutLists = rawDesc.replaceAll(RegExp(r'<ul[^>]*>[\s\S]*?<\/ul>'), ' ');
-      final rawCleaned = cleanHtml(withoutLists).replaceFirst(RegExp(r'^key features:\s*', caseSensitive: false), '').trim();
+      final withoutLists = rawDesc.replaceAll(_reUlBlock, ' ');
+      final rawCleaned = cleanHtml(withoutLists).replaceFirst(_reKeyFeaturesPrefix, '').trim();
       if (rawCleaned.isNotEmpty) {
         cleanDesc = rawCleaned;
       }
     }
 
     if (cleanDesc.isEmpty && rawShort.isNotEmpty) {
-      final cleanedShort = cleanHtml(rawShort).replaceFirst(RegExp(r'^key features:\s*', caseSensitive: false), '').trim();
+      final cleanedShort = cleanHtml(rawShort).replaceFirst(_reKeyFeaturesPrefix, '').trim();
       if (cleanedShort.isNotEmpty) {
         cleanDesc = cleanedShort;
       }
@@ -390,6 +428,7 @@ class WcProduct {
       rating: double.tryParse(json['average_rating']?.toString() ?? '') ?? 4.8,
       reviewsCount: (json['rating_count'] as num?)?.toInt() ?? (json['review_count'] as num?)?.toInt() ?? 12,
       inStock: json['is_in_stock'] == true || json['stock_status'] == 'instock',
+      stockQuantity: (json['stock_quantity'] as num?)?.toInt(),
     );
   }
 
@@ -405,6 +444,8 @@ class WcProduct {
     'colors': colors,
     'sizes': sizes,
     'features': features,
+    'inStock': inStock,
+    'stockQuantity': stockQuantity,
   };
 
   DetailedProduct toDetailedProduct() => DetailedProduct(
@@ -417,6 +458,10 @@ class WcProduct {
     images: images.isNotEmpty ? images : [primaryImage],
     description: description,
     colors: colors,
+    sizes: sizes,
+    categories: categories,
+    inStock: inStock,
+    stockQuantity: stockQuantity,
     features: features.isNotEmpty
         ? features
         : [
@@ -428,11 +473,78 @@ class WcProduct {
   );
 }
 
+class WcProductVariation {
+  final int id;
+  final double price;
+  final double? regularPrice;
+  final bool inStock;
+  final int? stockQuantity;
+  final String? image;
+  final String? color;
+  final String? size;
+
+  const WcProductVariation({
+    required this.id,
+    required this.price,
+    this.regularPrice,
+    required this.inStock,
+    this.stockQuantity,
+    this.image,
+    this.color,
+    this.size,
+  });
+
+  factory WcProductVariation.fromJson(Map<String, dynamic> json) {
+    String? color;
+    String? size;
+    if (json['attributes'] is List) {
+      for (final attr in (json['attributes'] as List)) {
+        if (attr is Map) {
+          final name = (attr['name'] as String?)?.toLowerCase().trim() ?? '';
+          final slug = (attr['slug'] as String?)?.toLowerCase().trim() ?? '';
+          final option = (attr['option'] as String?)?.trim();
+          if (option == null || option.isEmpty) continue;
+          if (name.contains('color') || name.contains('colour') || slug.contains('color') || slug.contains('colour')) {
+            color = option;
+          } else if (name.contains('size') || slug.contains('size')) {
+            size = option;
+          }
+        }
+      }
+    }
+    String? imgUrl;
+    if (json['image'] is Map && json['image']['src'] is String) {
+      final src = (json['image']['src'] as String).trim();
+      if (src.isNotEmpty) imgUrl = src;
+    }
+
+    final parsedPrice = double.tryParse(json['price']?.toString() ?? '') ?? 0.0;
+    final parsedReg = double.tryParse(json['regular_price']?.toString() ?? '');
+    final stockStatus = (json['stock_status'] as String?)?.toLowerCase() ?? 'instock';
+    final stockQty = (json['stock_quantity'] as num?)?.toInt();
+
+    return WcProductVariation(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      price: parsedPrice > 0 ? parsedPrice : (parsedReg ?? 0.0),
+      regularPrice: parsedReg,
+      inStock: stockStatus == 'instock' && (stockQty == null || stockQty > 0),
+      stockQuantity: stockQty,
+      image: imgUrl,
+      color: color,
+      size: size,
+    );
+  }
+}
+
 class WooCommerceService {
   static const String storeName = 'Livaan';
   static const String baseUrl = 'https://livaan.in/wp-json/wc/v3';
-  static const String consumerKey = 'ck_0ac8ff9e2992f335f3e243abda2744ceef09877f';
-  static const String consumerSecret = 'cs_21bf9715953849d58bd3a110bf77722f2bec88dc';
+  static const String consumerKey = 'ck_3e458e47af4e649b768cae02b259674005cbd104';
+  static const String consumerSecret = 'cs_e6d4b609ee11df2f8b5b8a2cec43643c0bd9a45a';
+
+  // Razorpay Test Keys
+  static const String razorpayKeyId = 'rzp_test_SnbtbVtFnRIrAI';
+  static const String razorpayKeySecret = 'Y5qIsn5hB5jZ9WJMwptQfVDS';
 
   static const String siteLogoUrl =
       'https://livaan.in/wp-content/uploads/2025/01/cropped-1-4-png.avif';
@@ -514,7 +626,11 @@ class WooCommerceService {
   /// Seed Products (empty by default; populated directly from WooCommerce API)
   static List<WcProduct> initialProducts = [];
 
+  bool _isRefreshingProducts = false;
+
   void _refreshProductsInBackground() async {
+    if (_isRefreshingProducts) return;
+    _isRefreshingProducts = true;
     try {
       final response = await _dio.get(
         '$baseUrl/products',
@@ -526,21 +642,16 @@ class WooCommerceService {
       );
       final data = response.data;
       if (data is List) {
-        final list = <WcProduct>[];
-        for (final item in data) {
-          if (item is Map<String, dynamic>) {
-            final p = WcProduct.fromJson(item);
-            if (p.price > 0 || p.images.isNotEmpty) {
-              list.add(p);
-            }
-          }
-        }
+        final list = await compute(_parseWcProducts, data);
         if (list.isNotEmpty) {
           cacheProducts(list);
           initialProducts = list;
         }
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      _isRefreshingProducts = false;
+    }
   }
 
   Future<List<WcCategory>> fetchCategories() async {
@@ -548,8 +659,8 @@ class WooCommerceService {
       final response = await _dio.get(
         '$baseUrl/products/categories',
         queryParameters: {
-          'per_page': 50,
-          'hide_empty': true,
+          'per_page': 100,
+          'hide_empty': false,
           'consumer_key': consumerKey,
           'consumer_secret': consumerSecret,
         },
@@ -561,7 +672,7 @@ class WooCommerceService {
         for (final item in data) {
           if (item is Map<String, dynamic>) {
             final cat = WcCategory.fromJson(item);
-            if (cat.name.toLowerCase() != 'uncategorized' && cat.count > 0) {
+            if (cat.name.toLowerCase() != 'uncategorized' && cat.id > 0) {
               list.add(cat);
             }
           }
@@ -605,15 +716,7 @@ class WooCommerceService {
 
       final data = response.data;
       if (data is List) {
-        final list = <WcProduct>[];
-        for (final item in data) {
-          if (item is Map<String, dynamic>) {
-            final p = WcProduct.fromJson(item);
-            if (p.price > 0 || p.images.isNotEmpty) {
-              list.add(p);
-            }
-          }
-        }
+        final list = await compute(_parseWcProducts, data);
         if (list.isNotEmpty) {
           cacheProducts(list);
           if (categoryId == null && (search == null || search.trim().isEmpty)) {
@@ -922,8 +1025,17 @@ class WooCommerceService {
     }
   }
 
-  /// Fetches enabled payment gateways configured on the WooCommerce store
+  /// Fetches enabled payment gateways configured on the WooCommerce store,
+  /// deduplicates repeated wallet gateways, and ensures Razorpay (UPI, GPay,
+  /// Cards & NetBanking) is always available at the top.
   Future<List<WcPaymentGateway>> fetchPaymentGateways() async {
+    const defaultRazorpay = WcPaymentGateway(
+      id: 'razorpay',
+      title: 'Pay via UPI, GPay & Other Options',
+      description: 'Google Pay, PhonePe, Paytm, Credit/Debit Cards & NetBanking',
+      enabled: true,
+    );
+
     try {
       final response = await _dio.get(
         '$baseUrl/payment_gateways',
@@ -933,24 +1045,53 @@ class WooCommerceService {
         },
       );
       if (response.data is List) {
-        final list = (response.data as List)
+        final rawList = (response.data as List)
             .whereType<Map<String, dynamic>>()
             .map((item) => WcPaymentGateway.fromJson(item))
             .where((g) => g.enabled)
             .toList();
-        if (list.isNotEmpty) return list;
+
+        if (rawList.isNotEmpty) {
+          // Deduplicate repeated wallet gateways (e.g. 'wallet_gateway' & 'wallet')
+          // and any gateways sharing the same normalized title.
+          final deduped = <WcPaymentGateway>[];
+          final seenTitles = <String>{};
+          var hasWallet = false;
+
+          for (final g in rawList) {
+            final idLower = g.id.toLowerCase();
+            final titleLower = g.title.trim().toLowerCase();
+            final isWallet = idLower.contains('wallet') || titleLower.contains('wallet');
+
+            if (isWallet) {
+              if (hasWallet) continue;
+              hasWallet = true;
+            }
+            if (seenTitles.contains(titleLower)) continue;
+            seenTitles.add(titleLower);
+            deduped.add(g);
+          }
+
+          final hasRazorpay = deduped.any((g) => g.id.toLowerCase().contains('razorpay'));
+          if (!hasRazorpay) {
+            deduped.insert(0, defaultRazorpay);
+          } else {
+            // Prioritize Razorpay at the top of payment options
+            deduped.sort((a, b) {
+              final aIsRzp = a.id.toLowerCase().contains('razorpay') ? 0 : 1;
+              final bIsRzp = b.id.toLowerCase().contains('razorpay') ? 0 : 1;
+              return aIsRzp.compareTo(bIsRzp);
+            });
+          }
+          return deduped;
+        }
       }
     } catch (e) {
       debugPrint('fetchPaymentGateways error: $e');
     }
     // Fallback to active gateways on store
     return const [
-      WcPaymentGateway(
-        id: 'razorpay',
-        title: 'UPI, Cards, NetBanking',
-        description: 'Pay securely using UPI (Google Pay, PhonePe, Paytm), Credit/Debit Cards, or NetBanking.',
-        enabled: true,
-      ),
+      defaultRazorpay,
       WcPaymentGateway(
         id: 'cod',
         title: 'Cash on delivery',
@@ -1037,13 +1178,30 @@ class WooCommerceService {
     required String paymentMethodTitle,
     required List<Map<String, dynamic>> lineItems,
     String? couponCode,
+    bool setPaid = false,
+    String? transactionId,
+    List<Map<String, dynamic>>? metaData,
   }) async {
-    try {
+    final cleanEmail = email.trim();
+    final safeEmail = (cleanEmail.isNotEmpty && cleanEmail.contains('@'))
+        ? cleanEmail
+        : 'guest@livaan.in';
+    // Guard against locally-generated Unix timestamp IDs which WordPress rejects
+    final safeCustomerId = (customerId > 0 && customerId < 100000000) ? customerId : 0;
+
+    Map<String, dynamic> buildPayload({
+      required bool includeCustomerId,
+      required bool includeCoupon,
+    }) {
       final body = <String, dynamic>{
-        if (customerId > 0) 'customer_id': customerId,
+        if (includeCustomerId && safeCustomerId > 0) 'customer_id': safeCustomerId,
         'payment_method': paymentMethodId,
         'payment_method_title': paymentMethodTitle,
-        'set_paid': paymentMethodId == 'cod' ? false : false,
+        'set_paid': setPaid,
+        'status': setPaid ? 'processing' : 'processing',
+        if (transactionId != null && transactionId.isNotEmpty)
+          'transaction_id': transactionId,
+        if (metaData != null && metaData.isNotEmpty) 'meta_data': metaData,
         'billing': {
           'first_name': firstName.isNotEmpty ? firstName : 'Store',
           'last_name': lastName.isNotEmpty ? lastName : 'Customer',
@@ -1051,7 +1209,8 @@ class WooCommerceService {
           'city': city.isNotEmpty ? city : 'Delhi',
           'state': state.isNotEmpty ? state : 'DL',
           'postcode': postcode.isNotEmpty ? postcode : '110001',
-          'email': email,
+          'country': 'IN',
+          'email': safeEmail,
           'phone': phone.isNotEmpty ? phone : '9876543210',
         },
         'shipping': {
@@ -1066,25 +1225,44 @@ class WooCommerceService {
         'line_items': lineItems,
       };
 
-      if (couponCode != null && couponCode.trim().isNotEmpty) {
+      if (includeCoupon && couponCode != null && couponCode.trim().isNotEmpty) {
         body['coupon_lines'] = [
           {'code': couponCode.trim()}
         ];
       }
+      return body;
+    }
 
+    Future<Map<String, dynamic>?> postOrder(Map<String, dynamic> payload) async {
       final response = await _dio.post(
         '$baseUrl/orders',
         queryParameters: {
           'consumer_key': consumerKey,
           'consumer_secret': consumerSecret,
         },
-        data: body,
+        data: payload,
       );
-
       if (response.statusCode == 200 || response.statusCode == 201) {
         if (response.data is Map<String, dynamic>) {
           return response.data as Map<String, dynamic>;
         }
+      }
+      return null;
+    }
+
+    try {
+      return await postOrder(
+        buildPayload(includeCustomerId: true, includeCoupon: true),
+      );
+    } on DioException catch (e) {
+      debugPrint('createOrder primary error (${e.response?.statusCode}): ${e.response?.data}');
+      // Retry as guest order without coupon_lines if WooCommerce rejected customer_id or coupon
+      try {
+        return await postOrder(
+          buildPayload(includeCustomerId: false, includeCoupon: false),
+        );
+      } catch (retryErr) {
+        debugPrint('createOrder retry error: $retryErr');
       }
     } catch (e) {
       debugPrint('createOrder error: $e');
@@ -1133,11 +1311,10 @@ class WooCommerceService {
         final list = data.whereType<Map<String, dynamic>>().toList();
         if (email != null && email.trim().isNotEmpty && (customerId == null || customerId <= 0)) {
           final cleanEmail = email.trim().toLowerCase();
-          final filtered = list.where((o) {
+          return list.where((o) {
             final bEmail = (o['billing']?['email'] ?? '').toString().toLowerCase();
             return bEmail == cleanEmail;
           }).toList();
-          if (filtered.isNotEmpty) return filtered;
         }
         return list;
       }
@@ -1289,6 +1466,30 @@ class WooCommerceService {
     return [];
   }
 
+  /// Fetches all variations (size/color stock, pricing & images) for a variable product
+  Future<List<WcProductVariation>> fetchProductVariations(int productId) async {
+    if (productId <= 0) return const [];
+    try {
+      final response = await _dio.get(
+        '$baseUrl/products/$productId/variations',
+        queryParameters: {
+          'per_page': 50,
+          'consumer_key': consumerKey,
+          'consumer_secret': consumerSecret,
+        },
+      );
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map<String, dynamic>>()
+            .map(WcProductVariation.fromJson)
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('Error fetching variations for product $productId: $e');
+    }
+    return const [];
+  }
+
   /// Submits a new review & rating for a product to WooCommerce
   Future<WcReview?> submitReview({
     required int productId,
@@ -1303,6 +1504,7 @@ class WooCommerceService {
         data: {
           'product_id': productId,
           'review': review.trim(),
+          'reviewer': reviewer.trim(),
           'reviewer_email': reviewerEmail.trim(),
           'rating': rating.clamp(1, 5),
         },
@@ -1427,6 +1629,7 @@ class WcReview {
   final String dateCreated;
   final bool verified;
   final String? reviewerAvatar;
+  final List<String> images;
 
   const WcReview({
     required this.id,
@@ -1438,6 +1641,7 @@ class WcReview {
     required this.dateCreated,
     this.verified = false,
     this.reviewerAvatar,
+    this.images = const [],
   });
 
   factory WcReview.fromJson(Map<String, dynamic> json) {
@@ -1458,6 +1662,18 @@ class WcReview {
       avatar = (avatars['48'] ?? avatars['96'] ?? avatars['24']) as String?;
     }
 
+    final rawImages = json['images'];
+    final List<String> imgList = [];
+    if (rawImages is List) {
+      for (final item in rawImages) {
+        if (item is String && item.isNotEmpty) {
+          imgList.add(item);
+        } else if (item is Map && item['src'] != null) {
+          imgList.add(item['src'].toString());
+        }
+      }
+    }
+
     return WcReview(
       id: (json['id'] as num?)?.toInt() ?? 0,
       productId: (json['product_id'] as num?)?.toInt() ?? 0,
@@ -1470,6 +1686,7 @@ class WcReview {
       dateCreated: (json['date_created'] as String?) ?? '',
       verified: json['verified'] as bool? ?? false,
       reviewerAvatar: avatar,
+      images: imgList,
     );
   }
 }

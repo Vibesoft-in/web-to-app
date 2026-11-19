@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers/shop_providers.dart';
+import '../../core/widgets/bottom_notification.dart';
 
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    const primaryColor = Color(0xFF704FEE);
-    const darkTextColor = Color(0xFF1E1B4B);
+    const primaryColor = Color(0xFFE53935);
+    const darkTextColor = Color(0xFF111111);
 
     final notifications = ref.watch(notificationsProvider);
     final unreadCount = ref.watch(unreadNotificationsCountProvider);
@@ -48,22 +49,18 @@ class NotificationsScreen extends ConsumerWidget {
               onSelected: (val) {
                 if (val == 'read') {
                   ref.read(notificationsProvider.notifier).markAllAsRead();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('All notifications marked as read'),
-                      behavior: SnackBarBehavior.floating,
-                      duration: Duration(seconds: 1),
-                    ),
+                  BottomNotification.show(
+                    context,
+                    message: 'All notifications marked as read',
+                    icon: Icons.done_all_rounded,
                   );
                 }
                 if (val == 'clear') {
                   ref.read(notificationsProvider.notifier).clearAll();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('All notifications cleared'),
-                      behavior: SnackBarBehavior.floating,
-                      duration: Duration(seconds: 1),
-                    ),
+                  BottomNotification.show(
+                    context,
+                    message: 'All notifications cleared',
+                    icon: Icons.delete_sweep_rounded,
                   );
                 }
               },
@@ -137,12 +134,10 @@ class NotificationsScreen extends ConsumerWidget {
                         TextButton(
                           onPressed: () {
                             ref.read(notificationsProvider.notifier).markAllAsRead();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('All notifications marked as read'),
-                                behavior: SnackBarBehavior.floating,
-                                duration: Duration(seconds: 1),
-                              ),
+                            BottomNotification.show(
+                              context,
+                              message: 'All notifications marked as read',
+                              icon: Icons.done_all_rounded,
                             );
                           },
                           style: TextButton.styleFrom(padding: EdgeInsets.zero),
@@ -201,10 +196,10 @@ class NotificationsScreen extends ConsumerWidget {
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: item.isRead ? const Color(0xFFF9FAFB) : const Color(0xFFF5F3FF).withOpacity(0.6),
+            color: item.isRead ? const Color(0xFFF9FAFB) : const Color(0xFFFEF2F2).withOpacity(0.6),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: item.isRead ? Colors.grey.shade200 : const Color(0xFFEDE9FE),
+              color: item.isRead ? Colors.grey.shade200 : const Color(0xFFFEF2F2),
               width: item.isRead ? 1 : 1.4,
             ),
           ),
@@ -246,7 +241,7 @@ class NotificationsScreen extends ConsumerWidget {
                             width: 8,
                             height: 8,
                             decoration: const BoxDecoration(
-                              color: Color(0xFF704FEE),
+                              color: Color(0xFFE53935),
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -291,13 +286,13 @@ class NotificationsScreen extends ConsumerWidget {
               width: 90,
               height: 90,
               decoration: const BoxDecoration(
-                color: Color(0xFFF5F3FF),
+                color: Color(0xFFFEF2F2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.notifications_off_outlined,
                 size: 42,
-                color: Color(0xFF704FEE),
+                color: Color(0xFFE53935),
               ),
             ),
             const SizedBox(height: 20),

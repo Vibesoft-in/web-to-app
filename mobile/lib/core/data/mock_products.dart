@@ -10,7 +10,11 @@ class DetailedProduct {
   final List<String> images;
   final String description;
   final List<String> colors;
+  final List<String> sizes;
   final List<String> features;
+  final List<String> categories;
+  final bool inStock;
+  final int? stockQuantity;
 
   const DetailedProduct({
     required this.id,
@@ -22,7 +26,11 @@ class DetailedProduct {
     required this.images,
     required this.description,
     required this.colors,
+    this.sizes = const [],
     required this.features,
+    this.categories = const [],
+    this.inStock = true,
+    this.stockQuantity,
   });
 }
 

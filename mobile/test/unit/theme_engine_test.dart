@@ -4,6 +4,8 @@ import 'package:webintoapp_mobile/core/config/app_config_model.dart';
 import 'package:webintoapp_mobile/core/theme/theme_engine.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('ThemeEngine Unit Tests', () {
     const fallbackColor = Color(0xFF123456);
 

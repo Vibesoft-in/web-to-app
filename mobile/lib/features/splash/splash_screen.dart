@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/env/app_env.dart';
 import '../../core/providers/core_providers.dart';
+import '../../core/providers/shop_providers.dart';
 import '../../core/services/woocommerce_service.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -50,7 +52,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   void _navigateToNext() {
     _timer?.cancel();
     if (mounted) {
-      context.go('/intro');
+      final user = ref.read(userProfileProvider);
+      if (user.isLoggedIn) {
+        context.go('/home');
+      } else {
+        context.go('/intro');
+      }
     }
   }
 
@@ -66,9 +73,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     final config = ref.watch(appConfigProvider).valueOrNull;
     final storeName = config?.app.name ?? AppEnv.appName;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: GestureDetector(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: GestureDetector(
         onTap: _navigateToNext,
         behavior: HitTestBehavior.opaque,
         child: Stack(
@@ -82,7 +98,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 height: 280,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Color(0xFFEDE9FE),
+                  color: Color(0xFFFEF2F2),
                 ),
               ),
             ),
@@ -94,7 +110,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 height: 240,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Color(0xFFF3E8FF),
+                  color: Color(0xFFFEF2F2),
                 ),
               ),
             ),
@@ -118,7 +134,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                           borderRadius: BorderRadius.circular(30),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF704FEE).withOpacity(0.18),
+                              color: const Color(0xFFE53935).withOpacity(0.18),
                               blurRadius: 30,
                               offset: const Offset(0, 14),
                             ),
@@ -138,7 +154,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                               height: 28,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2.5,
-                                color: Color(0xFF704FEE),
+                                color: Color(0xFFE53935),
                               ),
                             ),
                           ),
@@ -148,7 +164,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                             errorBuilder: (context, err, stack) => const Icon(
                               Icons.bolt_rounded,
                               size: 56,
-                              color: Color(0xFF704FEE),
+                              color: Color(0xFFE53935),
                             ),
                           ),
                         ),
@@ -161,7 +177,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                         style: const TextStyle(
                           fontSize: 30,
                           fontWeight: FontWeight.w900,
-                          color: Color(0xFF1E1B4B),
+                          color: Color(0xFF111111),
                           letterSpacing: -0.8,
                         ),
                       ),
@@ -186,7 +202,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                         child: CircularProgressIndicator(
                           strokeWidth: 2.5,
                           valueColor:
-                              AlwaysStoppedAnimation<Color>(Color(0xFF704FEE)),
+                              AlwaysStoppedAnimation<Color>(Color(0xFFE53935)),
                         ),
                       ),
                     ],
@@ -233,6 +249,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           ],
         ),
       ),
+    ),
     );
   }
 }

@@ -8,6 +8,7 @@ import '../../features/checkout/checkout_webview.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../../features/orders/orders_screen.dart';
+import '../../features/orders/order_tracking_updates_screen.dart';
 import '../../features/product/product_details_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/search/search_screen.dart';
@@ -15,7 +16,7 @@ import '../../features/splash/splash_screen.dart';
 import '../../features/wishlist/wishlist_screen.dart';
 import '../../layouts/main_layout.dart';
 
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
+final rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorHome = GlobalKey<NavigatorState>();
 final _shellNavigatorCatalog = GlobalKey<NavigatorState>();
 final _shellNavigatorWishlist = GlobalKey<NavigatorState>();
@@ -23,22 +24,22 @@ final _shellNavigatorProfile = GlobalKey<NavigatorState>();
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    navigatorKey: _rootNavigatorKey,
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/splash',
     routes: [
       GoRoute(
         path: '/',
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const SplashScreen(),
       ),
       GoRoute(
         path: '/splash',
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const SplashScreen(),
       ),
       GoRoute(
         path: '/intro',
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const IntroAuthScreen(),
       ),
       StatefulShellRoute.indexedStack(
@@ -64,7 +65,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/catalog',
                 builder: (context, state) {
                   final cat = state.uri.queryParameters['category'];
-                  return CatalogScreen(initialCategory: cat);
+                  final maxPriceStr = state.uri.queryParameters['maxPrice'];
+                  final sort = state.uri.queryParameters['sort'];
+                  final maxPrice = maxPriceStr != null ? double.tryParse(maxPriceStr) : null;
+                  return CatalogScreen(
+                    initialCategory: cat,
+                    maxPrice: maxPrice,
+                    initialSort: sort,
+                  );
                 },
               ),
             ],
@@ -92,8 +100,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(
+        path: '/catalog-offer',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) {
+          final cat = state.uri.queryParameters['category'];
+          final maxPriceStr = state.uri.queryParameters['maxPrice'];
+          final sort = state.uri.queryParameters['sort'];
+          final maxPrice = maxPriceStr != null ? double.tryParse(maxPriceStr) : null;
+          return CatalogScreen(
+            initialCategory: cat,
+            maxPrice: maxPrice,
+            initialSort: sort,
+          );
+        },
+      ),
+      GoRoute(
         path: '/search',
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) {
           final q = state.uri.queryParameters['q'];
           return SearchScreen(initialQuery: q);
@@ -101,12 +124,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/cart',
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const CartScreen(),
       ),
       GoRoute(
         path: '/product/:id',
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) {
           final id = state.pathParameters['id'] ?? '';
           return ProductDetailsScreen(productId: id);
@@ -114,7 +137,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/checkout',
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) {
           final url = state.uri.queryParameters['url'] ?? '';
           return CheckoutWebviewScreen(checkoutUrl: url);
@@ -122,12 +145,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/orders',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const OrdersScreen(),
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) {
+          final id = state.uri.queryParameters['orderId'];
+          return OrdersScreen(initialOrderId: id);
+        },
+      ),
+      GoRoute(
+        path: '/order-tracking-updates',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) {
+          final order = state.extra as Map<String, dynamic>? ?? {};
+          return OrderTrackingUpdatesScreen(order: order);
+        },
       ),
       GoRoute(
         path: '/notifications',
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const NotificationsScreen(),
       ),
     ],

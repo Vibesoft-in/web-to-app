@@ -1,9 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers/shop_providers.dart';
 import '../../core/services/woocommerce_service.dart';
+import '../../core/widgets/bottom_notification.dart';
 
 class IntroAuthScreen extends ConsumerStatefulWidget {
   const IntroAuthScreen({super.key});
@@ -53,9 +55,9 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Color(0xFF704FEE),
+              primary: Color(0xFFE53935),
               onPrimary: Colors.white,
-              onSurface: Color(0xFF1E1B4B),
+              onSurface: Color(0xFF111111),
             ),
           ),
           child: child!,
@@ -135,19 +137,11 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
             _isSignUp = false; // Switch to Sign In if already registered
           }
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.info_outline_rounded, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(error)),
-              ],
-            ),
-            backgroundColor: const Color(0xFFDC2626),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
-          ),
+        BottomNotification.show(
+          context,
+          message: error,
+          isError: true,
+          duration: const Duration(seconds: 4),
         );
         return;
       }
@@ -158,13 +152,10 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
       ref.read(cartItemsProvider.notifier).clearCart();
       ref.read(wishlistProvider.notifier).clear();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Account created! Welcome, ${current.name}! 🎉'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: const Color(0xFF059669),
-          duration: const Duration(seconds: 2),
-        ),
+      BottomNotification.show(
+        context,
+        message: 'Account created! Welcome, ${current.name}! 🎉',
+        isSuccess: true,
       );
       context.go('/home');
     } else {
@@ -207,68 +198,28 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
 
         // Show prominent notification alerting wrong credentials with quick Sign Up action
         ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline_rounded, color: Colors.white, size: 24),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Wrong credentials!',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        result.isNewUser
-                            ? 'Account not found. Please sign up to create a new account.'
-                            : 'Incorrect email or password. Please sign up if you don\'t have an account.',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: const Color(0xFFDC2626),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 6),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            action: SnackBarAction(
-              label: 'SIGN UP',
-              textColor: const Color(0xFFFDE047),
-              onPressed: () {
-                setState(() {
-                  _isSignUp = true;
-                  _errorMessage = null;
-                });
-              },
-            ),
-          ),
+        BottomNotification.show(
+          context,
+          message: errorMsg,
+          isError: true,
+          actionLabel: 'SIGN UP',
+          onAction: () {
+            setState(() {
+              _isSignUp = true;
+              _errorMessage = null;
+            });
+          },
+          duration: const Duration(seconds: 4),
         );
         return; // Stays on page and lets user review or tap Sign Up
       }
 
       // Valid registered credentials from website!
       final current = ref.read(userProfileProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Welcome back, ${current.name}! 👋'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: const Color(0xFF059669),
-          duration: const Duration(seconds: 2),
-        ),
+      BottomNotification.show(
+        context,
+        message: 'Welcome back, ${current.name}! 👋',
+        isSuccess: true,
       );
       context.go('/home');
     }
@@ -276,11 +227,20 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF704FEE);
-    const darkTextColor = Color(0xFF1E1B4B);
+    const primaryColor = Color(0xFFE53935);
+    const darkTextColor = Color(0xFF111111);
 
-    return Scaffold(
-      backgroundColor: Colors.white,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -300,7 +260,7 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
             child: const Text(
               'Skip',
               style: TextStyle(
-                color: Color(0xFF704FEE),
+                color: Color(0xFFE53935),
                 fontWeight: FontWeight.w700,
                 fontSize: 14,
               ),
@@ -346,7 +306,7 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                         height: 24,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Color(0xFF704FEE),
+                          color: Color(0xFFE53935),
                         ),
                       ),
                     ),
@@ -356,7 +316,7 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                       errorBuilder: (context, err, stack) => const Icon(
                         Icons.bolt_rounded,
                         size: 42,
-                        color: Color(0xFF704FEE),
+                        color: Color(0xFFE53935),
                       ),
                     ),
                   ),
@@ -478,7 +438,7 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: _isNewUserNotice
-                        ? const Color(0xFFF5F3FF)
+                        ? const Color(0xFFFEF2F2)
                         : const Color(0xFFFEF2F2),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
@@ -496,7 +456,7 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                             ? Icons.person_add_alt_1_rounded
                             : Icons.error_outline_rounded,
                         color: _isNewUserNotice
-                            ? const Color(0xFF704FEE)
+                            ? const Color(0xFFE53935)
                             : const Color(0xFFDC2626),
                         size: 20,
                       ),
@@ -511,7 +471,7 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                                   : 'Wrong Credentials',
                               style: TextStyle(
                                 color: _isNewUserNotice
-                                    ? const Color(0xFF5B21B6)
+                                    ? const Color(0xFF991B1B)
                                     : const Color(0xFF991B1B),
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
@@ -541,11 +501,11 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF704FEE),
+                                    color: const Color(0xFFE53935),
                                     borderRadius: BorderRadius.circular(8),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: const Color(0xFF704FEE).withOpacity(0.3),
+                                        color: const Color(0xFFE53935).withOpacity(0.3),
                                         blurRadius: 4,
                                         offset: const Offset(0, 2),
                                       ),
@@ -583,7 +543,7 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                           Icons.close_rounded,
                           size: 16,
                           color: _isNewUserNotice
-                              ? const Color(0xFF7C3AED)
+                              ? const Color(0xFFB91C1C)
                               : const Color(0xFFB91C1C),
                         ),
                       ),
@@ -657,7 +617,7 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF704FEE).withOpacity(0.12),
+                          color: const Color(0xFFE53935).withOpacity(0.12),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: const Text(
@@ -665,7 +625,7 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                           style: TextStyle(
                             fontSize: 10.5,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF704FEE),
+                            color: Color(0xFFE53935),
                           ),
                         ),
                       ),
@@ -787,17 +747,12 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                   child: TextButton(
                     onPressed: () {
                       final email = _emailController.text.trim();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            email.isNotEmpty
-                                ? 'Password reset instructions have been sent to $email.'
-                                : 'Please enter your registered email to reset your password.',
-                          ),
-                          behavior: SnackBarBehavior.floating,
-                          backgroundColor: primaryColor,
-                          duration: const Duration(seconds: 3),
-                        ),
+                      BottomNotification.show(
+                        context,
+                        message: email.isNotEmpty
+                            ? 'Password reset instructions sent to $email 📩'
+                            : 'Please enter your registered email to reset password.',
+                        icon: Icons.mark_email_read_outlined,
                       );
                     },
                     style: TextButton.styleFrom(padding: EdgeInsets.zero),
@@ -868,11 +823,10 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please sign in with your store email and password.'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
+                        BottomNotification.show(
+                          context,
+                          message: 'Please sign in with your store email and password.',
+                          icon: Icons.info_outline_rounded,
                         );
                       },
                       icon: const Icon(Icons.g_mobiledata_rounded, size: 28, color: Colors.redAccent),
@@ -888,11 +842,10 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please sign in with your store email and password.'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
+                        BottomNotification.show(
+                          context,
+                          message: 'Please sign in with your store email and password.',
+                          icon: Icons.info_outline_rounded,
                         );
                       },
                       icon: const Icon(Icons.apple_rounded, size: 22, color: darkTextColor),
@@ -911,6 +864,7 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -951,7 +905,7 @@ class _IntroAuthScreenState extends ConsumerState<IntroAuthScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFF704FEE), width: 1.5),
+        borderSide: const BorderSide(color: Color(0xFFE53935), width: 1.5),
       ),
     );
   }

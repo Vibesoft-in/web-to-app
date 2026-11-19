@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/data/mock_products.dart';
 import '../../core/providers/shop_providers.dart';
 import '../../core/services/woocommerce_service.dart';
+import '../../core/widgets/bottom_notification.dart';
 import '../catalog/models/product_model.dart';
 import '../catalog/widgets/product_card.dart';
 
@@ -69,8 +70,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF704FEE);
-    const darkTextColor = Color(0xFF1E1B4B);
+    const primaryColor = Color(0xFFE53935);
+    const darkTextColor = Color(0xFF111111);
 
     final wcProductsAsync = ref.watch(wcProductsProvider);
     final wcCategoriesAsync = ref.watch(wcCategoriesProvider);
@@ -200,7 +201,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           // 1. Trending / Popular Searches
           Row(
             children: [
-              const Icon(Icons.trending_up_rounded, size: 18, color: Color(0xFF704FEE)),
+              const Icon(Icons.trending_up_rounded, size: 18, color: Color(0xFFE53935)),
               const SizedBox(width: 6),
               Text(
                 'Popular Searches',
@@ -260,7 +261,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           if (allCategories.isNotEmpty) ...[
             Row(
               children: [
-                const Icon(Icons.grid_view_rounded, size: 18, color: Color(0xFF704FEE)),
+                const Icon(Icons.grid_view_rounded, size: 18, color: Color(0xFFE53935)),
                 const SizedBox(width: 6),
                 Text(
                   'Popular Categories',
@@ -283,7 +284,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEDE9FE),
+                      color: const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -291,7 +292,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF704FEE),
+                        color: Color(0xFFE53935),
                       ),
                     ),
                   ),
@@ -305,7 +306,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           if (featuredProducts.isNotEmpty) ...[
             Row(
               children: [
-                const Icon(Icons.auto_awesome_rounded, size: 18, color: Color(0xFF704FEE)),
+                const Icon(Icons.auto_awesome_rounded, size: 18, color: Color(0xFFE53935)),
                 const SizedBox(width: 6),
                 Text(
                   'Featured Recommendations',
@@ -343,10 +344,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 width: 72,
                 height: 72,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFEDE9FE),
+                  color: Color(0xFFFEF2F2),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.search_off_rounded, size: 36, color: Color(0xFF704FEE)),
+                child: const Icon(Icons.search_off_rounded, size: 36, color: Color(0xFFE53935)),
               ),
               const SizedBox(height: 16),
               Text(
@@ -409,7 +410,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEDE9FE),
+                  color: const Color(0xFFFEF2F2),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -417,7 +418,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF704FEE),
+                    color: Color(0xFFE53935),
                   ),
                 ),
               ),
@@ -483,12 +484,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 features: [],
               ),
             );
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(!isWish ? 'Added to Wishlist' : 'Removed from Wishlist'),
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 1),
-              ),
+            BottomNotification.show(
+              context,
+              message: !isWish ? 'Added to Wishlist ❤️' : 'Removed from Wishlist',
+              icon: !isWish ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              isSuccess: !isWish,
             );
           },
           onTap: () {

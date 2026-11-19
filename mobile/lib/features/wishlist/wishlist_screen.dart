@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/data/mock_products.dart';
 import '../../core/providers/shop_providers.dart';
 import '../../core/services/woocommerce_service.dart';
+import '../../core/widgets/bottom_notification.dart';
 
 class WishlistScreen extends ConsumerStatefulWidget {
   const WishlistScreen({super.key});
@@ -90,8 +91,8 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
     final allWc = productsAsync.value ?? WooCommerceService.initialProducts;
     final cachedWishlist = ref.watch(wishlistProvider.notifier).cachedProducts;
 
-    const primaryColor = Color(0xFF704FEE);
-    const darkTextColor = Color(0xFF1E1B4B);
+    const primaryColor = Color(0xFFE53935);
+    const darkTextColor = Color(0xFF111111);
 
     // Resolve products
     final List<DetailedProduct?> wishlistedProducts = [];
@@ -186,56 +187,60 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
       body: SafeArea(
         child: wishlistedIds.isEmpty
             ? _buildEmptyWishlist(context, primaryColor, darkTextColor)
-            : SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Items Count Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${wishlistedIds.length} Saved Items',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: darkTextColor,
+            : CustomScrollView(
+                cacheExtent: 500,
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(18.0, 12.0, 18.0, 14.0),
+                    sliver: SliverToBoxAdapter(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${wishlistedIds.length} Saved Items',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: darkTextColor,
+                            ),
                           ),
-                        ),
-                        Text(
-                          'Tap heart to remove',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade500,
+                          Text(
+                            'Tap heart to remove',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 14),
+                  ),
 
-                    // 2-Column Responsive Grid of Wishlist Items
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: wishlistedIds.length,
+                  // 2-Column Lazy-Virtualized SliverGrid of Wishlist Items
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(18.0, 0, 18.0, 24.0),
+                    sliver: SliverGrid(
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
                         crossAxisSpacing: 14,
                         mainAxisSpacing: 18,
                         childAspectRatio: 0.68,
                       ),
-                      itemBuilder: (context, index) {
-                        final product = index < wishlistedProducts.length ? wishlistedProducts[index] : null;
-                        if (product == null) {
-                          return _buildLoadingWishlistCard();
-                        }
-                        return _buildWishlistCard(context, product, primaryColor, darkTextColor);
-                      },
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final product = index < wishlistedProducts.length ? wishlistedProducts[index] : null;
+                          if (product == null) {
+                            return _buildLoadingWishlistCard();
+                          }
+                          return RepaintBoundary(
+                            child: _buildWishlistCard(context, product, primaryColor, darkTextColor),
+                          );
+                        },
+                        childCount: wishlistedIds.length,
+                      ),
                     ),
-                    const SizedBox(height: 24),
-                  ],
-                ),
+                  ),
+                ],
               ),
       ),
     );
@@ -262,7 +267,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                 child: SizedBox(
                   width: 24,
                   height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF704FEE)),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFE53935)),
                 ),
               ),
             ),
@@ -327,7 +332,9 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                     child: CachedNetworkImage(
                       imageUrl: image,
                       fit: BoxFit.cover,
-                      placeholder: (_, __) => Container(color: Colors.grey.shade100),
+                      memCacheWidth: 420,
+                      fadeInDuration: const Duration(milliseconds: 120),
+                      placeholder: (_, __) => const ColoredBox(color: Color(0xFFF3F4F6)),
                       errorWidget: (_, __, ___) => const Icon(Icons.image, color: Colors.grey),
                     ),
                   ),
@@ -339,12 +346,10 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                   child: GestureDetector(
                     onTap: () {
                       ref.read(wishlistProvider.notifier).toggle(product.id);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Removed "${product.title}" from wishlist'),
-                          behavior: SnackBarBehavior.floating,
-                          duration: const Duration(seconds: 1),
-                        ),
+                      BottomNotification.show(
+                        context,
+                        message: 'Removed "${product.title}" from wishlist',
+                        icon: Icons.favorite_border_rounded,
                       );
                     },
                     child: Container(
@@ -394,7 +399,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                 style: const TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF704FEE),
+                  color: Color(0xFFE53935),
                 ),
               ),
               InkWell(
@@ -405,32 +410,31 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                     price: product.price,
                     image: image,
                   );
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Added "${product.title}" to Cart! 🛍️'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: const Color(0xFF059669),
-                      duration: const Duration(seconds: 1),
-                    ),
+                  BottomNotification.show(
+                    context,
+                    message: 'Added "${product.title}" to Cart! 🛍️',
+                    isSuccess: true,
+                    actionLabel: 'VIEW CART',
+                    onAction: () => context.push('/cart'),
                   );
                 },
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: const BoxDecoration(
-                    color: Color(0xFFEDE9FE),
+                    color: Color(0xFFFEF2F2),
                     borderRadius: BorderRadius.all(Radius.circular(8)),
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.shopping_cart_outlined, size: 13, color: Color(0xFF704FEE)),
+                      Icon(Icons.shopping_cart_outlined, size: 13, color: Color(0xFFE53935)),
                       SizedBox(width: 4),
                       Text(
                         'Cart',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF704FEE),
+                          color: Color(0xFFE53935),
                         ),
                       ),
                     ],
@@ -463,7 +467,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Icon(icon, size: 19, color: const Color(0xFF1E1B4B)),
+            Icon(icon, size: 19, color: const Color(0xFF111111)),
             if (badgeCount != null && badgeCount > 0)
               Positioned(
                 top: 4,
@@ -471,7 +475,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(3.5),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF704FEE),
+                    color: Color(0xFFE53935),
                     shape: BoxShape.circle,
                   ),
                   constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
@@ -510,13 +514,13 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
               width: 100,
               height: 100,
               decoration: const BoxDecoration(
-                color: Color(0xFFEDE9FE),
+                color: Color(0xFFFEF2F2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.favorite_rounded,
                 size: 48,
-                color: Color(0xFF704FEE),
+                color: Color(0xFFE53935),
               ),
             ),
             const SizedBox(height: 24),
