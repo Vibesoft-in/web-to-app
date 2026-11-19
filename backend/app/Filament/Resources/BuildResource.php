@@ -17,6 +17,21 @@ class BuildResource extends Resource
     protected static ?string $model = Build::class;
     protected static ?string $navigationIcon = 'heroicon-o-cpu-chip';
     protected static ?string $navigationGroup = 'Apps & Builds';
+    protected static ?string $recordTitleAttribute = 'id';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['id', 'version_name', 'version_code', 'app.name'];
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return [
+            'App' => $record->app?->name ?? 'N/A',
+            'Version' => "v{$record->version_name} ({$record->version_code})",
+            'Status' => ucfirst((string) ($record->status?->value ?? $record->status)),
+        ];
+    }
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {

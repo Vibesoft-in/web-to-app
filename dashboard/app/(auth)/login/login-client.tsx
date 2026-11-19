@@ -47,14 +47,14 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showErrorPopup]);
 
-  const navigateByAccountState = (currentUser: any, explicitRedirect?: string | null) => {
-    if (explicitRedirect && !explicitRedirect.includes("/dashboard/apps/new")) {
-      router.push(explicitRedirect);
+  const navigateByAccountState = (currentUser: any, explicitRedirect?: string | null, ssoToken?: string) => {
+    if (currentUser?.is_super_admin || currentUser?.email === "admin@webintoapp.com") {
+      window.location.href = "/admin";
       return;
     }
 
-    if (currentUser?.is_super_admin || currentUser?.email === "admin@webintoapp.com") {
-      router.push("/dashboard");
+    if (explicitRedirect && !explicitRedirect.includes("/dashboard/apps/new")) {
+      router.push(explicitRedirect);
       return;
     }
 
@@ -119,8 +119,10 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
       });
 
       if (res?.user) {
-        navigateByAccountState(res.user, queryRedirect);
-        router.refresh();
+        navigateByAccountState(res.user, queryRedirect, res.token);
+        if (!res.user?.is_super_admin && res.user?.email !== "admin@webintoapp.com") {
+          router.refresh();
+        }
       } else {
         router.push(queryRedirect || "/dashboard");
         router.refresh();

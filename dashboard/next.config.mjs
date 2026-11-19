@@ -10,20 +10,6 @@ const nextConfig = {
       },
     ],
   },
-  async redirects() {
-    return [
-      {
-        source: '/admin',
-        destination: 'http://localhost:8000/admin',
-        permanent: false,
-      },
-      {
-        source: '/admin/:path*',
-        destination: 'http://localhost:8000/admin/:path*',
-        permanent: false,
-      },
-    ];
-  },
   async rewrites() {
     return [
       {

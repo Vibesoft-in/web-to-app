@@ -89,7 +89,10 @@ class PlanResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->requiresConfirmation()
+                    ->modalHeading('Delete Subscription Plan')
+                    ->modalDescription('Are you certain you want to delete this subscription plan? Existing subscribed tenants may be affected.'),
             ]);
     }
 

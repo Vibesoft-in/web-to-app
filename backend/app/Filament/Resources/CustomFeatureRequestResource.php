@@ -18,6 +18,21 @@ class CustomFeatureRequestResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-chat-bubble-left-right';
     protected static ?string $navigationGroup = 'Billing & Subscriptions';
     protected static ?int $navigationSort = 4;
+    protected static ?string $recordTitleAttribute = 'feature_name';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['ticket_number', 'feature_name', 'contact_email', 'contact_name'];
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return [
+            'Ticket' => "#{$record->ticket_number}",
+            'Requester' => $record->contact_name ? "{$record->contact_name} ({$record->contact_email})" : $record->contact_email,
+            'Status' => ucfirst(str_replace('_', ' ', (string) $record->status)),
+        ];
+    }
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {

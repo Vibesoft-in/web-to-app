@@ -15,6 +15,22 @@ Route::get('/login', function () {
     return redirect('/admin/login');
 })->name('login');
 
+// Admin SSO route to instantly authenticate Super Admin from dashboard
+Route::get('/admin/sso', function (\Illuminate\Http\Request $request) {
+    $tokenString = $request->query('token');
+    if ($tokenString) {
+        $tokenModel = \Laravel\Sanctum\PersonalAccessToken::findToken($tokenString);
+        if ($tokenModel && $tokenModel->tokenable) {
+            $user = $tokenModel->tokenable;
+            if ($user->isSuperAdmin() || $user->email === 'admin@webintoapp.com') {
+                \Illuminate\Support\Facades\Auth::guard('web')->login($user, true);
+                return redirect('/admin');
+            }
+        }
+    }
+    return redirect('/admin');
+});
+
 // Safe web-based migration & initialization route for shared hosting
 Route::get('/migrate-db', function () {
     try {

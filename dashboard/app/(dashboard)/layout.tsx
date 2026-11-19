@@ -54,8 +54,13 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.replace("/login");
+    } else if (!isUserLoading && isAdmin && pathname === "/dashboard") {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (!urlParams.get("view_client") && !urlParams.get("impersonate")) {
+        router.replace("/admin");
+      }
     }
-  }, [isUserLoading, user, router]);
+  }, [isUserLoading, user, isAdmin, pathname, router]);
 
   // Synchronize profile photo update across entire dashboard header (Requirement 4)
   useEffect(() => {
@@ -148,57 +153,65 @@ export default function DashboardLayout({
             </Link>
 
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-              <Link
-                href="/dashboard"
-                className={`py-5 transition ${
-                  isApps
-                    ? "text-[#78593D] border-b-2 border-[#78593D] font-bold"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/dashboard/addons"
-                className={`py-5 transition ${
-                  isAddons
-                    ? "text-[#78593D] border-b-2 border-[#78593D] font-bold"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                Add-ons &amp; Store
-              </Link>
-              <Link
-                href="/dashboard/billing"
-                className={`py-5 transition ${
-                  isBilling
-                    ? "text-[#78593D] border-b-2 border-[#78593D] font-bold"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                Billing &amp; Invoices
-              </Link>
-              <Link
-                href="/dashboard/settings"
-                className={`py-5 transition ${
-                  isSettings
-                    ? "text-[#78593D] border-b-2 border-[#78593D] font-bold"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                Settings
-              </Link>
-              {isAdmin && (
-                <a
-                  href="http://localhost:8000/admin"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="py-5 text-amber-900 font-bold hover:text-amber-800 transition flex items-center gap-1.5"
-                  title="Open backend system administration in new tab"
-                >
-                  <ShieldCheck className="w-4 h-4 text-amber-700" />
-                  <span>Filament Admin ↗</span>
-                </a>
+              {isAdmin ? (
+                <>
+                  <Link
+                    href="/admin"
+                    className="py-5 text-indigo-700 font-extrabold hover:text-indigo-900 transition flex items-center gap-1.5"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                    <span>Super Admin Panel</span>
+                  </Link>
+                  <Link
+                    href="/dashboard?view_client=1"
+                    className="py-5 text-slate-500 hover:text-slate-900 transition"
+                  >
+                    Client View
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/dashboard"
+                    className={`py-5 transition ${
+                      isApps
+                        ? "text-[#78593D] border-b-2 border-[#78593D] font-bold"
+                        : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    Dashboard
+                  </Link>
+                  <Link
+                    href="/dashboard/addons"
+                    className={`py-5 transition ${
+                      isAddons
+                        ? "text-[#78593D] border-b-2 border-[#78593D] font-bold"
+                        : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    Add-ons &amp; Store
+                  </Link>
+                  <Link
+                    href="/dashboard/billing"
+                    className={`py-5 transition ${
+                      isBilling
+                        ? "text-[#78593D] border-b-2 border-[#78593D] font-bold"
+                        : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    Billing &amp; Invoices
+                  </Link>
+                  <Link
+                    href="/dashboard/settings"
+                    className={`py-5 transition ${
+                      isSettings
+                        ? "text-[#78593D] border-b-2 border-[#78593D] font-bold"
+                        : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    Settings
+                  </Link>
+                </>
               )}
             </nav>
           </div>

@@ -47,4 +47,14 @@ class Tenant extends Model
     {
         return $this->hasMany(Subscription::class);
     }
+
+    public function builds(): HasMany
+    {
+        return $this->hasMany(Build::class);
+    }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
 }

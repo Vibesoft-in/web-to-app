@@ -18,6 +18,21 @@ class TenantResource extends Resource
     protected static ?string $model = Tenant::class;
     protected static ?string $navigationIcon = 'heroicon-o-building-office-2';
     protected static ?string $navigationGroup = 'Tenant Management';
+    protected static ?string $recordTitleAttribute = 'name';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name', 'slug', 'domain', 'id'];
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return [
+            'ID' => "#{$record->id}",
+            'Domain' => $record->domain ?? 'N/A',
+            'Apps' => (string) $record->apps()->count(),
+        ];
+    }
 
     public static function form(Form $form): Form
     {
@@ -44,6 +59,10 @@ class TenantResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->requiresConfirmation()
+                    ->modalHeading('Delete Tenant Organization')
+                    ->modalDescription('Are you sure you want to permanently delete this tenant? All associated applications, configurations, and records will be affected.'),
                 Tables\Actions\Action::make('impersonate')
                     ->label('Impersonate')
                     ->icon('heroicon-o-arrows-right-left')

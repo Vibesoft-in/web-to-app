@@ -15,6 +15,21 @@ class SubscriptionResource extends Resource
     protected static ?string $model = Subscription::class;
     protected static ?string $navigationIcon = 'heroicon-o-arrow-path';
     protected static ?string $navigationGroup = 'Billing & Subscriptions';
+    protected static ?string $recordTitleAttribute = 'id';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['id', 'tenant.name', 'app.name', 'razorpay_subscription_id'];
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return [
+            'Tenant' => $record->tenant?->name ?? 'None',
+            'Plan' => $record->plan?->name ?? 'Custom',
+            'Status' => ucfirst((string) $record->status),
+        ];
+    }
 
     public static function form(Forms\Form $form): Forms\Form
     {

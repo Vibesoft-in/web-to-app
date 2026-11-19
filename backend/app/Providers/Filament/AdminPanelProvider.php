@@ -4,7 +4,13 @@ declare(strict_types=1);
 
 namespace App\Providers\Filament;
 
+use App\Filament\Widgets\CriticalAlertsWidget;
+use App\Filament\Widgets\CustomerBehaviourWidget;
+use App\Filament\Widgets\CustomerRegistrationsChartWidget;
 use App\Filament\Widgets\ImpersonationBanner;
+use App\Filament\Widgets\PlanRevenueDistributionChartWidget;
+use App\Filament\Widgets\PlatformOverviewWidget;
+use App\Filament\Widgets\RevenueGrowthChartWidget;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -28,14 +34,22 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->colors([
-                'primary' => Color::Indigo,
+                'primary' => Color::Red,
             ])
             ->sidebarCollapsibleOnDesktop()
             ->maxContentWidth('full')
+            ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
+            ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
                 ImpersonationBanner::class,
+                PlatformOverviewWidget::class,
+                CriticalAlertsWidget::class,
+                RevenueGrowthChartWidget::class,
+                CustomerRegistrationsChartWidget::class,
+                PlanRevenueDistributionChartWidget::class,
+                CustomerBehaviourWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,

@@ -7,8 +7,10 @@ namespace App\Filament\Resources;
 use App\Enums\UserRole;
 use App\Models\App;
 use App\Models\Build;
+use App\Models\Order;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\Security\ImpersonationService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Infolists;
@@ -29,6 +31,21 @@ class UserResource extends Resource
     protected static ?string $pluralModelLabel = 'Customers & Users';
     protected static ?string $navigationLabel = 'Customers & Users';
     protected static ?int $navigationSort = 1;
+    protected static ?string $recordTitleAttribute = 'name';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name', 'email', 'phone', 'tenant.name'];
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return [
+            'Email' => $record->email,
+            'Tenant' => $record->tenant?->name ?? 'None',
+            'Phone' => $record->phone ?? 'N/A',
+        ];
+    }
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
@@ -115,6 +132,65 @@ class UserResource extends Resource
                         'Suspended' => 'danger',
                         default => 'gray',
                     }),
+                Tables\Columns\TextColumn::make('health_score')
+                    ->label('Health Score')
+                    ->badge()
+                    ->state(function (User $record): string {
+                        if ($record->trashed()) {
+                            return 'Inactive';
+                        }
+                        $tenantId = $record->tenant_id;
+                        $hasFailedBuild = Build::withoutGlobalScopes()
+                            ->where('tenant_id', $tenantId)
+                            ->where('status', 'failed')
+                            ->exists();
+                        if ($hasFailedBuild) {
+                            return 'At Risk';
+                        }
+
+                        $now = now();
+                        $hasExpiringSub = Subscription::withoutGlobalScopes()
+                            ->where('tenant_id', $tenantId)
+                            ->where('status', 'active')
+                            ->whereBetween('current_period_ends_at', [$now, $now->copy()->addDays(7)])
+                            ->exists();
+                        if ($hasExpiringSub) {
+                            return 'At Risk';
+                        }
+
+                        if (! $record->email_verified_at && $record->created_at->diffInDays($now) > 7) {
+                            return 'Needs Attention';
+                        }
+
+                        $appCount = App::withoutGlobalScopes()->where('tenant_id', $tenantId)->count();
+                        if ($appCount === 0 && $record->created_at->diffInDays($now) > 14) {
+                            return 'Inactive';
+                        }
+
+                        if ($appCount === 0) {
+                            return 'Needs Attention';
+                        }
+
+                        return 'Healthy';
+                    })
+                    ->color(fn (string $state): string => match ($state) {
+                        'Healthy' => 'success',
+                        'Needs Attention' => 'warning',
+                        'At Risk' => 'danger',
+                        'Inactive' => 'gray',
+                        default => 'gray',
+                    }),
+                Tables\Columns\TextColumn::make('ltv')
+                    ->label('Customer LTV')
+                    ->state(function (User $record): string {
+                        $totalPaise = Order::withoutGlobalScopes()
+                            ->where('tenant_id', $record->tenant_id)
+                            ->whereIn('status', ['paid', 'completed'])
+                            ->sum('total_amount') ?? 0;
+                        return '₹' . number_format($totalPaise / 100, 2);
+                    })
+                    ->badge()
+                    ->color('success'),
                 Tables\Columns\TextColumn::make('apps_count')
                     ->label('Apps Created')
                     ->state(fn (User $record): int => App::withoutGlobalScopes()->where('tenant_id', $record->tenant_id)->count())
@@ -149,8 +225,29 @@ class UserResource extends Resource
                             ->success()
                             ->send();
                     }),
+                Tables\Actions\Action::make('impersonate')
+                    ->label('Impersonate')
+                    ->icon('heroicon-o-arrows-right-left')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading(fn (User $record): string => "Impersonate Tenant: {$record->tenant?->name}")
+                    ->modalDescription('Super Admin session will switch to this customer tenant. You will have full access as this tenant.')
+                    ->action(function (User $record, ImpersonationService $impersonation) {
+                        if (! $record->tenant) {
+                            Notification::make()->title('User has no associated tenant')->danger()->send();
+                            return;
+                        }
+                        $impersonation->startImpersonation(auth()->user(), $record->tenant);
+                        Notification::make()
+                            ->title("Now impersonating {$record->tenant->name}")
+                            ->warning()
+                            ->send();
+                    }),
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->requiresConfirmation()
+                    ->modalHeading('Delete Customer Account')
+                    ->modalDescription('Are you certain you want to delete this customer account? This sensitive action is irreversible.'),
             ]);
     }
 

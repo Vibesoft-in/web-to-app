@@ -331,12 +331,17 @@ function UserDashboardContent() {
       apps.some((a: any) => !isAppDraft(a)))
   );
 
-  // Redirect unauthenticated visitors to login
+  // Redirect unauthenticated visitors to login, and super admins to /admin
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.replace("/login");
+    } else if (!isUserLoading && isAdmin) {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.get("view_client") && !params.get("impersonate")) {
+        window.location.href = "/admin";
+      }
     }
-  }, [isUserLoading, user, router]);
+  }, [isUserLoading, user, isAdmin, router]);
 
   // 3. Fetch Billing & Subscriptions
   const {
@@ -1562,6 +1567,31 @@ function UserDashboardContent() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-16 font-sans">
+      {/* ── SUPER ADMIN SHORTCUT BANNER ── */}
+      {isAdmin && (
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 rounded-3xl text-white shadow-md flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="p-2.5 bg-white/20 rounded-2xl flex-shrink-0">
+              <ShieldCheck className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-sm sm:text-base tracking-tight">Super Admin Account Detected</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white text-red-600">Admin</span>
+              </div>
+              <p className="text-xs text-white/90 mt-0.5">You are currently in the customer portal. Access the unified Super Admin dashboard with real-time analytics, CRM and build controls.</p>
+            </div>
+          </div>
+          <a
+            href="/admin"
+            className="px-5 py-2.5 bg-white text-red-600 hover:bg-red-50 rounded-2xl font-extrabold text-xs sm:text-sm transition flex items-center gap-2 shadow-sm whitespace-nowrap self-stretch sm:self-auto justify-center"
+          >
+            <span>Open Super Admin Panel</span>
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        </div>
+      )}
+
       {/* ── TOP HERO BAR ── */}
       <div className="bg-white border border-[#EBE6DF] rounded-3xl p-6 sm:p-8 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -1586,8 +1616,14 @@ function UserDashboardContent() {
                 <h1 className="text-xl sm:text-2xl font-black text-[#1C1917] tracking-tight">
                   Welcome back, {user?.name || "Store Owner"}!
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Verified Client
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                    isAdmin
+                      ? "bg-amber-100 text-amber-800 border border-amber-300"
+                      : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  }`}
+                >
+                  {isAdmin ? "Super Administrator" : "Verified Client"}
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-[#57514B] mt-1">
@@ -1596,52 +1632,86 @@ function UserDashboardContent() {
             </div>
           </div>
 
-          {/* Current Plan Information (Change 3: Replaces Action Buttons) */}
-          <div className="bg-[#FAF7F2] border border-[#EBE6DF] rounded-2xl p-4 min-w-[270px] max-w-sm shadow-2xs self-stretch sm:self-auto flex flex-col justify-between">
-            <div className="flex items-center justify-between gap-3 pb-2 border-b border-[#EBE6DF]">
-              <div className="flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-[#78593D]" />
-                <span className="text-[10px] font-black uppercase tracking-wider text-[#7E756B]">
-                  Current Plan
+          {/* Current Plan Information (Super Admin has root access, not a customer subscription) */}
+          {isAdmin ? (
+            <div className="bg-[#FAF7F2] border border-[#EBE6DF] rounded-2xl p-4 min-w-[270px] max-w-sm shadow-2xs self-stretch sm:self-auto flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-3 pb-2 border-b border-[#EBE6DF]">
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-600">
+                    Role &amp; Access
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 border border-indigo-200">
+                  Root Admin
                 </span>
               </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
-                <span>{currentPlanInfo.status}</span>
-              </span>
-            </div>
 
-            <div className="pt-2 space-y-1">
-              <div className="flex items-baseline justify-between gap-2">
-                <h3 className="text-sm sm:text-base font-black text-[#1C1917] tracking-tight">
-                  {currentPlanInfo.name}
+              <div className="pt-2 space-y-1">
+                <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+                  Super Administrator
                 </h3>
-                <span className="text-xs sm:text-sm font-black text-[#78593D]">
-                  {currentPlanInfo.price}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between text-[11px] text-[#7E756B] pt-0.5">
-                <span className="font-semibold text-[#57514B] flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-amber-600 flex-shrink-0" />
-                  <span>{currentPlanInfo.billingType}</span>
-                </span>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
-                  {currentPlanInfo.validity}
-                </span>
-              </div>
-
-              {multiplePlansNote ? (
-                <div className="text-[10px] text-[#8A837A] pt-1.5 border-t border-[#EBE6DF]/70 mt-1 truncate" title={multiplePlansNote}>
-                  {multiplePlansNote}
+                <p className="text-[11px] text-slate-500 pt-0.5">
+                  Full unrestricted platform authority across all tenants and apps.
+                </p>
+                <div className="pt-2 border-t border-[#EBE6DF]/70 mt-1">
+                  <Link
+                    href="/admin"
+                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                  >
+                    <span>Go to Super Admin Panel</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
                 </div>
-              ) : currentPlanInfo.scope ? (
-                <div className="text-[10px] text-[#8A837A] pt-1 border-t border-[#EBE6DF]/70 mt-1 truncate">
-                  {currentPlanInfo.scope}
-                </div>
-              ) : null}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-[#FAF7F2] border border-[#EBE6DF] rounded-2xl p-4 min-w-[270px] max-w-sm shadow-2xs self-stretch sm:self-auto flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-3 pb-2 border-b border-[#EBE6DF]">
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-[#78593D]" />
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#7E756B]">
+                    Current Plan
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
+                  <span>{currentPlanInfo.status}</span>
+                </span>
+              </div>
+
+              <div className="pt-2 space-y-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="text-sm sm:text-base font-black text-[#1C1917] tracking-tight">
+                    {currentPlanInfo.name}
+                  </h3>
+                  <span className="text-xs sm:text-sm font-black text-[#78593D]">
+                    {currentPlanInfo.price}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-[#7E756B] pt-0.5">
+                  <span className="font-semibold text-[#57514B] flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-600 flex-shrink-0" />
+                    <span>{currentPlanInfo.billingType}</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                    {currentPlanInfo.validity}
+                  </span>
+                </div>
+
+                {multiplePlansNote ? (
+                  <div className="text-[10px] text-[#8A837A] pt-1.5 border-t border-[#EBE6DF]/70 mt-1 truncate" title={multiplePlansNote}>
+                    {multiplePlansNote}
+                  </div>
+                ) : currentPlanInfo.scope ? (
+                  <div className="text-[10px] text-[#8A837A] pt-1 border-t border-[#EBE6DF]/70 mt-1 truncate">
+                    {currentPlanInfo.scope}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── DASHBOARD NAVIGATION TABS (INTEGRATED INSIDE WELCOME PANEL) ── */}
