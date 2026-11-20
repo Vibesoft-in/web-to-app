@@ -147,5 +147,6 @@ export function clearUserData(): void {
     localStorage.removeItem("appifyhub_selected_plan_id");
     localStorage.removeItem("appifyhub_selected_plan_info");
     localStorage.removeItem("appifyhub_selected_theme");
+    localStorage.removeItem("appifyhub_user_avatar");
   } catch {}
 }

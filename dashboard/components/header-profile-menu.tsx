@@ -47,6 +47,10 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
 
   useEffect(() => {
     setMounted(true);
+    // Purge legacy global avatar cache so it never leaks into new accounts
+    try {
+      localStorage.removeItem("appifyhub_user_avatar");
+    } catch {}
   }, []);
 
   // Sync profile data and listen for cross-component updates (Requirement 4)
@@ -172,6 +176,9 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
 
     try {
       clearUserData();
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("appifyhub_user_avatar");
+      }
       await apiClient("/api/auth/logout", { method: "POST" });
     } catch {
       // Ignored
@@ -215,13 +222,9 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
         };
       });
 
-      // Synchronize with LocalStorage and broadcast to all pages and headers (Requirement 4)
+      // Broadcast to all pages and headers without global localStorage pollution
       if (typeof window !== "undefined") {
-        if (editAvatarUrl.trim()) {
-          localStorage.setItem("appifyhub_user_avatar", editAvatarUrl.trim());
-        } else {
-          localStorage.removeItem("appifyhub_user_avatar");
-        }
+        localStorage.removeItem("appifyhub_user_avatar");
         window.dispatchEvent(
           new CustomEvent("user-profile-updated", {
             detail: {
@@ -303,8 +306,7 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
       : user.email?.slice(0, 2) || "CA"
   ).toUpperCase();
 
-  const cachedLocalAvatar = typeof window !== "undefined" ? localStorage.getItem("appifyhub_user_avatar") : null;
-  const userAvatar = editAvatarUrl || user?.avatar_url || cachedLocalAvatar;
+  const userAvatar = user?.avatar_url?.trim() ? user.avatar_url.trim() : null;
 
   return (
     <>
