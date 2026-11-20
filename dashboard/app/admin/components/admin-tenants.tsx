@@ -160,12 +160,19 @@ export function AdminTenants({ onNavigateCustomer }: AdminTenantsProps) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   // New Tenant Form
-  const [createForm, setCreateForm] = useState({
+  const [createForm, setCreateForm] = useState<{
+    name: string;
+    ownerName: string;
+    ownerEmail: string;
+    storeUrl: string;
+    plan: TenantRecord["plan"];
+    dbCluster: string;
+  }>({
     name: "",
     ownerName: "",
     ownerEmail: "",
     storeUrl: "",
-    plan: "Growth" as const,
+    plan: "Growth",
     dbCluster: "Isolated Schema",
   });
 

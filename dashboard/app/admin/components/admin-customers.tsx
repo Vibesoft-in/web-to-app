@@ -2645,10 +2645,9 @@ export function AdminCustomers() {
                           <div className="font-bold text-slate-900 group-hover:text-indigo-700 transition-colors flex items-center gap-1.5">
                             {cust.name}
                             {cust.verified && (
-                              <CheckCircle2
-                                className="w-3.5 h-3.5 text-emerald-500"
-                                title="Verified Email"
-                              />
+                              <span title="Verified Email">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                              </span>
                             )}
                           </div>
                           <div className="text-xs text-slate-500 font-mono">{cust.email}</div>
