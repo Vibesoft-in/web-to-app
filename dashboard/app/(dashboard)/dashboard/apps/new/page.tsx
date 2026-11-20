@@ -361,15 +361,12 @@ export default function NewAppPage() {
             >
               <span>Return to Dashboard</span>
             </Link>
-            <a
-              href="http://localhost:8000/admin"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href="/admin"
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition border border-slate-200"
             >
-              <span>Filament Admin</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+              <span>Super Admin Panel</span>
+            </Link>
           </div>
         </div>
       </div>

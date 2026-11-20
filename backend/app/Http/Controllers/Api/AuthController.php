@@ -34,6 +34,22 @@ class AuthController extends Controller
     {
         try {
             $data = $request->validated();
+            $email = strtolower(trim((string) $data['email']));
+
+            // Strict Email OTP Verification check
+            $cachedOtp = \Illuminate\Support\Facades\Cache::get("register_otp_{$email}");
+            $isPreVerified = (bool) \Illuminate\Support\Facades\Cache::get("register_otp_verified_{$email}");
+            $isDevBypass = app()->environment('local') && (!empty($data['otp']) && in_array($data['otp'], ['123456', '999999'], true));
+            $isOtpMatching = !empty($data['otp']) && $cachedOtp && ((string) $data['otp'] === (string) $cachedOtp);
+
+            if (! $isPreVerified && ! $isOtpMatching && ! $isDevBypass) {
+                return response()->json([
+                    'error' => [
+                        'code'    => 'EMAIL_NOT_VERIFIED',
+                        'message' => 'Email verification with OTP is required before creating an account. Please verify your email address first.',
+                    ],
+                ], 422);
+            }
 
             [$tenant, $user, $createdApp] = DB::transaction(function () use ($data) {
                 $businessName = !empty($data['business_name'])
@@ -112,6 +128,19 @@ class AuthController extends Controller
                 event(new Registered($user));
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::warning('Registered event notice: ' . $e->getMessage());
+            }
+
+            // Dispatch Registration OTP verification email via Brevo
+            try {
+                $regOtp = sprintf('%06d', random_int(100000, 999999));
+                \Illuminate\Support\Facades\Cache::put("register_otp_{$email}", $regOtp, now()->addMinutes(15));
+                app(\App\Services\Billing\EmailNotificationService::class)->sendRegistrationOtpEmail(
+                    $user->email,
+                    $user->name,
+                    $regOtp
+                );
+            } catch (\Throwable $mailErr) {
+                \Illuminate\Support\Facades\Log::warning('Registration OTP email dispatch notice: ' . $mailErr->getMessage());
             }
 
             $token = $user->createToken('dashboard', ['*'], now()->addDays(7));
@@ -336,5 +365,91 @@ class AuthController extends Controller
         }
 
         return response()->json(['message' => 'Password has been reset successfully.']);
+    }
+
+    /**
+     * Send a 6-digit registration OTP code to a user's email address via Brevo.
+     */
+    public function sendRegistrationOtp(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:255'],
+            'name'  => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $email = strtolower(trim((string) $validated['email']));
+        $name = trim((string) ($validated['name'] ?? 'there'));
+
+        // Check if email already registered
+        if (User::whereRaw('LOWER(email) = ?', [$email])->exists()) {
+            return response()->json([
+                'error' => [
+                    'code'    => 'EMAIL_ALREADY_EXISTS',
+                    'message' => 'An account with this email address already exists. Please log in instead.',
+                ],
+            ], 422);
+        }
+
+        $otp = sprintf('%06d', random_int(100000, 999999));
+        \Illuminate\Support\Facades\Cache::put("register_otp_{$email}", $otp, now()->addMinutes(15));
+
+        try {
+            app(\App\Services\Billing\EmailNotificationService::class)->sendRegistrationOtpEmail(
+                $email,
+                $name,
+                $otp
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to send OTP via Brevo to {$email}: " . $e->getMessage());
+            return response()->json([
+                'error' => [
+                    'code'    => 'EMAIL_SEND_FAILED',
+                    'message' => 'Failed to dispatch verification code to email: ' . $e->getMessage(),
+                ],
+            ], 500);
+        }
+
+        return response()->json([
+            'success'   => true,
+            'message'   => "A 6-digit verification code has been sent to {$email}.",
+            'email'     => $email,
+            'expires_in'=> '15 minutes',
+            'debug_otp' => app()->environment('local') ? $otp : null,
+        ]);
+    }
+
+    /**
+     * Verify a 6-digit registration OTP code.
+     */
+    public function verifyRegistrationOtp(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+            'otp'   => ['required', 'string', 'min:4', 'max:10'],
+        ]);
+
+        $email = strtolower(trim((string) $validated['email']));
+        $submittedOtp = trim((string) $validated['otp']);
+
+        $cachedOtp = \Illuminate\Support\Facades\Cache::get("register_otp_{$email}");
+        $isDevBypass = app()->environment('local') && ($submittedOtp === '123456' || $submittedOtp === '999999');
+
+        if (! $isDevBypass && (! $cachedOtp || $cachedOtp !== $submittedOtp)) {
+            return response()->json([
+                'error' => [
+                    'code'    => 'INVALID_OTP',
+                    'message' => 'The verification code entered is invalid or has expired. Please try again.',
+                ],
+            ], 422);
+        }
+
+        // Mark verified in cache for 30 minutes
+        \Illuminate\Support\Facades\Cache::put("register_otp_verified_{$email}", true, now()->addMinutes(30));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Email verification code confirmed successfully.',
+            'email'   => $email,
+        ]);
     }
 }

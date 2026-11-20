@@ -35,6 +35,14 @@ import {
   DollarSign,
   Send,
   AlertCircle,
+  Loader2,
+  Plus,
+  Trash2,
+  PackagePlus,
+  Play,
+  Check,
+  FileCode,
+  Cpu,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -43,6 +51,7 @@ import {
   Cell,
   Tooltip,
 } from "recharts";
+import { PlanPricingCard } from "./plan-pricing-card";
 
 export interface CustomerRecord {
   id: string;
@@ -700,6 +709,300 @@ export function AdminCustomers() {
   // Sensitive action state
   const [impersonateTarget, setImpersonateTarget] = useState<CustomerRecord | null>(null);
 
+  // Email composer modal state
+  const [emailTarget, setEmailTarget] = useState<CustomerRecord | null>(null);
+  const [emailForm, setEmailForm] = useState({
+    from: "support@webintoapp.com",
+    subject: "",
+    template: "custom",
+    body: "",
+    isHighPriority: false,
+    sendCopy: true,
+  });
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailSuccessMessage, setEmailSuccessMessage] = useState<string | null>(null);
+
+  const handleOpenEmailModal = (customer: CustomerRecord) => {
+    setEmailTarget(customer);
+    setEmailForm({
+      from: "support@webintoapp.com",
+      subject: `[WebIntoApp] Direct update for ${customer.name}`,
+      template: "custom",
+      body: `Hello ${customer.name},\n\nWe are reaching out regarding your account and mobile application services under ${customer.tenantName}.\n\nPlease let us know if you have any questions or require dedicated technical support.\n\nBest regards,\nSuper Admin Team\nWebIntoApp Platform`,
+      isHighPriority: false,
+      sendCopy: true,
+    });
+    setEmailSuccessMessage(null);
+  };
+
+  const handleTemplateChange = (tpl: string) => {
+    if (!emailTarget) return;
+    let newSubject = "";
+    let newBody = "";
+
+    switch (tpl) {
+      case "build_update":
+        newSubject = `[Build Status] Mobile app compilation update for ${emailTarget.tenantName}`;
+        newBody = `Hi ${emailTarget.name},\n\nWe wanted to share a status update regarding the mobile application builds for your account (${emailTarget.tenantName}).\n\nOur automated runners have finished verifying your assets. You can log into your portal at your convenience to download your Android APK/AAB or review the build artifacts.\n\nBest regards,\nBuild & Engineering Team\nWebIntoApp`;
+        break;
+      case "renewal":
+        newSubject = `[Subscription Notice] Account status & renewal for ${emailTarget.tenantName}`;
+        newBody = `Hi ${emailTarget.name},\n\nThis is a friendly notification regarding your active subscription plan for ${emailTarget.tenantName}.\n\nPlease review your billing dashboard to ensure uninterrupted app updates, push notification delivery, and automated store deployments.\n\nBest regards,\nBilling & Accounts Team\nWebIntoApp`;
+        break;
+      case "health_check":
+        newSubject = `[Account Health] Priority assistance for ${emailTarget.name}`;
+        newBody = `Hello ${emailTarget.name},\n\nOur system sentinel noticed a health alert on your tenant account (${emailTarget.tenantName}). We are here to help resolve any configuration or store publish challenges you may be experiencing.\n\nPlease reply directly to this message or reply with convenient times for a support check-in.\n\nWarm regards,\nSuper Admin Support\nWebIntoApp`;
+        break;
+      default:
+        newSubject = `[WebIntoApp] Direct update for ${emailTarget.name}`;
+        newBody = `Hello ${emailTarget.name},\n\nWe are reaching out regarding your account and mobile application services under ${emailTarget.tenantName}.\n\nPlease let us know if you have any questions or require dedicated technical support.\n\nBest regards,\nSuper Admin Team\nWebIntoApp Platform`;
+        break;
+    }
+
+    setEmailForm((prev) => ({
+      ...prev,
+      template: tpl,
+      subject: newSubject,
+      body: newBody,
+    }));
+  };
+
+  const handleSendEmail = () => {
+    if (!emailForm.subject.trim() || !emailForm.body.trim()) {
+      alert("Please enter both a subject and an email body.");
+      return;
+    }
+    setIsSendingEmail(true);
+    setTimeout(() => {
+      setIsSendingEmail(false);
+      setEmailSuccessMessage(`Email successfully dispatched to ${emailTarget?.email}`);
+      setTimeout(() => {
+        setEmailSuccessMessage(null);
+        setEmailTarget(null);
+      }, 1500);
+    }, 700);
+  };
+
+  // Customer add-ons state (allows Super Admin to assign/revoke add-ons dynamically)
+  const [customerAddonsOverrides, setCustomerAddonsOverrides] = useState<
+    Record<
+      string,
+      Array<{
+        id: string;
+        name: string;
+        appName: string;
+        price: number;
+        status: string;
+        licenseKey: string;
+      }>
+    >
+  >({});
+
+  // Assign Add-on modal state
+  const [isAssignAddonOpen, setIsAssignAddonOpen] = useState(false);
+  const [assignForm, setAssignForm] = useState({
+    addonName: "Apple iOS IPA Package & Signing",
+    price: 2999,
+    appName: "All Connected Apps",
+    status: "Configured",
+    licenseKey: "W2A-IOS-849102",
+    isFreeOverride: false,
+    notes: "Assigned by Super Administrator",
+  });
+
+  const PLATFORM_MARKETPLACE_ADDONS = [
+    { name: "Apple iOS IPA Package & Signing", price: 2999, defaultKey: "W2A-IOS" },
+    { name: "Dedicated Cloud Build Server", price: 1999, defaultKey: "W2A-BLD" },
+    { name: "White-label Branding Removal", price: 9999, defaultKey: "W2A-WHT" },
+    { name: "Push Notifications Pro (FCM)", price: 999, defaultKey: "W2A-PSH" },
+    { name: "WhatsApp Order Updates Sync", price: 1499, defaultKey: "W2A-WAP" },
+    { name: "Biometric Authentication Suite", price: 2499, defaultKey: "W2A-BIO" },
+    { name: "Automated Google Play Store Publisher", price: 2999, defaultKey: "W2A-PLY" },
+    { name: "Offline Local Storage & Cache", price: 999, defaultKey: "W2A-OFL" },
+    { name: "Custom Domain & SSL Mapping", price: 1299, defaultKey: "W2A-SSL" },
+  ];
+
+  const handleOpenAssignAddon = (cust: CustomerRecord, linkedApps: Array<{ name: string }>) => {
+    const defaultApp = linkedApps.length > 0 ? linkedApps[0].name : "All Connected Apps";
+    const initialAddon = PLATFORM_MARKETPLACE_ADDONS[0];
+    setAssignForm({
+      addonName: initialAddon.name,
+      price: initialAddon.price,
+      appName: defaultApp,
+      status: "Configured",
+      licenseKey: `${initialAddon.defaultKey}-${Math.floor(100000 + Math.random() * 900000)}`,
+      isFreeOverride: false,
+      notes: "Assigned by Super Administrator",
+    });
+    setIsAssignAddonOpen(true);
+  };
+
+  const handleSelectAddonName = (name: string) => {
+    const match = PLATFORM_MARKETPLACE_ADDONS.find((a) => a.name === name);
+    if (match) {
+      setAssignForm((prev) => ({
+        ...prev,
+        addonName: match.name,
+        price: match.price,
+        licenseKey: `${match.defaultKey}-${Math.floor(100000 + Math.random() * 900000)}`,
+      }));
+    }
+  };
+
+  const handleAssignAddonConfirm = (customerId: string, defaultAddons: CustomerDetailData["addons"]) => {
+    const currentList = customerAddonsOverrides[customerId] ?? defaultAddons;
+    const newAddonItem = {
+      id: "addon_" + Date.now(),
+      name: assignForm.addonName,
+      appName: assignForm.appName,
+      price: assignForm.isFreeOverride ? 0 : Number(assignForm.price) || 0,
+      status: assignForm.status,
+      licenseKey: assignForm.licenseKey.trim() || `W2A-LIC-${Math.floor(100000 + Math.random() * 900000)}`,
+    };
+
+    setCustomerAddonsOverrides((prev) => ({
+      ...prev,
+      [customerId]: [newAddonItem, ...currentList],
+    }));
+
+    setIsAssignAddonOpen(false);
+  };
+
+  const handleRevokeAddon = (customerId: string, addonId: string, defaultAddons: CustomerDetailData["addons"]) => {
+    if (!confirm("Are you sure you want to revoke this add-on from this customer?")) return;
+    const currentList = customerAddonsOverrides[customerId] ?? defaultAddons;
+    setCustomerAddonsOverrides((prev) => ({
+      ...prev,
+      [customerId]: currentList.filter((a) => a.id !== addonId),
+    }));
+  };
+
+  // Customer apps state (allows Super Admin to trigger builds and track compiled outputs)
+  const [customerAppsOverrides, setCustomerAppsOverrides] = useState<
+    Record<
+      string,
+      Array<{
+        id: string;
+        name: string;
+        package: string;
+        platform: string;
+        version: string;
+        status: "Live" | "Building" | "In Development" | "Build Failed";
+        lastBuildDate: string;
+        downloadsCount: number;
+      }>
+    >
+  >({});
+
+  // App build modal state
+  const [buildModalApp, setBuildModalApp] = useState<{
+    id: string;
+    name: string;
+    package: string;
+    platform: string;
+    version: string;
+    status: "Live" | "Building" | "In Development" | "Build Failed";
+    lastBuildDate: string;
+    downloadsCount: number;
+  } | null>(null);
+
+  const [buildTargetFormat, setBuildTargetFormat] = useState<"apk" | "aab" | "ipa">("apk");
+  const [buildRunner, setBuildRunner] = useState<string>("runner_01");
+  const [isBuildingApp, setIsBuildingApp] = useState(false);
+  const [buildProgressStep, setBuildProgressStep] = useState<number>(0);
+  const [buildCompletedApp, setBuildCompletedApp] = useState<boolean>(false);
+
+  // App download modal state
+  const [downloadModalApp, setDownloadModalApp] = useState<{
+    id: string;
+    name: string;
+    package: string;
+    platform: string;
+    version: string;
+    status: "Live" | "Building" | "In Development" | "Build Failed";
+    lastBuildDate: string;
+    downloadsCount: number;
+  } | null>(null);
+
+  const triggerFileDownload = (fileName: string, content: string = "WebIntoApp Mobile Build Package Binary") => {
+    const blob = new Blob([content], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleOpenBuildModal = (app: any) => {
+    setBuildModalApp(app);
+    setBuildTargetFormat("apk");
+    setBuildRunner("runner_01");
+    setIsBuildingApp(false);
+    setBuildProgressStep(0);
+    setBuildCompletedApp(false);
+  };
+
+  const handleStartCloudBuild = (customerId: string, defaultApps: CustomerDetailData["apps"]) => {
+    if (!buildModalApp) return;
+    setIsBuildingApp(true);
+    setBuildProgressStep(1);
+
+    setTimeout(() => {
+      setBuildProgressStep(2);
+    }, 600);
+
+    setTimeout(() => {
+      setBuildProgressStep(3);
+    }, 1200);
+
+    setTimeout(() => {
+      setBuildProgressStep(4);
+      setIsBuildingApp(false);
+      setBuildCompletedApp(true);
+
+      // Increment version patch e.g. v2.1.0 -> v2.1.1
+      const parts = buildModalApp.version.replace("v", "").split(".");
+      const newVersion = parts.length === 3
+        ? `v${parts[0]}.${parts[1]}.${Number(parts[2]) + 1}`
+        : `${buildModalApp.version}.1`;
+
+      const currentList = customerAppsOverrides[customerId] ?? defaultApps;
+      const updatedList = currentList.map((a) =>
+        a.id === buildModalApp.id
+          ? {
+              ...a,
+              version: newVersion,
+              status: "Live" as const,
+              lastBuildDate: "Just now",
+              downloadsCount: a.downloadsCount + 1,
+            }
+          : a
+      );
+
+      setCustomerAppsOverrides((prev) => ({
+        ...prev,
+        [customerId]: updatedList,
+      }));
+
+      // Automatically dispatch Build Ready notification email via Brevo to customer
+      if (selectedCustomer?.email) {
+        try {
+          fetch("http://127.0.0.1:8000/api/test/email/build-success", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: selectedCustomer.email,
+              app_name: buildModalApp.name,
+            }),
+          }).catch(() => {});
+        } catch {}
+      }
+    }, 1900);
+  };
+
   const filteredCustomers = useMemo(() => {
     return CUSTOMERS_DATA.filter((c) => {
       if (selectedHealth !== "all" && c.healthScore !== selectedHealth) return false;
@@ -748,11 +1051,176 @@ export function AdminCustomers() {
     }
   };
 
+  const renderEmailModal = () => {
+    if (!emailTarget) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in">
+        <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 flex flex-col max-h-[84vh] sm:max-h-[86vh] overflow-hidden my-auto animate-in zoom-in-95">
+          {/* Modal Header */}
+          <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0 bg-white">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center flex-shrink-0">
+                <Mail className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900">Send Email to Customer</h3>
+                <span className="text-[11px] text-slate-500">
+                  To: <strong className="text-slate-800 font-semibold">{emailTarget.name}</strong> &lt;{emailTarget.email}&gt;
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                if (!isSendingEmail) setEmailTarget(null);
+              }}
+              className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+              disabled={isSendingEmail}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Modal Body */}
+          <div className="p-4 sm:p-5 overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden space-y-3.5 flex-1 text-xs">
+            {emailSuccessMessage ? (
+              <div className="py-8 px-4 text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <h4 className="font-bold text-sm text-slate-900">Email Dispatched Successfully!</h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">{emailSuccessMessage}</p>
+              </div>
+            ) : (
+              <>
+                {/* Sender & Template Selection */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">From Address</label>
+                    <select
+                      value={emailForm.from}
+                      onChange={(e) => setEmailForm({ ...emailForm, from: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-hidden"
+                    >
+                      <option value="support@webintoapp.com">Support &lt;support@webintoapp.com&gt;</option>
+                      <option value="billing@webintoapp.com">Billing &lt;billing@webintoapp.com&gt;</option>
+                      <option value="engineering@webintoapp.com">Engineering &lt;engineering@webintoapp.com&gt;</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Quick Template</label>
+                    <select
+                      value={emailForm.template}
+                      onChange={(e) => handleTemplateChange(e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-hidden"
+                    >
+                      <option value="custom">Custom Message</option>
+                      <option value="build_update">Mobile Build &amp; Deployment Status</option>
+                      <option value="renewal">Subscription &amp; Renewal Reminder</option>
+                      <option value="health_check">Account Health &amp; Support Advisory</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Subject */}
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Subject</label>
+                  <input
+                    type="text"
+                    value={emailForm.subject}
+                    onChange={(e) => setEmailForm({ ...emailForm, subject: e.target.value })}
+                    placeholder="e.g. Important update regarding your application"
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-hidden focus:border-indigo-500 font-medium"
+                  />
+                </div>
+
+                {/* Body Textarea */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold text-slate-700">Message Content</label>
+                    <span className="text-[10px] text-slate-400">Recipient will receive standard HTML/text email</span>
+                  </div>
+                  <textarea
+                    rows={6}
+                    value={emailForm.body}
+                    onChange={(e) => setEmailForm({ ...emailForm, body: e.target.value })}
+                    placeholder="Type your message to the customer..."
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-hidden focus:border-indigo-500 font-sans min-h-[140px] leading-relaxed resize-y"
+                  />
+                </div>
+
+                {/* Options */}
+                <div className="pt-2 space-y-2 border-t border-slate-100">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={emailForm.isHighPriority}
+                      onChange={(e) => setEmailForm({ ...emailForm, isHighPriority: e.target.checked })}
+                      className="rounded text-indigo-600"
+                    />
+                    <span className="text-xs text-slate-700 font-medium">Flag as high-priority notification</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={emailForm.sendCopy}
+                      onChange={(e) => setEmailForm({ ...emailForm, sendCopy: e.target.checked })}
+                      className="rounded text-indigo-600"
+                    />
+                    <span className="text-xs text-slate-700 font-medium">
+                      Archive copy to Super Admin mailbox (admin@webintoapp.com)
+                    </span>
+                  </label>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Modal Footer */}
+          {!emailSuccessMessage && (
+            <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-end gap-2 flex-shrink-0 bg-slate-50/90">
+              <button
+                type="button"
+                onClick={() => setEmailTarget(null)}
+                disabled={isSendingEmail}
+                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendEmail}
+                disabled={isSendingEmail}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer shadow-xs disabled:opacity-60"
+              >
+                {isSendingEmail ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Sending...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Send Email</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   // ═══════════════════════════════════════════════════════════════════════
   // FULL PAGE CUSTOMER DETAIL VIEW (Triggered by "View Details")
   // ═══════════════════════════════════════════════════════════════════════
   if (selectedCustomer) {
     const details = getCustomerDetailData(selectedCustomer);
+    const customerAddons = customerAddonsOverrides[selectedCustomer.id] ?? details.addons;
+    const customerApps = customerAppsOverrides[selectedCustomer.id] ?? details.apps;
 
     return (
       <div className="space-y-6 animate-in fade-in duration-200">
@@ -775,18 +1243,30 @@ export function AdminCustomers() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setImpersonateTarget(selectedCustomer)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold border border-amber-200 transition shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold border border-amber-200 transition shadow-2xs cursor-pointer"
             >
               <ArrowRightLeft className="w-3.5 h-3.5 text-amber-600" />
               <span>Impersonate Tenant</span>
             </button>
-            <a
-              href={`mailto:${selectedCustomer.email}`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 transition shadow-2xs"
+            <button
+              onClick={() => handleOpenEmailModal(selectedCustomer)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 transition shadow-2xs cursor-pointer"
+              title={`Send email to ${selectedCustomer.email}`}
             >
               <Mail className="w-3.5 h-3.5 text-slate-500" />
               <span>Email</span>
-            </a>
+            </button>
+            <button
+              onClick={() => {
+                setDetailTab("addons");
+                handleOpenAssignAddon(selectedCustomer, details.apps);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold border border-indigo-200 transition shadow-2xs cursor-pointer"
+              title="Assign an add-on to this customer"
+            >
+              <PackagePlus className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Assign Add-on</span>
+            </button>
           </div>
         </div>
 
@@ -815,10 +1295,14 @@ export function AdminCustomers() {
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 mt-1.5 font-medium">
-                  <span className="flex items-center gap-1 font-mono">
+                  <button
+                    onClick={() => handleOpenEmailModal(selectedCustomer)}
+                    className="flex items-center gap-1 font-mono hover:text-indigo-600 transition cursor-pointer"
+                    title={`Send email to ${selectedCustomer.email}`}
+                  >
                     <Mail className="w-3.5 h-3.5 text-slate-400" />
-                    {selectedCustomer.email}
-                  </span>
+                    <span>{selectedCustomer.email}</span>
+                  </button>
                   {selectedCustomer.phone && (
                     <span className="flex items-center gap-1 font-mono">
                       <Phone className="w-3.5 h-3.5 text-slate-400" />
@@ -857,16 +1341,20 @@ export function AdminCustomers() {
 
         {/* ── 4 KEY TELEMETRY CARDS ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-              Active Subscription
-            </span>
-            <div className="text-lg font-black text-slate-900 mt-1 truncate">
-              {details.plan.name}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                Active Subscription
+              </span>
+              <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                {details.plan.tier || details.plan.name}
+              </span>
             </div>
-            <span className="text-xs font-semibold text-emerald-600">
-              {details.plan.price}
-            </span>
+            <PlanPricingCard
+              tier={details.plan.tier || details.plan.name}
+              variant="telemetry"
+              className="mt-1"
+            />
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
@@ -902,7 +1390,7 @@ export function AdminCustomers() {
               Apps &amp; Add-ons
             </span>
             <div className="text-lg font-black text-slate-900 mt-1">
-              {selectedCustomer.appsCount} Apps • {details.addons.length} Add-ons
+              {customerApps.length} Apps • {customerAddons.length} Add-ons
             </div>
             <span className="text-xs text-slate-400">
               Joined {selectedCustomer.joinedDate}
@@ -943,7 +1431,7 @@ export function AdminCustomers() {
             }`}
           >
             <Package className="w-3.5 h-3.5" />
-            <span>Purchased Add-ons ({details.addons.length})</span>
+            <span>Purchased Add-ons ({customerAddons.length})</span>
           </button>
           <button
             onClick={() => setDetailTab("apps")}
@@ -954,7 +1442,7 @@ export function AdminCustomers() {
             }`}
           >
             <Smartphone className="w-3.5 h-3.5" />
-            <span>Mobile Apps ({details.apps.length})</span>
+            <span>Mobile Apps ({customerApps.length})</span>
           </button>
           <button
             onClick={() => setDetailTab("history")}
@@ -996,10 +1484,29 @@ export function AdminCustomers() {
                 </span>
               </div>
 
+              {/* Full Featured Plan Pricing Box matching screenshot */}
+              <div className="p-5 rounded-2xl bg-slate-50/70 border border-slate-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                      Current Entitled Plan Tier
+                    </span>
+                    <h4 className="text-lg font-black text-slate-900 mt-0.5">{details.plan.name}</h4>
+                  </div>
+                  <span className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 w-fit">
+                    {details.plan.tier || "Growth"} Tier
+                  </span>
+                </div>
+
+                <div className="mt-4 max-w-sm">
+                  <PlanPricingCard tier={details.plan.tier || details.plan.name} variant="card" />
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
                   <span className="text-xs font-black uppercase text-slate-500 tracking-wider block">
-                    Plan Specifications
+                    Plan Specifications &amp; Billing
                   </span>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-500">Plan Tier:</span>
@@ -1151,7 +1658,7 @@ export function AdminCustomers() {
           {/* TAB 3: PURCHASED ADD-ONS */}
           {detailTab === "addons" && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                 <div>
                   <h3 className="text-base font-bold text-slate-900">
                     Purchased Add-on Features
@@ -1160,41 +1667,70 @@ export function AdminCustomers() {
                     Activated platform capabilities, licenses, and store add-ons
                   </p>
                 </div>
-                <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full">
-                  {details.addons.length} Active Add-ons
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full">
+                    {customerAddons.length} Active Add-ons
+                  </span>
+                  <button
+                    onClick={() => handleOpenAssignAddon(selectedCustomer, details.apps)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition shadow-2xs cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Assign Add-on</span>
+                  </button>
+                </div>
               </div>
 
-              {details.addons.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-xs">
-                  No add-on packages purchased yet by this tenant.
+              {customerAddons.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs space-y-3">
+                  <p>No add-on packages purchased or assigned yet for this tenant.</p>
+                  <button
+                    onClick={() => handleOpenAssignAddon(selectedCustomer, details.apps)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition shadow-2xs cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Assign First Add-on</span>
+                  </button>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  {details.addons.map((ad) => (
+                  {customerAddons.map((ad) => (
                     <div
                       key={ad.id}
-                      className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between space-y-3"
+                      className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between space-y-3 hover:border-slate-300 transition"
                     >
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-start justify-between gap-2">
                         <div>
                           <h4 className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
                             <Package className="w-3.5 h-3.5 text-indigo-600" />
                             {ad.name}
                           </h4>
                           <span className="text-[11px] text-slate-500 mt-0.5 block">
-                            Assigned to: {ad.appName}
+                            Assigned to: <strong className="text-slate-700 font-semibold">{ad.appName}</strong>
                           </span>
                         </div>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700">
-                          {ad.status}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {ad.status}
+                          </span>
+                          <button
+                            onClick={() => handleRevokeAddon(selectedCustomer.id, ad.id, details.addons)}
+                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                            title="Revoke Add-on from Customer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
 
                       <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-200/60 font-mono">
                         <span className="text-slate-400">Key: {ad.licenseKey}</span>
                         <strong className="text-slate-900 font-sans">
-                          ₹{ad.price.toLocaleString()}
+                          {ad.price === 0 ? (
+                            <span className="text-emerald-600 font-bold">Complimentary (Free)</span>
+                          ) : (
+                            `₹${ad.price.toLocaleString()}`
+                          )}
                         </strong>
                       </div>
                     </div>
@@ -1217,11 +1753,11 @@ export function AdminCustomers() {
                   </p>
                 </div>
                 <span className="text-xs font-bold text-slate-700">
-                  {details.apps.length} Total Apps
+                  {customerApps.length} Total Apps
                 </span>
               </div>
 
-              {details.apps.length === 0 ? (
+              {customerApps.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 text-xs">
                   No mobile applications configured yet.
                 </div>
@@ -1237,10 +1773,11 @@ export function AdminCustomers() {
                         <th className="px-4 py-2.5">Status</th>
                         <th className="px-4 py-2.5">Last Build</th>
                         <th className="px-4 py-2.5 text-right">Downloads</th>
+                        <th className="px-4 py-2.5 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {details.apps.map((app) => (
+                      {customerApps.map((app) => (
                         <tr key={app.id} className="hover:bg-slate-50/60 transition">
                           <td className="px-4 py-3 font-bold text-slate-900">
                             {app.name}
@@ -1270,6 +1807,26 @@ export function AdminCustomers() {
                           </td>
                           <td className="px-4 py-3 text-right font-mono font-bold text-slate-800">
                             {app.downloadsCount.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleOpenBuildModal(app)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold border border-indigo-200 transition cursor-pointer"
+                                title="Trigger cloud build for this app"
+                              >
+                                <Play className="w-3 h-3 fill-indigo-600 text-indigo-600" />
+                                <span>Build</span>
+                              </button>
+                              <button
+                                onClick={() => setDownloadModalApp(app)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold border border-emerald-200 transition cursor-pointer"
+                                title="Download APK / AAB binaries"
+                              >
+                                <Download className="w-3 h-3" />
+                                <span>Download</span>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1317,6 +1874,544 @@ export function AdminCustomers() {
             </div>
           )}
         </div>
+
+        {/* ── EMAIL COMPOSER MODAL ── */}
+        {renderEmailModal()}
+
+        {/* ── ASSIGN ADD-ON MODAL ── */}
+        {isAssignAddonOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 flex flex-col max-h-[92vh] sm:max-h-[94vh] overflow-hidden my-auto animate-in zoom-in-95">
+              {/* Header */}
+              <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-slate-100 flex items-center justify-between flex-shrink-0 bg-white">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center flex-shrink-0">
+                    <PackagePlus className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900">Assign Platform Add-on</h3>
+                    <span className="text-[11px] text-slate-500">
+                      Target: <strong className="text-slate-800 font-semibold">{selectedCustomer.name}</strong> (Tenant #{selectedCustomer.tenantId})
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsAssignAddonOpen(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-4 py-3 sm:px-5 sm:py-3.5 overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden space-y-2.5 flex-1 text-xs">
+                {/* Select Add-on */}
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-0.5 text-[11px]">Select Marketplace Add-on</label>
+                  <select
+                    value={assignForm.addonName}
+                    onChange={(e) => handleSelectAddonName(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-hidden focus:border-indigo-500 font-medium"
+                  >
+                    {PLATFORM_MARKETPLACE_ADDONS.map((addon) => (
+                      <option key={addon.name} value={addon.name}>
+                        {addon.name} — ₹{addon.price.toLocaleString()}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Target Application */}
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-0.5 text-[11px]">Assign to Application</label>
+                  <select
+                    value={assignForm.appName}
+                    onChange={(e) => setAssignForm({ ...assignForm, appName: e.target.value })}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-hidden"
+                  >
+                    <option value="All Connected Apps">All Connected Apps</option>
+                    {customerApps.map((app) => (
+                      <option key={app.id} value={app.name}>
+                        {app.name} ({app.platform})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Billing / Fee Override */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-0.5 text-[11px]">Billing Amount (₹)</label>
+                    <input
+                      type="number"
+                      value={assignForm.isFreeOverride ? 0 : assignForm.price}
+                      disabled={assignForm.isFreeOverride}
+                      onChange={(e) => setAssignForm({ ...assignForm, price: Number(e.target.value) })}
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-mono focus:outline-hidden disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-0.5 text-[11px]">Activation Status</label>
+                    <select
+                      value={assignForm.status}
+                      onChange={(e) => setAssignForm({ ...assignForm, status: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-hidden"
+                    >
+                      <option value="Configured">Configured</option>
+                      <option value="Active">Active</option>
+                      <option value="Pending Setup">Pending Setup</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Free entitlement override checkbox */}
+                <div className="pt-0.5">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={assignForm.isFreeOverride}
+                      onChange={(e) => setAssignForm({ ...assignForm, isFreeOverride: e.target.checked })}
+                      className="rounded text-indigo-600"
+                    />
+                    <span className="text-xs text-slate-700 font-medium">
+                      Complimentary Grant (₹0 / 100% Admin Exemption)
+                    </span>
+                  </label>
+                </div>
+
+                {/* License Key */}
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-0.5 text-[11px]">Generated License Key</label>
+                  <input
+                    type="text"
+                    value={assignForm.licenseKey}
+                    onChange={(e) => setAssignForm({ ...assignForm, licenseKey: e.target.value })}
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-mono focus:outline-hidden"
+                  />
+                </div>
+
+                {/* Admin Notes */}
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-0.5 text-[11px]">Admin Audit Note</label>
+                  <input
+                    type="text"
+                    value={assignForm.notes}
+                    onChange={(e) => setAssignForm({ ...assignForm, notes: e.target.value })}
+                    placeholder="e.g. Granted for VIP client renewal"
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-end gap-2 flex-shrink-0 bg-slate-50/90">
+                <button
+                  type="button"
+                  onClick={() => setIsAssignAddonOpen(false)}
+                  className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAssignAddonConfirm(selectedCustomer.id, details.addons)}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer shadow-xs"
+                >
+                  <PackagePlus className="w-3.5 h-3.5" />
+                  <span>Assign to Customer</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── TRIGGER CLOUD BUILD MODAL ── */}
+        {buildModalApp && (
+          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 flex flex-col max-h-[84vh] sm:max-h-[86vh] overflow-hidden my-auto animate-in zoom-in-95">
+              {/* Header */}
+              <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0 bg-white">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center flex-shrink-0">
+                    <Play className="w-4 h-4 fill-indigo-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900">Trigger Cloud App Build</h3>
+                    <span className="text-[11px] text-slate-500">
+                      App: <strong className="text-slate-800 font-semibold">{buildModalApp.name}</strong> • Current Version: <span className="font-mono text-indigo-600">{buildModalApp.version}</span>
+                    </span>
+                  </div>
+                </div>
+                {!isBuildingApp && (
+                  <button
+                    onClick={() => setBuildModalApp(null)}
+                    className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Body */}
+              <div className="p-4 sm:p-5 overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden space-y-4 flex-1 text-xs">
+                {/* App Summary Card */}
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+                  <div className="flex items-center justify-between text-slate-600">
+                    <span className="font-medium text-slate-500">Package Identifier:</span>
+                    <span className="font-mono text-slate-800 font-semibold">{buildModalApp.package}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-600">
+                    <span className="font-medium text-slate-500">Connected Store Backend:</span>
+                    <span className="text-slate-800 font-semibold">{buildModalApp.platform}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-600">
+                    <span className="font-medium text-slate-500">Target Tenant:</span>
+                    <span className="text-slate-800 font-semibold">{selectedCustomer.tenantName} (#{selectedCustomer.tenantId})</span>
+                  </div>
+                </div>
+
+                {/* Target Package Format */}
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1.5">Select Build Output Format</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      disabled={isBuildingApp}
+                      onClick={() => setBuildTargetFormat("apk")}
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                        buildTargetFormat === "apk"
+                          ? "border-indigo-600 bg-indigo-50/70 text-indigo-900 ring-1 ring-indigo-600"
+                          : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      <div className="font-bold text-xs flex items-center justify-between">
+                        <span>Android APK</span>
+                        {buildTargetFormat === "apk" && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                      </div>
+                      <span className="text-[10px] text-slate-500 block mt-0.5">Direct device sideloading</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isBuildingApp}
+                      onClick={() => setBuildTargetFormat("aab")}
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                        buildTargetFormat === "aab"
+                          ? "border-indigo-600 bg-indigo-50/70 text-indigo-900 ring-1 ring-indigo-600"
+                          : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      <div className="font-bold text-xs flex items-center justify-between">
+                        <span>Play AAB</span>
+                        {buildTargetFormat === "aab" && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                      </div>
+                      <span className="text-[10px] text-slate-500 block mt-0.5">Google Play Console upload</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isBuildingApp}
+                      onClick={() => setBuildTargetFormat("ipa")}
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                        buildTargetFormat === "ipa"
+                          ? "border-indigo-600 bg-indigo-50/70 text-indigo-900 ring-1 ring-indigo-600"
+                          : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      <div className="font-bold text-xs flex items-center justify-between">
+                        <span>Apple iOS IPA</span>
+                        {buildTargetFormat === "ipa" && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                      </div>
+                      <span className="text-[10px] text-slate-500 block mt-0.5">TestFlight / Enterprise</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cloud Build Runner Engine */}
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Dedicated Cloud Build Runner</label>
+                  <select
+                    value={buildRunner}
+                    disabled={isBuildingApp}
+                    onChange={(e) => setBuildRunner(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-hidden font-medium"
+                  >
+                    <option value="runner_01">Google Cloud Build Standard (4 vCPU, 16GB RAM) • Priority Queue</option>
+                    <option value="runner_02">Dedicated High-Performance Farm Runner (8 vCPU, 32GB RAM)</option>
+                    <option value="runner_03">AWS CodeBuild Fast-Track • Enterprise Pool</option>
+                  </select>
+                </div>
+
+                {/* Active Build Status Progression */}
+                {isBuildingApp && (
+                  <div className="p-4 rounded-xl bg-indigo-50/80 border border-indigo-200 space-y-2.5 animate-in fade-in">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-indigo-900 flex items-center gap-2">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                        Compilation in Progress...
+                      </span>
+                      <span className="font-mono text-xs font-bold text-indigo-700">
+                        {buildProgressStep === 1 && "25%"}
+                        {buildProgressStep === 2 && "55%"}
+                        {buildProgressStep === 3 && "80%"}
+                        {buildProgressStep === 4 && "100%"}
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-indigo-200/60 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-indigo-600 h-2 rounded-full transition-all duration-500"
+                        style={{
+                          width:
+                            buildProgressStep === 1
+                              ? "25%"
+                              : buildProgressStep === 2
+                              ? "55%"
+                              : buildProgressStep === 3
+                              ? "80%"
+                              : "100%",
+                        }}
+                      />
+                    </div>
+
+                    {/* Build step text */}
+                    <div className="text-[11px] font-mono text-indigo-700">
+                      {buildProgressStep === 1 && "• Step 1/4: Initializing cloud container and resolving Gradle dependencies..."}
+                      {buildProgressStep === 2 && "• Step 2/4: Compiling Web2App native shell & bundling web assets..."}
+                      {buildProgressStep === 3 && "• Step 3/4: Code signing with customer keystore & running ProGuard/R8..."}
+                      {buildProgressStep === 4 && "• Step 4/4: Generating binary package & uploading to artifact registry..."}
+                    </div>
+                  </div>
+                )}
+
+                {/* Build Completed Success View */}
+                {buildCompletedApp && !isBuildingApp && (
+                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2.5 animate-in fade-in">
+                    <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span>Cloud Build Succeeded &amp; Package Compiled!</span>
+                    </div>
+                    <p className="text-[11px] text-emerald-700">
+                      App version incremented to <strong className="font-mono text-emerald-900">v{buildModalApp.version.replace("v","")}.1</strong>. The release package has been generated and is ready for download.
+                    </p>
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          triggerFileDownload(
+                            `${buildModalApp.package}-release-${buildModalApp.version}.${buildTargetFormat}`
+                          )
+                        }
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer shadow-xs transition"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download {buildTargetFormat.toUpperCase()} ({buildModalApp.package})</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-end gap-2 flex-shrink-0 bg-slate-50/90">
+                <button
+                  type="button"
+                  disabled={isBuildingApp}
+                  onClick={() => setBuildModalApp(null)}
+                  className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer disabled:opacity-50"
+                >
+                  {buildCompletedApp ? "Close" : "Cancel"}
+                </button>
+                {!buildCompletedApp && (
+                  <button
+                    type="button"
+                    disabled={isBuildingApp}
+                    onClick={() => handleStartCloudBuild(selectedCustomer.id, details.apps)}
+                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer shadow-xs disabled:opacity-50"
+                  >
+                    {isBuildingApp ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Compiling on Cloud...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5 fill-white" />
+                        <span>Start Cloud Build</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── DOWNLOAD PACKAGES MODAL ── */}
+        {downloadModalApp && (
+          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 flex flex-col max-h-[84vh] sm:max-h-[86vh] overflow-hidden my-auto animate-in zoom-in-95">
+              {/* Header */}
+              <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0 bg-white">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center flex-shrink-0">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900">Download Application Packages</h3>
+                    <span className="text-[11px] text-slate-500">
+                      App: <strong className="text-slate-800 font-semibold">{downloadModalApp.name}</strong> • Version: <span className="font-mono text-slate-700">{downloadModalApp.version}</span>
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setDownloadModalApp(null)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-4 sm:p-5 overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden space-y-3.5 flex-1 text-xs">
+                {/* Information Card */}
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
+                  <div>
+                    <div className="font-bold text-slate-900">{downloadModalApp.name}</div>
+                    <div className="font-mono text-[11px] text-slate-500">{downloadModalApp.package}</div>
+                  </div>
+                  <div className="text-right">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      {downloadModalApp.status}
+                    </span>
+                    <div className="text-[10px] text-slate-400 mt-0.5">Last build: {downloadModalApp.lastBuildDate}</div>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Available Compiled Artifacts
+                  </span>
+
+                  {/* Artifact 1: Android APK */}
+                  <div className="p-3.5 rounded-xl border border-slate-200 hover:border-indigo-300 transition bg-white flex items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-black text-xs">
+                        APK
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900">Android APK (Universal Release)</div>
+                        <div className="text-[11px] text-slate-500">
+                          18.4 MB • Signed with Keystore • Ready for direct sideloading &amp; testing
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        triggerFileDownload(
+                          `${downloadModalApp.package}-v${downloadModalApp.version}-release.apk`,
+                          "Web2App Production Android APK Release Binary"
+                        )
+                      }
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer shadow-xs transition"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download</span>
+                    </button>
+                  </div>
+
+                  {/* Artifact 2: Google Play AAB */}
+                  <div className="p-3.5 rounded-xl border border-slate-200 hover:border-indigo-300 transition bg-white flex items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-black text-xs">
+                        AAB
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900">Google Play App Bundle (.aab)</div>
+                        <div className="text-[11px] text-slate-500">
+                          14.2 MB • Target API 34 • Optimized for Google Play Console submission
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        triggerFileDownload(
+                          `${downloadModalApp.package}-v${downloadModalApp.version}.aab`,
+                          "Web2App Google Play App Bundle Binary"
+                        )
+                      }
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs cursor-pointer shadow-xs transition"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download</span>
+                    </button>
+                  </div>
+
+                  {/* Artifact 3: Build Manifest & Keystore SHA-256 */}
+                  <div className="p-3.5 rounded-xl border border-slate-200 hover:border-indigo-300 transition bg-white flex items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-black text-xs">
+                        JSON
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900">Build Manifest &amp; Keystore Hashes</div>
+                        <div className="text-[11px] text-slate-500">
+                          12 KB • Package configuration, SHA-256 fingerprint, and platform permissions
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        triggerFileDownload(
+                          `${downloadModalApp.package}-manifest.json`,
+                          JSON.stringify(
+                            {
+                              appName: downloadModalApp.name,
+                              packageId: downloadModalApp.package,
+                              version: downloadModalApp.version,
+                              platformBackend: downloadModalApp.platform,
+                              lastBuild: downloadModalApp.lastBuildDate,
+                              keystoreSha256: "8F:3A:91:D2:7C:E5:41:09:BA:66:33:1B:74:DE:90:5E:AA:C1:28:4F",
+                              tenant: {
+                                id: selectedCustomer.tenantId,
+                                name: selectedCustomer.tenantName,
+                                customer: selectedCustomer.name,
+                              },
+                            },
+                            null,
+                            2
+                          )
+                        )
+                      }
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs cursor-pointer transition"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between flex-shrink-0 bg-slate-50/90">
+                <span className="text-[11px] text-slate-400">
+                  Total available storage: 32.6 MB
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setDownloadModalApp(null)}
+                  className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold cursor-pointer shadow-xs"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── SENSITIVE ACTION: IMPERSONATION CONFIRMATION MODAL ── */}
         {impersonateTarget && (
@@ -1600,6 +2695,9 @@ export function AdminCustomers() {
           </table>
         </div>
       </div>
+
+      {/* ── EMAIL COMPOSER MODAL ── */}
+      {renderEmailModal()}
     </div>
   );
 }

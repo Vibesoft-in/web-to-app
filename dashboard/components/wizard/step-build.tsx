@@ -329,12 +329,12 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
               <strong>Admin Mode:</strong> You are inspecting this application in oversight mode. Personal app compilation is restricted to store customer accounts.
             </span>
           </div>
-          <a
-            href="http://localhost:8000/admin"
+          <Link
+            href="/admin"
             className="px-3 py-1 bg-amber-800 text-white rounded-lg font-bold text-[11px] whitespace-nowrap hover:bg-amber-900 transition"
           >
-            Back to Filament Admin
-          </a>
+            Back to Admin Panel
+          </Link>
         </div>
       )}
 

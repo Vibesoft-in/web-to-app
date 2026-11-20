@@ -57,7 +57,6 @@ export const ADMIN_NAV_ITEMS: {
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "customers", label: "Customer Management", icon: Users },
   { id: "tenants", label: "Tenant Management", icon: Building2 },
-  { id: "applications", label: "Application Management", icon: Smartphone },
   { id: "builds", label: "Mobile Build Management", icon: Cpu },
   { id: "plans", label: "Subscriptions & Plans", icon: CreditCard },
   { id: "addons", label: "Add-on Management", icon: PackagePlus },

@@ -320,6 +320,15 @@ Route::prefix('auth')->name('api.auth.')->group(function () {
         ->name('register')
         ->middleware('throttle:5,10');
 
+    // Registration OTP routes
+    Route::post('/send-otp', [AuthController::class, 'sendRegistrationOtp'])
+        ->name('send-otp')
+        ->middleware('throttle:10,10');
+
+    Route::post('/verify-otp', [AuthController::class, 'verifyRegistrationOtp'])
+        ->name('verify-otp')
+        ->middleware('throttle:15,10');
+
     // 10 login attempts per 5 minutes per IP
     Route::post('/login', [AuthController::class, 'login'])
         ->name('login')
@@ -1504,6 +1513,13 @@ Route::post('/apps/{ulid}/addons/purchase', function (Request $request, string $
     // Refresh app permissions
     $app->refresh();
 
+    // Trigger payment success email notification for addon purchase
+    try {
+        app(\App\Services\Billing\EmailNotificationService::class)->sendPaymentSuccessEmail($order, $paymentId);
+    } catch (\Throwable $mailErr) {
+        \Illuminate\Support\Facades\Log::warning("Addon purchase invoice email error: " . $mailErr->getMessage());
+    }
+
     return response()->json([
         'success'            => true,
         'message'            => "{$addon->name} activated successfully for {$app->name}!",
@@ -1521,6 +1537,119 @@ Route::get('/apps/{ulid}/analytics', [\App\Http\Controllers\Api\AnalyticsControl
 
 Route::get('/apps/{ulid}/analytics/export', [\App\Http\Controllers\Api\AnalyticsController::class, 'export'])
     ->name('api.apps.analytics.export');
+
+// ── Email Notification Testing Endpoints ────────────────────────────────────
+Route::prefix('test/email')->group(function () {
+    Route::post('/otp', function (Request $request) {
+        $email = $request->input('email', 'seo.vibesoft@gmail.com');
+        $name = $request->input('name', 'Valued Customer');
+        $otp = sprintf('%06d', random_int(100000, 999999));
+
+        \Illuminate\Support\Facades\Cache::put("register_otp_" . strtolower(trim($email)), $otp, now()->addMinutes(15));
+        app(\App\Services\Billing\EmailNotificationService::class)->sendRegistrationOtpEmail($email, $name, $otp);
+
+        return response()->json([
+            'success' => true,
+            'event'   => 'registration_otp',
+            'email'   => $email,
+            'otp'     => $otp,
+            'message' => "OTP email dispatched to {$email} via Brevo SMTP.",
+        ]);
+    });
+
+    Route::post('/build-success', function (Request $request) {
+        $email = $request->input('email', 'seo.vibesoft@gmail.com');
+        $app = \App\Models\App::withoutGlobalScopes()->latest('id')->first();
+        if (! $app) {
+            return response()->json(['error' => 'No app found to test with.'], 404);
+        }
+
+        $build = $app->builds()->latest('id')->first();
+        if (! $build) {
+            $build = \App\Models\Build::withoutGlobalScopes()->create([
+                'tenant_id'    => $app->tenant_id,
+                'app_id'       => $app->id,
+                'status'       => \App\Enums\BuildStatus::Ready,
+                'version_code' => 1,
+                'version_name' => '1.0.0',
+            ]);
+        }
+
+        // Temporarily ensure recipient is test email if specified
+        $owner = $app->tenant?->owner;
+        if ($owner && $email && $owner->email !== $email) {
+            $owner->email = $email;
+        }
+
+        app(\App\Services\Billing\EmailNotificationService::class)->sendBuildSuccessEmail($app, $build);
+
+        return response()->json([
+            'success'  => true,
+            'event'    => 'build_success',
+            'app_name' => $app->name,
+            'email'    => $email,
+            'message'  => "Build Succeeded notification email dispatched to {$email} via Brevo SMTP.",
+        ]);
+    });
+
+    Route::post('/build-failed', function (Request $request) {
+        $email = $request->input('email', 'seo.vibesoft@gmail.com');
+        $app = \App\Models\App::withoutGlobalScopes()->latest('id')->first();
+        if (! $app) {
+            return response()->json(['error' => 'No app found to test with.'], 404);
+        }
+
+        $build = $app->builds()->latest('id')->first();
+        if (! $build) {
+            $build = \App\Models\Build::withoutGlobalScopes()->create([
+                'tenant_id'    => $app->tenant_id,
+                'app_id'       => $app->id,
+                'status'       => \App\Enums\BuildStatus::Failed,
+                'version_code' => 1,
+                'version_name' => '1.0.0',
+            ]);
+        }
+
+        $owner = $app->tenant?->owner;
+        if ($owner && $email && $owner->email !== $email) {
+            $owner->email = $email;
+        }
+
+        $errorMsg = $request->input('error', 'Gradle build error: Execution failed for task \':app:compileReleaseJavaWithJavac\'. Keystore signature alias mismatch.');
+
+        app(\App\Services\Billing\EmailNotificationService::class)->sendBuildFailedEmail($app, $build, $errorMsg);
+
+        return response()->json([
+            'success'  => true,
+            'event'    => 'build_failed',
+            'app_name' => $app->name,
+            'email'    => $email,
+            'message'  => "Build Failed notification email dispatched to {$email} via Brevo SMTP.",
+        ]);
+    });
+
+    Route::post('/payment-success', function (Request $request) {
+        $email = $request->input('email', 'seo.vibesoft@gmail.com');
+        $order = \App\Models\Order::latest('id')->first();
+        if (! $order) {
+            return response()->json(['error' => 'No order found to test with.'], 404);
+        }
+
+        $order->billing_email = $email;
+        $txId = 'pay_test_' . strtoupper(bin2hex(random_bytes(4)));
+
+        app(\App\Services\Billing\EmailNotificationService::class)->sendPaymentSuccessEmail($order, $txId);
+
+        return response()->json([
+            'success'      => true,
+            'event'        => 'payment_success',
+            'order_number' => $order->order_number,
+            'email'        => $email,
+            'tx_id'        => $txId,
+            'message'      => "Payment Success notification email dispatched to {$email} via Brevo SMTP.",
+        ]);
+    });
+});
 
 
 

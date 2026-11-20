@@ -14,6 +14,7 @@ import { AdminBuilds } from "./components/admin-builds";
 import { AdminThemes } from "./components/admin-themes";
 import { AdminPlans } from "./components/admin-plans";
 import { AdminAddons } from "./components/admin-addons";
+import { AdminTenants } from "./components/admin-tenants";
 import {
   Building2,
   CreditCard,
@@ -102,43 +103,8 @@ export default function SuperAdminPortalPage() {
 
           {currentTab === "intelligence" && <AdminIntelligence />}
 
-          {/* Tenants Management Tab */}
-          {currentTab === "tenants" && (
-            <div className="space-y-6 animate-in fade-in">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <h1 className="text-xl font-bold text-slate-900">Tenants</h1>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase">Tenant #2 • Active</span>
-                    <h3 className="text-sm font-bold text-slate-900 mt-1">Sanskriti Store Global</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">sanskritistore.com • 1 App</p>
-                    <span className="mt-2 inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                      Growth
-                    </span>
-                  </div>
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase">Tenant #4 • Active</span>
-                    <h3 className="text-sm font-bold text-slate-900 mt-1">Fashion Hub India</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">fashionhub.in • 3 Apps</p>
-                    <span className="mt-2 inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                      Growth
-                    </span>
-                  </div>
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase">Tenant #5 • Suspended</span>
-                    <h3 className="text-sm font-bold text-slate-900 mt-1">Malhotra Luxury Silks</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">malhotratextiles.com • 4 Apps</p>
-                    <span className="mt-2 inline-block text-[11px] font-semibold text-rose-700 bg-rose-100 px-2 py-0.5 rounded">
-                      Enterprise
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Tenants Management Tab (Organized as Data Table) */}
+          {currentTab === "tenants" && <AdminTenants />}
 
           {/* Subscriptions & Plans Tab (Fully Editable) */}
           {currentTab === "plans" && <AdminPlans />}

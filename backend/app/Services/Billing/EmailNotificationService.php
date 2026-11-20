@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Billing;
 
+use App\Models\App;
+use App\Models\Build;
 use App\Models\CustomFeatureRequest;
 use App\Models\EmailLog;
 use App\Models\Order;
@@ -21,8 +23,8 @@ class EmailNotificationService
     public function __construct()
     {
         $this->adminEmail = config('services.admin_notification_email', env('ADMIN_NOTIFICATION_EMAIL', 'admin@webintoapp.com'));
-        $this->fromAddress = config('mail.from.address', 'noreply@webintoapp.com');
-        $this->fromName = config('mail.from.name', 'AppifyHub');
+        $this->fromAddress = config('mail.from.address', 'seo.vibesoft@gmail.com');
+        $this->fromName = config('mail.from.name', 'WebIntoApp');
     }
 
     /**
@@ -395,6 +397,216 @@ class EmailNotificationService
     }
 
     /**
+     * H. Registration OTP Email
+     */
+    public function sendRegistrationOtpEmail(string $recipientEmail, string $recipientName, string $otp): void
+    {
+        if (empty($recipientEmail)) {
+            return;
+        }
+
+        $subject = "Your WebIntoApp Verification Code: {$otp}";
+
+        $html = $this->wrapLayout("
+            <h2 style='color: #2D241E; margin-top: 0; font-size: 22px; font-weight: 800;'>Verify Your Email Address</h2>
+            <p style='color: #5A4A3E; font-size: 15px; line-height: 1.6;'>
+                Hi <strong>{$recipientName}</strong>,<br>
+                Thank you for signing up with <strong>WebIntoApp</strong>! To verify your email and activate your account, please enter the one-time verification code below:
+            </p>
+
+            <div style='background-color: #FAF7F2; border: 2px dashed #78593D; border-radius: 14px; padding: 24px; text-align: center; margin: 28px 0;'>
+                <div style='font-size: 12px; color: #8A7A6D; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 8px;'>
+                    Your 6-Digit One-Time Password (OTP)
+                </div>
+                <div style='font-size: 40px; font-weight: 900; letter-spacing: 10px; color: #78593D; font-family: -apple-system, BlinkMacSystemFont, \"SF Mono\", Monaco, monospace;'>
+                    {$otp}
+                </div>
+                <div style='font-size: 12px; color: #8A7A6D; margin-top: 10px;'>
+                    ⏱ Valid for <strong>15 minutes</strong> &bull; Please do not share this code with anyone.
+                </div>
+            </div>
+
+            <p style='color: #5A4A3E; font-size: 14px; line-height: 1.5;'>
+                Once verified, you will immediately have full access to convert your store or website into high-performance native Android &amp; iOS mobile applications.
+            </p>
+
+            <p style='color: #8A7A6D; font-size: 12px; line-height: 1.5; margin-top: 24px;'>
+                If you did not request this verification code, you can safely disregard this email.
+            </p>
+        ");
+
+        $this->dispatchEmail($recipientEmail, $recipientName, $subject, 'registration_otp', $html);
+    }
+
+    /**
+     * I. Build Succeeded Notification Email
+     */
+    public function sendBuildSuccessEmail(App $app, Build $build): void
+    {
+        $tenant = $app->tenant;
+        $user = $tenant?->owner ?? $tenant?->users()->first();
+        $recipientEmail = $user?->email;
+        $recipientName = $user?->name ?? 'Valued Customer';
+
+        if (! $recipientEmail) {
+            return;
+        }
+
+        $versionStr = $build->version_name ? "v{$build->version_name}" : "v1.0.{$build->version_code}";
+        $subject = "🎉 Your Mobile App is Ready! {$app->name} ({$versionStr}) - WebIntoApp";
+
+        $appUrl = url("/dashboard/apps/{$app->ulid}");
+        $apkDownloadUrl = url("/api/apps/{$app->ulid}/builds/{$build->id}/download?format=apk");
+        $aabDownloadUrl = url("/api/apps/{$app->ulid}/builds/{$build->id}/download?format=aab");
+        $finishedDate = ($build->finished_at ?? now())->format('d M Y, h:i A T');
+        $platformName = $app->platform instanceof \BackedEnum ? $app->platform->value : (string) $app->platform;
+
+        $html = $this->wrapLayout("
+            <div style='text-align: center; margin-bottom: 20px;'>
+                <span style='background-color: #ECFDF5; color: #047857; font-size: 12px; font-weight: 800; padding: 4px 14px; border-radius: 9999px; border: 1px solid #A7F3D0; text-transform: uppercase;'>
+                    Build Succeeded &bull; Ready to Install
+                </span>
+            </div>
+
+            <h2 style='color: #2D241E; margin-top: 0; font-size: 22px; font-weight: 800; text-align: center;'>
+                Your Mobile App is Ready to Download!
+            </h2>
+            <p style='color: #5A4A3E; font-size: 15px; line-height: 1.6; text-align: center;'>
+                Hi <strong>{$recipientName}</strong>,<br>
+                Awesome news! The build runner has successfully compiled and cryptographically signed your mobile application <strong>{$app->name}</strong>.
+            </p>
+
+            <div style='background-color: #FAF7F2; border-radius: 12px; padding: 20px; margin: 24px 0; border: 1px solid #EFE8DC;'>
+                <table style='width: 100%; border-collapse: collapse; font-size: 14px;'>
+                    <tr>
+                        <td style='color: #8A7A6D; padding-bottom: 8px;'>App Name:</td>
+                        <td style='text-align: right; font-weight: bold; color: #2D241E;'>{$app->name}</td>
+                    </tr>
+                    <tr>
+                        <td style='color: #8A7A6D; padding-bottom: 8px;'>Package ID:</td>
+                        <td style='text-align: right; font-family: monospace; color: #2D241E;'>{$app->package_name}</td>
+                    </tr>
+                    <tr>
+                        <td style='color: #8A7A6D; padding-bottom: 8px;'>Version:</td>
+                        <td style='text-align: right; font-weight: bold; color: #78593D;'>{$versionStr} (Build #{$build->version_code})</td>
+                    </tr>
+                    <tr>
+                        <td style='color: #8A7A6D; padding-bottom: 8px;'>Platform Backend:</td>
+                        <td style='text-align: right; color: #2D241E; text-transform: capitalize;'>{$platformName}</td>
+                    </tr>
+                    <tr>
+                        <td style='color: #8A7A6D;'>Completed At:</td>
+                        <td style='text-align: right; color: #2D241E;'>{$finishedDate}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <h3 style='color: #2D241E; font-size: 15px; margin: 24px 0 12px 0;'>Download Packages:</h3>
+            <table width='100%' cellpadding='0' cellspacing='0' style='margin-bottom: 24px;'>
+                <tr>
+                    <td style='padding: 6px;'>
+                        <a href='{$apkDownloadUrl}' style='display: block; text-align: center; background-color: #78593D; color: #FFFFFF; padding: 12px 20px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 13px;'>
+                            📥 Download Android APK (Direct Install)
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <td style='padding: 6px;'>
+                        <a href='{$aabDownloadUrl}' style='display: block; text-align: center; background-color: #2D241E; color: #FFFFFF; padding: 12px 20px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 13px;'>
+                            📦 Download Google Play AAB (Store Bundle)
+                        </a>
+                    </td>
+                </tr>
+            </table>
+
+            <div style='background-color: #EFF6FF; border-radius: 10px; padding: 14px 18px; border: 1px solid #DBEAFE; margin-bottom: 24px;'>
+                <strong style='color: #1E40AF; font-size: 13px;'>💡 Quick Testing Tip:</strong>
+                <p style='color: #1E3A8A; font-size: 12px; margin: 4px 0 0 0; line-height: 1.5;'>
+                    Download the APK file directly onto your Android device, allow 'Install from Unknown Sources' in settings, and experience your native app live!
+                </p>
+            </div>
+
+            <div style='text-align: center; margin: 28px 0;'>
+                <a href='{$appUrl}' style='color: #78593D; font-weight: bold; text-decoration: underline; font-size: 14px;'>
+                    Open in WebIntoApp Dashboard &rarr;
+                </a>
+            </div>
+        ");
+
+        $this->dispatchEmail($recipientEmail, $recipientName, $subject, 'build_success', $html, null, [
+            'app_id'     => $app->id,
+            'build_id'   => $build->id,
+            'app_name'   => $app->name,
+            'version'    => $versionStr,
+        ]);
+    }
+
+    /**
+     * J. Build Failed Notification Email
+     */
+    public function sendBuildFailedEmail(App $app, Build $build, string $errorMessage): void
+    {
+        $tenant = $app->tenant;
+        $user = $tenant?->owner ?? $tenant?->users()->first();
+        $recipientEmail = $user?->email;
+        $recipientName = $user?->name ?? 'Valued Customer';
+
+        if (! $recipientEmail) {
+            return;
+        }
+
+        $versionStr = $build->version_name ? "v{$build->version_name}" : "v1.0.{$build->version_code}";
+        $subject = "⚠️ Build Error: Compilation Issue for {$app->name} - WebIntoApp";
+
+        $retryUrl = url("/dashboard/apps/{$app->ulid}/setup/build");
+        $sanitizedError = htmlspecialchars(mb_strimwidth($errorMessage, 0, 800, '...'));
+
+        $html = $this->wrapLayout("
+            <div style='text-align: center; margin-bottom: 20px;'>
+                <span style='background-color: #FEF2F2; color: #DC2626; font-size: 12px; font-weight: 800; padding: 4px 14px; border-radius: 9999px; border: 1px solid #FEE2E2; text-transform: uppercase;'>
+                    Build Failed &bull; Action Required
+                </span>
+            </div>
+
+            <h2 style='color: #DC2626; margin-top: 0; font-size: 22px; font-weight: 800; text-align: center;'>
+                We Encountered a Problem Building Your App
+            </h2>
+            <p style='color: #5A4A3E; font-size: 15px; line-height: 1.6;'>
+                Hi <strong>{$recipientName}</strong>,<br>
+                During the automated compilation process for <strong>{$app->name}</strong> ({$versionStr}), the build engine reported an error:
+            </p>
+
+            <div style='background-color: #FEF2F2; border-radius: 12px; padding: 18px 20px; margin: 20px 0; border: 1px solid #FEE2E2;'>
+                <strong style='color: #991B1B; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;'>Error Diagnostics:</strong>
+                <pre style='color: #B91C1C; margin: 8px 0 0 0; font-size: 12px; white-space: pre-wrap; font-family: monospace; word-break: break-all;'>{$sanitizedError}</pre>
+            </div>
+
+            <h3 style='color: #2D241E; font-size: 15px; margin: 20px 0 10px 0;'>Recommended Troubleshooting Steps:</h3>
+            <ul style='color: #5A4A3E; font-size: 14px; line-height: 1.6; padding-left: 20px; margin: 0 0 24px 0;'>
+                <li>Verify your store website is accessible and WooCommerce / Shopify API credentials have read/write access.</li>
+                <li>Ensure custom app icons and splash assets are square 512x512 PNG files without transparency issues.</li>
+                <li>Check your app package identifier syntax (e.g. <code>com.yourstore.app</code>).</li>
+            </ul>
+
+            <div style='text-align: center; margin: 28px 0;'>
+                <a href='{$retryUrl}' style='display: inline-block; background-color: #78593D; color: #FFFFFF; padding: 12px 28px; border-radius: 9999px; text-decoration: none; font-weight: bold; font-size: 14px; box-shadow: 0 4px 12px rgba(120, 89, 61, 0.25);'>
+                    Retry Build Now in Dashboard &rarr;
+                </a>
+            </div>
+
+            <p style='color: #8A7A6D; font-size: 13px; line-height: 1.5; text-align: center;'>
+                Need assistance? Our engineering support team is here to help. You can reply directly to this email or reach us at <a href='mailto:seo.vibesoft@gmail.com' style='color: #78593D; font-weight: bold;'>seo.vibesoft@gmail.com</a>.
+            </p>
+        ");
+
+        $this->dispatchEmail($recipientEmail, $recipientName, $subject, 'build_failed', $html, null, [
+            'app_id'     => $app->id,
+            'build_id'   => $build->id,
+            'error'      => $errorMessage,
+        ]);
+    }
+
+    /**
      * Core Dispatcher: sends email and creates audit log in email_logs
      */
     private function dispatchEmail(
@@ -451,7 +663,7 @@ class EmailNotificationService
         <head>
             <meta charset='utf-8'>
             <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-            <title>AppifyHub</title>
+            <title>WebIntoApp</title>
         </head>
         <body style='margin: 0; padding: 0; background-color: #F5F1EB; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif;'>
             <table width='100%' cellpadding='0' cellspacing='0' style='background-color: #F5F1EB; padding: 30px 15px;'>
@@ -464,11 +676,11 @@ class EmailNotificationService
                                     <table width='100%' cellpadding='0' cellspacing='0'>
                                         <tr>
                                             <td>
-                                                <span style='color: #FFFFFF; font-size: 20px; font-weight: 800; letter-spacing: -0.5px;'>AppifyHub</span>
+                                                <span style='color: #FFFFFF; font-size: 20px; font-weight: 800; letter-spacing: -0.5px;'>WebIntoApp</span>
                                                 <span style='display: block; color: #C2A88F; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 2px;'>Website to Mobile App</span>
                                             </td>
                                             <td style='text-align: right;'>
-                                                <span style='display: inline-block; background-color: rgba(255,255,255,0.1); color: #E8DFD8; font-size: 11px; padding: 4px 10px; border-radius: 9999px;'>Official Order Notice</span>
+                                                <span style='display: inline-block; background-color: rgba(255,255,255,0.1); color: #E8DFD8; font-size: 11px; padding: 4px 10px; border-radius: 9999px;'>Official Notification</span>
                                             </td>
                                         </tr>
                                     </table>
@@ -483,8 +695,8 @@ class EmailNotificationService
                             <!-- Footer -->
                             <tr>
                                 <td style='background-color: #FAF7F2; padding: 20px 32px; border-top: 1px solid #EFE8DC; text-align: center; color: #8A7A6D; font-size: 12px; line-height: 1.5;'>
-                                    <p style='margin: 0 0 6px 0;'>&copy; " . date('Y') . " AppifyHub. All rights reserved.</p>
-                                    <p style='margin: 0;'>Need help with your app or order? Contact our VIP support team at <a href='mailto:support@webintoapp.com' style='color: #78593D; text-decoration: none; font-weight: bold;'>support@webintoapp.com</a></p>
+                                    <p style='margin: 0 0 6px 0;'>&copy; " . date('Y') . " WebIntoApp. All rights reserved.</p>
+                                    <p style='margin: 0;'>Need help with your app or account? Contact our team at <a href='mailto:seo.vibesoft@gmail.com' style='color: #78593D; text-decoration: none; font-weight: bold;'>seo.vibesoft@gmail.com</a></p>
                                 </td>
                             </tr>
                         </table>

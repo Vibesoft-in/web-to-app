@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Mail, ShieldCheck, KeyRound, RefreshCw, X, Loader2, CheckCircle2, Lock } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { getUserData, saveUserData } from "@/lib/user-data-store";
 import { normalizeWebsiteUrl } from "@/lib/url-utils";
@@ -43,6 +44,26 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Email OTP Verification states (Mandatory before account creation)
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [verifiedEmail, setVerifiedEmail] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [inlineOtp, setInlineOtp] = useState("");
+  const [isVerifyingInlineOtp, setIsVerifyingInlineOtp] = useState(false);
+  const [inlineOtpError, setInlineOtpError] = useState<string | null>(null);
+  const [inlineOtpSuccess, setInlineOtpSuccess] = useState<string | null>(null);
+  const [otpResendCountdown, setOtpResendCountdown] = useState(0);
+
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    if (otpResendCountdown <= 0) return;
+    const interval = setInterval(() => {
+      setOtpResendCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [otpResendCountdown]);
 
   // Platform verification state
   const [isManualSelection, setIsManualSelection] = useState(false);
@@ -270,6 +291,75 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
     }
   };
 
+  const handleEmailChange = (newEmail: string) => {
+    setEmail(newEmail);
+    if (isEmailVerified && newEmail.trim().toLowerCase() !== verifiedEmail.trim().toLowerCase()) {
+      setIsEmailVerified(false);
+      setOtpSent(false);
+      setInlineOtp("");
+      setInlineOtpSuccess(null);
+      setInlineOtpError(null);
+    }
+  };
+
+  const handleSendInlineOtp = async () => {
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !cleanEmail.includes("@") || !cleanEmail.includes(".")) {
+      setInlineOtpError("Please enter a valid email address first.");
+      return;
+    }
+
+    setIsSendingOtp(true);
+    setInlineOtpError(null);
+    setInlineOtpSuccess(null);
+
+    try {
+      await apiClient("/api/auth/send-otp", {
+        method: "POST",
+        body: JSON.stringify({
+          email: cleanEmail,
+          name: name.trim() || "User",
+        }),
+      });
+      setOtpSent(true);
+      setOtpResendCountdown(60);
+      setInlineOtpSuccess(`Verification code dispatched to ${cleanEmail}. Check your inbox.`);
+    } catch (err: any) {
+      setInlineOtpError(err.message || "Failed to dispatch verification code. Please check your email.");
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyInlineOtp = async () => {
+    const code = inlineOtp.trim();
+    if (!code || code.length < 4) {
+      setInlineOtpError("Please enter the 6-digit verification code sent to your email.");
+      return;
+    }
+
+    setIsVerifyingInlineOtp(true);
+    setInlineOtpError(null);
+
+    try {
+      await apiClient("/api/auth/verify-otp", {
+        method: "POST",
+        body: JSON.stringify({
+          email: email.trim(),
+          otp: code,
+        }),
+      });
+      setIsEmailVerified(true);
+      setVerifiedEmail(email.trim());
+      setInlineOtpSuccess("Email verified successfully! You may now proceed with account creation.");
+      setInlineOtpError(null);
+    } catch (err: any) {
+      setInlineOtpError(err.message || "Invalid or expired verification code.");
+    } finally {
+      setIsVerifyingInlineOtp(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -280,6 +370,13 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
     }
     if (!email.trim() || !email.includes("@")) {
       setErrorMessage("Please enter a valid email address.");
+      return;
+    }
+    if (!isEmailVerified) {
+      setErrorMessage("Please verify your email address with OTP before creating your account.");
+      if (!otpSent) {
+        handleSendInlineOtp();
+      }
       return;
     }
     if (!password || password.length < 6) {
@@ -296,7 +393,7 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
     }
     if (feedback.type === "unsupported") {
       setErrorMessage(
-        "Custom Platform Detected: This website appears to be built on a custom platform. AppifyHub only converts websites built on WooCommerce, Shopify, or WordPress."
+        "Custom Platform Detected: This website appears to be built on a custom platform. WebIntoApp only converts websites built on WooCommerce, Shopify, or WordPress."
       );
       return;
     }
@@ -311,7 +408,6 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
 
     try {
       const cleanUrl = normalizeWebsiteUrl(websiteUrl);
-
       const finalBusinessName =
         websiteName.trim() || `${name.trim()}'s Store`;
 
@@ -324,6 +420,7 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
         platform: platform,
         website_name: websiteName.trim() || null,
         business_name: finalBusinessName,
+        otp: inlineOtp.trim() || "verified",
       };
 
       const signupRes = await apiClient("/api/auth/signup", {
@@ -528,9 +625,36 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
 
                 {/* Email Address Field */}
                 <div className="auth-field-group">
-                  <label htmlFor="email" className="auth-label">
-                    Email Address
-                  </label>
+                  <div className="auth-label-row flex items-center justify-between mb-1">
+                    <label htmlFor="email" className="auth-label mb-0">
+                      Email Address
+                    </label>
+                    {isEmailVerified ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-300">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        Verified
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleSendInlineOtp}
+                        disabled={isSendingOtp || !email.trim() || !email.includes("@")}
+                        className="text-[11px] font-bold text-[#78593D] hover:text-[#5e442d] hover:underline disabled:opacity-40 disabled:no-underline flex items-center gap-1 cursor-pointer"
+                      >
+                        {isSendingOtp ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Sending OTP...</span>
+                          </>
+                        ) : otpSent ? (
+                          <span>Resend OTP {otpResendCountdown > 0 ? `(${otpResendCountdown}s)` : ""}</span>
+                        ) : (
+                          <span>Verify with OTP &rarr;</span>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
                   <div className="auth-input-wrapper">
                     <span className="auth-input-icon">
                       <svg
@@ -555,10 +679,93 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
                       autoComplete="email"
                       placeholder="you@company.com"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="auth-input"
+                      onChange={(e) => handleEmailChange(e.target.value)}
+                      disabled={isEmailVerified}
+                      className={`auth-input ${isEmailVerified ? "bg-emerald-50/50 border-emerald-300" : ""}`}
                     />
                   </div>
+
+                  {/* Inline OTP Verification Area */}
+                  {otpSent && !isEmailVerified && (
+                    <div className="mt-2.5 p-3 rounded-xl bg-[#FAF7F2] border border-[#E8DFD3] space-y-2 animate-in fade-in">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-[#2D241E] flex items-center gap-1.5">
+                          <KeyRound className="w-3.5 h-3.5 text-[#78593D]" />
+                          Enter 6-Digit OTP sent to {email}
+                        </span>
+                        {otpResendCountdown > 0 ? (
+                          <span className="text-[11px] text-[#8A7A6D]">Resend in {otpResendCountdown}s</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleSendInlineOtp}
+                            disabled={isSendingOtp}
+                            className="text-[11px] font-bold text-[#78593D] hover:underline cursor-pointer"
+                          >
+                            Resend Code
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          maxLength={6}
+                          value={inlineOtp}
+                          onChange={(e) => setInlineOtp(e.target.value.replace(/[^0-9]/g, ""))}
+                          placeholder="000000"
+                          className="flex-1 px-3 py-2 text-center text-lg font-black tracking-[8px] font-mono bg-white border border-[#D5C7B7] rounded-lg focus:border-[#78593D] focus:outline-hidden text-[#2D241E]"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyInlineOtp}
+                          disabled={inlineOtp.length < 4 || isVerifyingInlineOtp}
+                          className="px-4 py-2 bg-[#78593D] hover:bg-[#634932] text-white text-xs font-bold rounded-lg transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        >
+                          {isVerifyingInlineOtp ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Verifying...</span>
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              <span>Verify OTP</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {inlineOtpError && (
+                        <p className="text-xs text-red-600 font-medium">{inlineOtpError}</p>
+                      )}
+                      {inlineOtpSuccess && (
+                        <p className="text-xs text-emerald-700 font-medium">{inlineOtpSuccess}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Verified state banner */}
+                  {isEmailVerified && (
+                    <div className="mt-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between animate-in fade-in">
+                      <span className="flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        Verified: <strong>{verifiedEmail}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEmailVerified(false);
+                          setOtpSent(false);
+                          setInlineOtp("");
+                          setInlineOtpSuccess(null);
+                        }}
+                        className="text-[11px] text-emerald-700 underline hover:text-emerald-900 cursor-pointer"
+                      >
+                        Change Email
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Phone Number Field (Optional) */}
@@ -958,10 +1165,25 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
                 </div>
 
                 {/* Submit Button */}
-                <div className="auth-actions">
-                  <button type="submit" disabled={isSubmitting} className="btn-auth-submit">
+                <div className="auth-actions space-y-2">
+                  {!isEmailVerified && (
+                    <div className="text-xs text-amber-900 bg-amber-50/90 border border-amber-200 rounded-xl p-2.5 text-center flex items-center justify-center gap-1.5 font-medium">
+                      <Lock className="w-3.5 h-3.5 text-amber-700 flex-shrink-0" />
+                      <span>Email verification with OTP is required before creating an account.</span>
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || !isEmailVerified}
+                    className={`btn-auth-submit ${!isEmailVerified ? "opacity-60 cursor-not-allowed hover:bg-[#78593D]" : ""}`}
+                    title={!isEmailVerified ? "Please verify your email address first" : ""}
+                  >
                     <span>
-                      {isSubmitting ? "Creating Account..." : "Create Account & Proceed"}
+                      {isSubmitting
+                        ? "Creating Account..."
+                        : isEmailVerified
+                        ? "Create Account & Proceed"
+                        : "Verify Email with OTP to Proceed"}
                     </span>
                     <svg
                       className="btn-arrow"
@@ -1014,7 +1236,7 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
 
         {/* Auth Footer */}
         <footer className="auth-footer">
-          <p>&copy; 2026 AppifyHub Platform. Native iOS &amp; Android App Compilation Suite.</p>
+          <p>&copy; 2026 WebIntoApp Platform. Native iOS &amp; Android App Compilation Suite.</p>
         </footer>
       </div>
     </div>

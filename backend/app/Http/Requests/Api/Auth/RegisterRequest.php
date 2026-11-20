@@ -24,6 +24,7 @@ class RegisterRequest extends FormRequest
             'website_url'   => ['nullable', 'string', 'max:255'],
             'platform'      => ['nullable', 'string', 'max:50'],
             'website_name'  => ['nullable', 'string', 'max:150'],
+            'otp'           => ['nullable', 'string', 'max:10'],
         ];
     }
 }

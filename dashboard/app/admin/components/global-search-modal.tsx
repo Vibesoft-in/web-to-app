@@ -276,7 +276,7 @@ export function GlobalSearchModal({
         </div>
 
         {/* Results List */}
-        <div className="max-h-[60vh] overflow-y-auto p-3 space-y-1">
+        <div className="max-h-[60vh] overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden p-3 space-y-1">
           {filteredResults.length === 0 ? (
             <div className="p-8 text-center text-slate-400">
               <Search className="w-10 h-10 mx-auto text-slate-300 mb-2" />

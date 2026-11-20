@@ -325,31 +325,31 @@ export function AdminPlans() {
                 </div>
               </div>
 
-              {/* Build Capabilities Matrix */}
-              <div className="mt-3.5 grid grid-cols-3 gap-1.5 text-[11px] text-center">
+              {/* Build Capabilities Matrix (Matching exact screenshot styling) */}
+              <div className="mt-3.5 grid grid-cols-3 gap-1.5 text-xs text-center font-bold">
                 <span
-                  className={`px-2 py-1 rounded font-bold ${
+                  className={`px-2 py-1.5 rounded-lg transition ${
                     plan.apkIncluded
-                      ? "bg-indigo-50 text-indigo-700"
-                      : "bg-slate-100 text-slate-400 line-through"
+                      ? "bg-[#F3EEE7] text-[#57514B]"
+                      : "bg-[#F7F5F0] text-[#A8A29E] line-through opacity-70"
                   }`}
                 >
                   APK
                 </span>
                 <span
-                  className={`px-2 py-1 rounded font-bold ${
+                  className={`px-2 py-1.5 rounded-lg transition ${
                     plan.aabIncluded
-                      ? "bg-indigo-50 text-indigo-700"
-                      : "bg-slate-100 text-slate-400 line-through"
+                      ? "bg-[#F3EEE7] text-[#57514B]"
+                      : "bg-[#F7F5F0] text-[#A8A29E] line-through opacity-70"
                   }`}
                 >
                   Play AAB
                 </span>
                 <span
-                  className={`px-2 py-1 rounded font-bold ${
+                  className={`px-2 py-1.5 rounded-lg transition ${
                     plan.ipaIncluded
-                      ? "bg-indigo-50 text-indigo-700"
-                      : "bg-slate-100 text-slate-400 line-through"
+                      ? "bg-[#F3EEE7] text-[#57514B]"
+                      : "bg-[#F7F5F0] text-[#A8A29E] line-through opacity-70"
                   }`}
                 >
                   iOS IPA
@@ -397,7 +397,7 @@ export function AdminPlans() {
       {/* ── CREATE PLAN MODAL ── */}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 flex flex-col max-h-[82vh] sm:max-h-[84vh] overflow-hidden my-auto animate-in zoom-in-95">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] sm:max-h-[92vh] overflow-hidden my-auto animate-in zoom-in-95">
             <div className="p-3.5 sm:p-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0 bg-white">
               <h3 className="font-bold text-sm text-slate-900">Create Subscription Plan</h3>
               <button
@@ -408,7 +408,7 @@ export function AdminPlans() {
               </button>
             </div>
 
-            <div className="p-4 overflow-y-auto space-y-3 flex-1 text-xs">
+            <div className="p-4 overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden space-y-3 flex-1 text-xs">
               <div>
                 <label className="font-semibold text-slate-700 block mb-1">Plan Name</label>
                 <input
@@ -548,7 +548,7 @@ export function AdminPlans() {
       {/* ── EDIT PLAN MODAL ── */}
       {editingPlan && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 flex flex-col max-h-[82vh] sm:max-h-[84vh] overflow-hidden my-auto animate-in zoom-in-95">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] sm:max-h-[92vh] overflow-hidden my-auto animate-in zoom-in-95">
             <div className="p-3.5 sm:p-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0 bg-white">
               <div>
                 <h3 className="font-bold text-sm text-slate-900">Edit Subscription Plan</h3>
@@ -564,7 +564,7 @@ export function AdminPlans() {
               </button>
             </div>
 
-            <div className="p-4 overflow-y-auto space-y-3 flex-1 text-xs">
+            <div className="p-4 overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden space-y-3 flex-1 text-xs">
               <div>
                 <label className="font-semibold text-slate-700 block mb-1">Plan Name</label>
                 <input

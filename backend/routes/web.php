@@ -7,28 +7,25 @@ use Illuminate\Support\Facades\Route;
 
 // Root redirect to Admin Dashboard
 Route::get('/', function () {
-    return redirect('/admin');
+    return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/admin');
 });
 
-// Fallback login route for web requests - redirects to Filament Admin login
+// Redirect any legacy backend /admin visits to the new Super Admin panel
+Route::get('/admin', function () {
+    return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/admin');
+});
+Route::get('/admin/{any}', function () {
+    return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/admin');
+})->where('any', '.*');
+
+// Fallback login route for web requests
 Route::get('/login', function () {
-    return redirect('/admin/login');
+    return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/login');
 })->name('login');
 
-// Admin SSO route to instantly authenticate Super Admin from dashboard
+// Admin SSO route to authenticate Super Admin
 Route::get('/admin/sso', function (\Illuminate\Http\Request $request) {
-    $tokenString = $request->query('token');
-    if ($tokenString) {
-        $tokenModel = \Laravel\Sanctum\PersonalAccessToken::findToken($tokenString);
-        if ($tokenModel && $tokenModel->tokenable) {
-            $user = $tokenModel->tokenable;
-            if ($user->isSuperAdmin() || $user->email === 'admin@webintoapp.com') {
-                \Illuminate\Support\Facades\Auth::guard('web')->login($user, true);
-                return redirect('/admin');
-            }
-        }
-    }
-    return redirect('/admin');
+    return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/admin');
 });
 
 // Safe web-based migration & initialization route for shared hosting

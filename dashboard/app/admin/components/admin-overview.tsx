@@ -28,6 +28,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
+import { PlanPricingCard } from "./plan-pricing-card";
 
 // Revenue Growth Data (Last 6 months)
 const REVENUE_DATA = [
@@ -282,14 +283,17 @@ export function AdminOverview({ onNavigateTab }: AdminOverviewProps) {
             </ResponsiveContainer>
           </div>
 
-          <div className="space-y-1.5 pt-2 border-t border-slate-100">
+          <div className="space-y-2.5 pt-3 border-t border-slate-100">
             {PLAN_DISTRIBUTION_DATA.map((item) => (
-              <div key={item.name} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-slate-600 font-medium">{item.name}</span>
+              <div key={item.name} className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100 space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="text-slate-800 font-bold">{item.name}</span>
+                  </div>
+                  <span className="font-extrabold text-slate-900 font-mono">{item.value}%</span>
                 </div>
-                <span className="font-bold text-slate-800">{item.value}%</span>
+                <PlanPricingCard tier={item.name} variant="compact" />
               </div>
             ))}
           </div>

@@ -174,6 +174,13 @@ class BuildWorker
                 'setup_step' => \App\Enums\SetupStep::Build,
             ]);
 
+            // Dispatch build success email notification to customer
+            try {
+                app(\App\Services\Billing\EmailNotificationService::class)->sendBuildSuccessEmail($app, $build);
+            } catch (\Throwable $mailErr) {
+                \Illuminate\Support\Facades\Log::warning("Build success email delivery notice: " . $mailErr->getMessage());
+            }
+
             // Clean up temporary workspace
             @unlink("{$buildDir}/android/key.properties");
         } catch (Throwable $e) {
@@ -191,6 +198,13 @@ class BuildWorker
                 'logs_path'   => $logFilename,
                 'finished_at' => now(),
             ]);
+
+            // Dispatch build failed email notification to customer
+            try {
+                app(\App\Services\Billing\EmailNotificationService::class)->sendBuildFailedEmail($app, $build, $e->getMessage());
+            } catch (\Throwable $mailErr) {
+                \Illuminate\Support\Facades\Log::warning("Build failed email delivery notice: " . $mailErr->getMessage());
+            }
         }
     }
 

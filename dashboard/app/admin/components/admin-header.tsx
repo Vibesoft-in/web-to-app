@@ -11,7 +11,6 @@ import {
   Shield,
   Settings,
   LogOut,
-  ExternalLink,
   CheckCircle2,
   RefreshCw,
 } from "lucide-react";
@@ -99,7 +98,7 @@ export function AdminHeader({
                   3 New
                 </span>
               </div>
-              <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+              <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 <div className="py-2.5 flex items-start gap-3">
                   <div className="w-2 h-2 rounded-full bg-rose-500 mt-1.5 flex-shrink-0" />
                   <div>
@@ -190,20 +189,6 @@ export function AdminHeader({
                   <Shield className="w-4 h-4 text-slate-400" />
                   <span>Security</span>
                 </button>
-                <a
-                  href="http://localhost:8000/admin"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full px-4 py-2 text-left text-xs text-slate-700 hover:bg-slate-50 flex items-center justify-between font-medium"
-                >
-                  <span className="flex items-center gap-2">
-                    <ExternalLink className="w-4 h-4 text-slate-400" />
-                    <span>Filament Panel</span>
-                  </span>
-                  <span className="text-[10px] text-indigo-600 font-bold">
-                    :8000 ↗
-                  </span>
-                </a>
               </div>
 
               <div className="border-t border-slate-100 pt-1">

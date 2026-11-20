@@ -353,7 +353,7 @@ export function AdminThemes() {
       {/* ── CREATE THEME MODAL ── */}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 flex flex-col max-h-[82vh] sm:max-h-[84vh] overflow-hidden my-auto animate-in zoom-in-95">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] sm:max-h-[92vh] overflow-hidden my-auto animate-in zoom-in-95">
             <div className="p-3.5 sm:p-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0 bg-white">
               <h3 className="font-bold text-sm text-slate-900">Create New Theme Template</h3>
               <button
@@ -364,7 +364,7 @@ export function AdminThemes() {
               </button>
             </div>
 
-            <div className="p-4 overflow-y-auto space-y-3 text-xs flex-1">
+            <div className="p-4 overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden space-y-3 text-xs flex-1">
               <div>
                 <label className="font-semibold text-slate-700 block mb-1">Theme Name</label>
                 <input
@@ -513,7 +513,7 @@ export function AdminThemes() {
       {/* ── EDIT THEME MODAL ── */}
       {editingTheme && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 flex flex-col max-h-[82vh] sm:max-h-[84vh] overflow-hidden my-auto animate-in zoom-in-95">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] sm:max-h-[92vh] overflow-hidden my-auto animate-in zoom-in-95">
             <div className="p-3.5 sm:p-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0 bg-white">
               <div>
                 <h3 className="font-bold text-sm text-slate-900">Edit Theme</h3>
@@ -529,7 +529,7 @@ export function AdminThemes() {
               </button>
             </div>
 
-            <div className="p-4 overflow-y-auto space-y-3 text-xs flex-1">
+            <div className="p-4 overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden space-y-3 text-xs flex-1">
               <div>
                 <label className="font-semibold text-slate-700 block mb-1">Theme Name</label>
                 <input

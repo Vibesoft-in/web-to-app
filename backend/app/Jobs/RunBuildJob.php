@@ -42,11 +42,20 @@ class RunBuildJob implements ShouldQueue
     {
         $build = Build::withoutTenantScope()->find($this->buildId);
         if ($build && ! $build->status->isTerminal()) {
+            $errorMsg = 'Build worker job execution timed out or crashed: '.$exception->getMessage();
             $build->update([
                 'status'      => BuildStatus::Failed,
-                'error'       => 'Build worker job execution timed out or crashed: '.$exception->getMessage(),
+                'error'       => $errorMsg,
                 'finished_at' => now(),
             ]);
+
+            if ($build->app) {
+                try {
+                    app(\App\Services\Billing\EmailNotificationService::class)->sendBuildFailedEmail($build->app, $build, $errorMsg);
+                } catch (\Throwable $mailErr) {
+                    \Illuminate\Support\Facades\Log::warning("Build failed job email delivery notice: " . $mailErr->getMessage());
+                }
+            }
         }
     }
 }
