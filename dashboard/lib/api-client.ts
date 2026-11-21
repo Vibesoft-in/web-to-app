@@ -55,8 +55,19 @@ export function clearAuthToken(): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem("appifyhub_temp_store_url");
+    localStorage.removeItem("appifyhub_user_avatar");
     if (typeof document !== "undefined") {
-      document.cookie = "auth_token=; path=/; max-age=0; SameSite=Lax";
+      const cookieNames = [
+        "auth_token",
+        "auth_user",
+        "appifyhub_auth_token",
+        "appifyhub_token",
+        "token",
+      ];
+      for (const name of cookieNames) {
+        document.cookie = `${name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+      }
     }
   } catch {}
 }

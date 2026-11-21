@@ -5,7 +5,13 @@ const BACKEND_BASE_URL = process.env.BACKEND_API_URL || "http://127.0.0.1:8000";
 
 export async function POST(req: NextRequest) {
   const cookieStore = cookies();
-  const token = cookieStore.get("auth_token")?.value;
+  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+  const headerToken = authHeader?.replace(/^Bearer\s+/i, "").trim();
+  const token =
+    headerToken ||
+    cookieStore.get("auth_token")?.value ||
+    cookieStore.get("appifyhub_auth_token")?.value ||
+    cookieStore.get("token")?.value;
 
   if (token) {
     try {
@@ -17,24 +23,36 @@ export async function POST(req: NextRequest) {
         },
       });
     } catch {
-      // Ignore backend logout errors, always clear cookie
+      // Ignore backend logout errors, always clear cookies
     }
   }
 
-  cookieStore.delete("auth_token");
-
   const res = NextResponse.json({ message: "Logged out successfully", user: null });
-  res.cookies.set({
-    name: "auth_token",
-    value: "",
-    path: "/",
-    expires: new Date(0),
-    maxAge: 0,
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-  });
-  res.cookies.delete("auth_token");
+
+  const authCookies = [
+    "auth_token",
+    "auth_user",
+    "appifyhub_auth_token",
+    "appifyhub_token",
+    "token",
+  ];
+
+  for (const name of authCookies) {
+    try {
+      cookieStore.delete(name);
+    } catch {}
+
+    res.cookies.set({
+      name,
+      value: "",
+      path: "/",
+      expires: new Date(0),
+      maxAge: 0,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+  }
 
   return res;
 }

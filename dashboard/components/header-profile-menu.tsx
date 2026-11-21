@@ -185,9 +185,8 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
     } catch {
       // Ignored
     } finally {
-      queryClient.setQueryData(["auth", "me"], { user: null });
-      queryClient.removeQueries({ queryKey: ["auth", "me"] });
-      window.location.href = "/";
+      queryClient.clear();
+      window.location.href = "/login?logged_out=true";
     }
   };
 

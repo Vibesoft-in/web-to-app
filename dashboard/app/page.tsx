@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, clearAuthToken } from "@/lib/api-client";
 import { clearUserData } from "@/lib/user-data-store";
 import { DeleteAppModal } from "@/components/dashboard/delete-app-modal";
 import { HeaderProfileMenu } from "@/components/header-profile-menu";
@@ -134,11 +134,13 @@ export default function HomePage() {
   const handleLogout = async () => {
     try {
       clearUserData();
+      clearAuthToken();
       await apiClient("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Ignored
     } finally {
-      queryClient.setQueryData(["auth", "me"], { user: null });
-      queryClient.removeQueries({ queryKey: ["auth", "me"] });
-      window.location.reload();
+      queryClient.clear();
+      window.location.href = "/login?logged_out=true";
     }
   };
 

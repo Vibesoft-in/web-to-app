@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient, clearAuthToken } from "@/lib/api-client";
@@ -31,6 +31,8 @@ export default function DashboardLayout({
   const queryClient = useQueryClient();
   const pathname = usePathname();
 
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   const { data: userData, isLoading: isUserLoading, isError } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
@@ -41,14 +43,16 @@ export default function DashboardLayout({
   });
 
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     try {
       clearUserData();
       clearAuthToken();
       await apiClient("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Ignored
     } finally {
-      queryClient.setQueryData(["auth", "me"], { user: null });
-      queryClient.removeQueries({ queryKey: ["auth", "me"] });
-      window.location.href = "/login";
+      queryClient.clear();
+      window.location.href = "/login?logged_out=true";
     }
   };
 
@@ -56,6 +60,8 @@ export default function DashboardLayout({
   const isAdmin = Boolean(user?.is_super_admin || user?.email === "admin@webintoapp.com");
 
   useEffect(() => {
+    if (isLoggingOut) return;
+
     // Wait until initialization is strictly complete before evaluating authentication
     if (isUserLoading) return;
 
@@ -80,7 +86,7 @@ export default function DashboardLayout({
         router.replace("/admin");
       }
     }
-  }, [isUserLoading, isError, userData, isAdmin, pathname, router]);
+  }, [isLoggingOut, isUserLoading, isError, userData, isAdmin, pathname, router]);
 
   // Synchronize profile photo update across entire dashboard header (Requirement 4)
   useEffect(() => {
@@ -141,12 +147,23 @@ export default function DashboardLayout({
     return <><Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Loading...</div>}>{children}</Suspense></>;
   }
 
-  // Prevent unauthorized layout flicker and premature redirects while auth initializes
-  if (isUserLoading && !user) {
+  if (isLoggingOut) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4">
+        <div className="w-9 h-9 border-3 border-[#78593D] border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p className="text-sm font-semibold text-slate-600">Signing out...</p>
+      </div>
+    );
+  }
+
+  // Prevent unauthorized layout flicker and premature redirects while auth initializes or when unauthenticated
+  if (isUserLoading || !user) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
         <div className="w-9 h-9 border-3 border-[#78593D] border-t-transparent rounded-full animate-spin mb-3"></div>
-        <p className="text-xs font-semibold text-slate-500">Initializing session...</p>
+        <p className="text-xs font-semibold text-slate-500">
+          {isUserLoading ? "Initializing session..." : "Redirecting to sign in..."}
+        </p>
       </div>
     );
   }

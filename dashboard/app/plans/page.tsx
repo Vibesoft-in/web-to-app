@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, clearAuthToken } from "@/lib/api-client";
 import { clearUserData } from "@/lib/user-data-store";
 import { HeaderProfileMenu } from "@/components/header-profile-menu";
 import {
@@ -356,9 +356,10 @@ export default function PlansPage() {
   const handleLogout = async () => {
     try {
       clearUserData();
+      clearAuthToken();
       await apiClient("/api/auth/logout", { method: "POST" });
     } catch { }
-    window.location.href = "/";
+    window.location.href = "/login?logged_out=true";
   };
 
   // 3. Fetch Plans from /api/plans (identically to StepPayment in the builder)

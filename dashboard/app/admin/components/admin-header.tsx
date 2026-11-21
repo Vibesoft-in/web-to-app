@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { clearAuthToken } from "@/lib/api-client";
+import { clearUserData } from "@/lib/user-data-store";
 import {
   Search,
   Bell,
@@ -52,9 +54,11 @@ export function AdminHeader({
 
   const handleLogout = async () => {
     try {
+      clearUserData();
+      clearAuthToken();
       await fetch("/api/auth/logout", { method: "POST" });
     } catch {}
-    window.location.href = "/login";
+    window.location.href = "/login?logged_out=true";
   };
 
   return (

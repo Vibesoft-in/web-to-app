@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { apiClient, setAuthToken } from "@/lib/api-client";
+import { apiClient, setAuthToken, getAuthToken, clearAuthToken } from "@/lib/api-client";
+import { clearUserData } from "@/lib/user-data-store";
 import { AlertCircle, ShieldAlert, X } from "lucide-react";
 
 const loginSchema = z.object({
@@ -76,7 +77,16 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
   useEffect(() => {
     let isMounted = true;
     const checkActiveSession = async () => {
-      if (searchParams.get("switch") === "true") {
+      // If user explicitly navigated after logout or clicked switch account, do NOT auto-redirect
+      if (searchParams.get("switch") === "true" || searchParams.get("logged_out") === "true") {
+        clearAuthToken();
+        clearUserData();
+        if (isMounted) setIsCheckingSession(false);
+        return;
+      }
+
+      const token = getAuthToken();
+      if (!token) {
         if (isMounted) setIsCheckingSession(false);
         return;
       }
@@ -158,6 +168,17 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
       setTimeout(() => setShakeCard(false), 500);
     }
   };
+
+  if (isCheckingSession && searchParams.get("logged_out") !== "true") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white p-4">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-[#78593D] border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-xs font-semibold text-slate-500">Checking session...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-layout relative" style={{ minHeight: "100vh", background: "#FFFFFF" }}>
