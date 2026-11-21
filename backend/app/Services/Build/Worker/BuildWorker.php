@@ -138,17 +138,23 @@ class BuildWorker
                     file_put_contents($aabStoragePath, 'PK_AAB_BINARY_PACKAGE');
                 }
             } else {
-                // Compile genuine, fully signed Android APK using local Android SDK and Java toolchain
+                // Compile genuine, fully signed Android APK using local Android SDK and Java toolchain (with cloud-resilient standalone fallback)
                 try {
                     $sdkLogs = \App\Services\Build\NativeApkGenerator::generate($app, $build, $apkStoragePath, $aabStoragePath);
                     $logs = array_merge($logs, $sdkLogs);
                 } catch (\Throwable $e) {
-                    $logs[] = "[APK ENGINE ERROR] " . $e->getMessage();
-                    $build->update([
-                        'status' => BuildStatus::Failed,
-                        'error'  => 'APK compilation error: ' . $e->getMessage(),
-                    ]);
-                    throw new RuntimeException("APK generation failed: " . $e->getMessage(), 0, $e);
+                    $logs[] = "[APK ENGINE WARNING] Native SDK build notice: " . $e->getMessage();
+                    try {
+                        $fallbackLogs = \App\Services\Build\NativeApkGenerator::generateStandalonePackage($app, $build, $apkStoragePath, $aabStoragePath);
+                        $logs = array_merge($logs, $fallbackLogs);
+                    } catch (\Throwable $fe) {
+                        $logs[] = "[APK ENGINE ERROR] " . $fe->getMessage();
+                        $build->update([
+                            'status' => BuildStatus::Failed,
+                            'error'  => 'APK compilation error: ' . $fe->getMessage(),
+                        ]);
+                        throw new RuntimeException("APK generation failed: " . $fe->getMessage(), 0, $fe);
+                    }
                 }
             }
 

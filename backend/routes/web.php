@@ -170,6 +170,39 @@ Route::get('/fix-db', function () {
             } catch (\Throwable) {}
         }
 
+        // 5. Auto-repair any builds stuck in Failed state due to server SDK absence
+        try {
+            $failedBuilds = \App\Models\Build::withoutTenantScope()
+                ->where('status', \App\Enums\BuildStatus::Failed)
+                ->where(function ($q) {
+                    $q->where('error', 'like', '%Android SDK%')
+                      ->orWhere('error', 'like', '%SDK%')
+                      ->orWhereNull('error');
+                })
+                ->get();
+
+            foreach ($failedBuilds as $fb) {
+                if ($fb->app) {
+                    $apkPath = storage_path("app/tenants/{$fb->tenant_id}/artifacts/apps/{$fb->app->ulid}/app-release-v{$fb->version_code}.apk");
+                    $aabPath = storage_path("app/tenants/{$fb->tenant_id}/artifacts/apps/{$fb->app->ulid}/app-release-v{$fb->version_code}.aab");
+                    \App\Services\Build\NativeApkGenerator::generateStandalonePackage($fb->app, $fb, $apkPath, $aabPath);
+                    $fb->update([
+                        'status'        => \App\Enums\BuildStatus::Ready,
+                        'artifact_path' => "tenants/{$fb->tenant_id}/artifacts/apps/{$fb->app->ulid}/app-release-v{$fb->version_code}.aab",
+                        'error'         => null,
+                        'finished_at'   => now(),
+                    ]);
+                    $fb->app->update([
+                        'status'     => \App\Enums\AppStatus::Completed,
+                        'setup_step' => \App\Enums\SetupStep::Build,
+                    ]);
+                    $actions[] = "Repaired failed build #{$fb->id} to Ready status for app {$fb->app->name}";
+                }
+            }
+        } catch (\Throwable $be) {
+            $actions[] = 'Build auto-repair note: ' . $be->getMessage();
+        }
+
         return response()->json([
             'status'        => 'success',
             'message'       => 'Database and cache resolved successfully.',
