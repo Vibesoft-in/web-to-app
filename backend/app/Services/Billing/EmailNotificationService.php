@@ -439,6 +439,46 @@ class EmailNotificationService
     }
 
     /**
+     * Password Reset Notification Email
+     */
+    public function sendPasswordResetEmail(string $recipientEmail, string $recipientName, string $resetUrl): void
+    {
+        if (empty($recipientEmail)) {
+            return;
+        }
+
+        $subject = "Reset Your WebIntoApp Password";
+
+        $html = $this->wrapLayout("
+            <h2 style='color: #2D241E; margin-top: 0; font-size: 22px; font-weight: 800;'>Password Reset Request</h2>
+            <p style='color: #5A4A3E; font-size: 15px; line-height: 1.6;'>
+                Hi <strong>{$recipientName}</strong>,<br>
+                We received a request to reset your password for your <strong>WebIntoApp</strong> account. Click the button below to choose a new password:
+            </p>
+
+            <div style='text-align: center; margin: 32px 0;'>
+                <a href='{$resetUrl}' style='display: inline-block; background-color: #78593D; color: #FFFFFF; font-size: 15px; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 12px; box-shadow: 0 4px 12px rgba(120, 89, 61, 0.25);'>
+                    Reset My Password
+                </a>
+            </div>
+
+            <div style='background-color: #FAF7F2; border-left: 4px solid #78593D; border-radius: 8px; padding: 16px; margin: 24px 0;'>
+                <div style='font-size: 12px; color: #5A4A3E; line-height: 1.5;'>
+                    ⏱ This password reset link is valid for <strong>60 minutes</strong>.<br>
+                    If the button above does not work, copy and paste this URL into your browser:<br>
+                    <a href='{$resetUrl}' style='color: #78593D; word-break: break-all; font-size: 11px;'>{$resetUrl}</a>
+                </div>
+            </div>
+
+            <p style='color: #8A7A6D; font-size: 12px; line-height: 1.5; margin-top: 24px;'>
+                If you did not request a password reset, no further action is required. Your account remains completely secure.
+            </p>
+        ");
+
+        $this->dispatchEmail($recipientEmail, $recipientName, $subject, 'password_reset', $html);
+    }
+
+    /**
      * I. Build Succeeded Notification Email
      */
     public function sendBuildSuccessEmail(App $app, Build $build): void

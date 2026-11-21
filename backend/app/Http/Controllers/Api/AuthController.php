@@ -321,9 +321,38 @@ class AuthController extends Controller
      */
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
     {
-        $status = Password::sendResetLink(
-            $request->only('email')
-        );
+        $email = strtolower(trim((string) $request->input('email')));
+        $user = User::where('email', $email)->first();
+
+        if ($user) {
+            // Generate standard password reset token in password_reset_tokens table
+            $token = Password::broker()->createToken($user);
+
+            // Determine frontend website origin dynamically
+            $origin = request()->header('origin') ?: request()->header('referer');
+            if ($origin) {
+                $parsed = parse_url($origin);
+                $frontendUrl = ($parsed['scheme'] ?? 'https') . '://' . ($parsed['host'] ?? 'localhost') . (!empty($parsed['port']) ? ':' . $parsed['port'] : '');
+            } else {
+                $frontendUrl = rtrim((string) env('FRONTEND_URL', env('APP_URL', 'http://localhost:3000')), '/');
+                if (str_contains($frontendUrl, '8000')) {
+                    $frontendUrl = str_replace('8000', '3000', $frontendUrl);
+                }
+            }
+
+            $resetUrl = "{$frontendUrl}/reset-password?token={$token}&email=" . urlencode($user->email);
+
+            // Send branded password reset email via EmailNotificationService
+            try {
+                app(\App\Services\Billing\EmailNotificationService::class)->sendPasswordResetEmail(
+                    $user->email,
+                    $user->name ?? 'Valued Customer',
+                    $resetUrl
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to dispatch password reset email: ' . $e->getMessage());
+            }
+        }
 
         // Always return 200 — don't reveal whether email exists (user enumeration)
         return response()->json([

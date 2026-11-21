@@ -96,5 +96,20 @@ class AppServiceProvider extends ServiceProvider
                 @chmod($sqlitePath, 0666);
             }
         }
+
+        // 5. Direct password reset URL to the active frontend website
+        \Illuminate\Auth\Notifications\ResetPassword::createUrlUsing(function ($notifiable, string $token) {
+            $origin = request()->header('origin') ?: request()->header('referer');
+            if ($origin) {
+                $parsed = parse_url($origin);
+                $frontendUrl = ($parsed['scheme'] ?? 'https') . '://' . ($parsed['host'] ?? 'localhost') . (!empty($parsed['port']) ? ':' . $parsed['port'] : '');
+            } else {
+                $frontendUrl = rtrim((string) env('FRONTEND_URL', env('APP_URL', 'http://localhost:3000')), '/');
+                if (str_contains($frontendUrl, '8000')) {
+                    $frontendUrl = str_replace('8000', '3000', $frontendUrl);
+                }
+            }
+            return "{$frontendUrl}/reset-password?token={$token}&email=" . urlencode($notifiable->getEmailForPasswordReset());
+        });
     }
 }

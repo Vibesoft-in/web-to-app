@@ -96,7 +96,7 @@ export default function ForgotPasswordPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-3 px-4 rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 disabled:opacity-70"
+                className="w-full py-3.5 px-4 rounded-xl font-bold text-white bg-[#78593D] hover:bg-[#634830] transition shadow-md shadow-[#78593D]/20 flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer active:scale-98"
               >
                 {isSubmitting ? (
                   <>

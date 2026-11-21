@@ -23,6 +23,22 @@ Route::get('/login', function () {
     return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/login');
 })->name('login');
 
+// Password reset redirection route to Next.js frontend
+Route::get('/reset-password/{token}', function (string $token) {
+    $origin = request()->header('origin') ?: request()->header('referer');
+    if ($origin) {
+        $parsed = parse_url($origin);
+        $frontendUrl = ($parsed['scheme'] ?? 'https') . '://' . ($parsed['host'] ?? 'localhost') . (!empty($parsed['port']) ? ':' . $parsed['port'] : '');
+    } else {
+        $frontendUrl = rtrim((string) env('FRONTEND_URL', env('APP_URL', 'http://localhost:3000')), '/');
+        if (str_contains($frontendUrl, '8000')) {
+            $frontendUrl = str_replace('8000', '3000', $frontendUrl);
+        }
+    }
+    $email = request()->query('email');
+    return redirect("{$frontendUrl}/reset-password?token={$token}&email=" . urlencode((string) $email));
+})->name('password.reset');
+
 // Admin SSO route to authenticate Super Admin
 Route::get('/admin/sso', function (\Illuminate\Http\Request $request) {
     return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/admin');
