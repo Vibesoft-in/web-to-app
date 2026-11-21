@@ -1,8 +1,12 @@
 <?php
 
 $sqliteDb = env('DB_DATABASE');
-// If empty, or if pointing to a non-existent path (e.g. Windows path on Linux), fallback to database_path('database.sqlite')
-if (empty($sqliteDb) || (! file_exists($sqliteDb) && file_exists(database_path('database.sqlite')))) {
+
+// Detect Windows paths on Linux/cPanel (e.g. c:/... or C:\... on Unix systems)
+$isWindowsPathOnUnix = (DIRECTORY_SEPARATOR === '/') && ! empty($sqliteDb) && preg_match('/^[a-zA-Z]:[\\\\\/]/', (string) $sqliteDb);
+
+// If empty, invalid Windows path on Linux, or non-existent file, automatically fallback to database_path('database.sqlite')
+if (empty($sqliteDb) || $isWindowsPathOnUnix || (! file_exists($sqliteDb) && ! str_starts_with((string) $sqliteDb, ':memory:'))) {
     $sqliteDb = database_path('database.sqlite');
 }
 

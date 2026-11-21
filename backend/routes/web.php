@@ -112,6 +112,85 @@ Route::get('/migrate-db', function () {
     }
 });
 
+// Self-healing database repair & cache clearing endpoint for shared hosting/cPanel
+Route::get('/fix-db', function () {
+    try {
+        $actions = [];
+
+        // 1. Delete stale bootstrap cached config if present
+        $cachedConfig = app()->bootstrapPath('cache/config.php');
+        if (file_exists($cachedConfig)) {
+            @unlink($cachedConfig);
+            $actions[] = 'Removed stale bootstrap/cache/config.php';
+        }
+        $cachedRoutes = app()->bootstrapPath('cache/routes-v7.php');
+        if (file_exists($cachedRoutes)) {
+            @unlink($cachedRoutes);
+            $actions[] = 'Removed stale bootstrap/cache/routes-v7.php';
+        }
+
+        // 2. Clear artisan config and application caches
+        try {
+            Artisan::call('config:clear');
+            Artisan::call('cache:clear');
+            $actions[] = 'Executed config:clear and cache:clear';
+        } catch (\Throwable $ce) {
+            $actions[] = 'Cache clear note: ' . $ce->getMessage();
+        }
+
+        // 3. Force SQLite path to canonical database_path
+        $canonicalPath = database_path('database.sqlite');
+        $dir = dirname($canonicalPath);
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+        if (! file_exists($canonicalPath)) {
+            @touch($canonicalPath);
+            $actions[] = 'Created database.sqlite at ' . $canonicalPath;
+        }
+        @chmod($dir, 0777);
+        @chmod($canonicalPath, 0666);
+
+        config([
+            'database.default' => 'sqlite',
+            'database.connections.sqlite.database' => $canonicalPath,
+        ]);
+        \Illuminate\Support\Facades\DB::purge('sqlite');
+
+        // 4. Test connection and check schema
+        \Illuminate\Support\Facades\DB::connection()->getPdo();
+        $hasUsers = \Illuminate\Support\Facades\Schema::hasTable('users');
+        if (! $hasUsers) {
+            Artisan::call('migrate', ['--force' => true]);
+            $actions[] = 'Ran database migrations';
+            try {
+                Artisan::call('db:seed', ['--class' => 'AdminAndPlanSeeder', '--force' => true]);
+                Artisan::call('db:seed', ['--class' => 'ThemeSeeder', '--force' => true]);
+                $actions[] = 'Executed initial seeders';
+            } catch (\Throwable) {}
+        }
+
+        return response()->json([
+            'status'        => 'success',
+            'message'       => 'Database and cache resolved successfully.',
+            'sqlite_path'   => $canonicalPath,
+            'tables_ready'  => \Illuminate\Support\Facades\Schema::hasTable('users'),
+            'actions_taken' => $actions,
+            'health_check'  => url('/api/health'),
+        ]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => $e->getMessage(),
+            'file'    => $e->getFile() . ':' . $e->getLine(),
+        ], 500);
+    }
+});
+
+Route::get('/clear-cache', function () {
+    return redirect('/fix-db');
+});
+
 // Resilient direct storage file server for uploaded app assets
 Route::get('/storage/{path}', function (string $path) {
     $filePath = storage_path('app/public/' . $path);

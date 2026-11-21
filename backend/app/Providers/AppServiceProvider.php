@@ -76,15 +76,17 @@ class AppServiceProvider extends ServiceProvider
         // 4. Ensure SQLite database path exists and resolves correctly across Windows & Linux (Hostinger)
         if (config('database.default') === 'sqlite') {
             $sqlitePath = (string) config('database.connections.sqlite.database');
+            $isWindowsPathOnUnix = (DIRECTORY_SEPARATOR === '/') && preg_match('/^[a-zA-Z]:[\\\\\/]/', $sqlitePath);
             // If the configured path does not exist (e.g. Windows path copied to Linux Hostinger, or relative path)
-            if (empty($sqlitePath) || ! file_exists($sqlitePath)) {
+            if (empty($sqlitePath) || $isWindowsPathOnUnix || ! file_exists($sqlitePath)) {
                 $defaultPath = database_path('database.sqlite');
-                if (file_exists($defaultPath)) {
-                    config(['database.connections.sqlite.database' => $defaultPath]);
-                    $sqlitePath = $defaultPath;
-                }
+                config(['database.connections.sqlite.database' => $defaultPath]);
+                $sqlitePath = $defaultPath;
+                try {
+                    \Illuminate\Support\Facades\DB::purge('sqlite');
+                } catch (\Throwable) {}
             }
-            if (! empty($sqlitePath)) {
+            if (! empty($sqlitePath) && $sqlitePath !== ':memory:') {
                 $sqliteDir = dirname($sqlitePath);
                 if (! is_dir($sqliteDir)) {
                     @mkdir($sqliteDir, 0775, true);

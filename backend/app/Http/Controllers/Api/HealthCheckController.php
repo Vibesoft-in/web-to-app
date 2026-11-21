@@ -29,6 +29,19 @@ class HealthCheckController extends Controller
 
         // 1. Database check
         try {
+            // Guard against stale Windows path on Linux/Hostinger in cached configuration
+            if (config('database.default') === 'sqlite') {
+                $sqlitePath = (string) config('database.connections.sqlite.database');
+                $isWindowsPathOnUnix = (DIRECTORY_SEPARATOR === '/') && preg_match('/^[a-zA-Z]:[\\\\\/]/', $sqlitePath);
+                if (empty($sqlitePath) || $isWindowsPathOnUnix || ! file_exists($sqlitePath)) {
+                    $defaultPath = database_path('database.sqlite');
+                    config(['database.connections.sqlite.database' => $defaultPath]);
+                    try {
+                        DB::purge('sqlite');
+                    } catch (\Throwable) {}
+                }
+            }
+
             DB::connection()->getPdo();
             if (! Schema::hasTable('users')) {
                 $checks['database'] = 'connected_but_tables_missing (open /migrate-db in browser)';
