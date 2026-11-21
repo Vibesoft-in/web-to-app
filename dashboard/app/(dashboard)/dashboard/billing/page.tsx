@@ -49,8 +49,11 @@ export default function BillingPage() {
   const [selectedTxnDetails, setSelectedTxnDetails] = useState<any | null>(null);
 
   const { data: userData } = useQuery({
-    queryKey: ["auth-me"],
+    queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
   const currentUser = userData?.user || userData;
 

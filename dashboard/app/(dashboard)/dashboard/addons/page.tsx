@@ -27,8 +27,11 @@ export default function AddonsPage() {
   const [expandedAddonId, setExpandedAddonId] = useState<string | number | null>(null);
 
   const { data: userData } = useQuery({
-    queryKey: ["auth-me"],
+    queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
 
   const { data: billingData } = useQuery({

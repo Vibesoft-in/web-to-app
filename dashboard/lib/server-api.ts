@@ -26,7 +26,7 @@ export async function serverFetch<T = any>(
     ...(options.headers as Record<string, string>),
   };
 
-  if (token) {
+  if (!headers["Authorization"] && token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 

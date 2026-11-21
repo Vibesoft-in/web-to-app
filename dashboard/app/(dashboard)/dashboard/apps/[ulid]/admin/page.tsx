@@ -430,6 +430,9 @@ export default function AppAdminPortalPage() {
   const { data: userData } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
   const userName = userData?.user?.name || "Store Owner";
 

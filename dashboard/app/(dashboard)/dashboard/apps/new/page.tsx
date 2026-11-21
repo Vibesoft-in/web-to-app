@@ -73,7 +73,10 @@ export default function NewAppPage() {
   const { data: authData, refetch: refetchAuth } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
-    retry: false,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
 
   const isAdmin = Boolean(authData?.user?.is_super_admin || authData?.user?.email === "admin@webintoapp.com");
@@ -477,31 +480,31 @@ export default function NewAppPage() {
         </div>
 
         {selectedPlanInfo && (
-          <div className="mb-6 p-4 rounded-2xl bg-[#F7F5F0] border border-[#78593D]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-[#78593D] text-white flex items-center justify-center flex-shrink-0 shadow-sm">
-                <Rocket className="w-4 h-4" />
+          <div className="mb-6 px-4 py-2.5 rounded-xl bg-[#F7F5F0] border border-[#78593D]/25 flex flex-wrap items-center justify-between gap-3 shadow-xs transition">
+            {/* Left: Icon, Label, Plan Name and Price horizontally aligned & vertically centered */}
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-[#78593D] text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                <Rocket className="w-3.5 h-3.5" />
               </div>
-              <div>
-                <div className="text-xs font-bold text-[#1C1917] flex items-center gap-2">
-                  <span>Selected Package:</span>
-                  <span className="text-[#78593D] font-black">{selectedPlanInfo.name}</span>
-                  {selectedPlanInfo.price && (
-                    <span className="text-[#7E756B] font-medium">({selectedPlanInfo.price} / lifetime)</span>
-                  )}
-                </div>
-                <p className="text-[11px] text-[#7E756B] mt-0.5">
-                  Your new app will be configured with this package. Pre-selected for checkout.
-                </p>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[#1C1917] leading-tight">
+                <span className="font-semibold text-[#7E756B]">Selected Package:</span>
+                <span className="font-bold text-[#78593D]">{selectedPlanInfo.name}</span>
+                {selectedPlanInfo.price && (
+                  <span className="font-medium text-[#7E756B]">
+                    ({selectedPlanInfo.price}{selectedPlanInfo.price.includes("/") ? "" : " / lifetime"})
+                  </span>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-3 self-end sm:self-center">
-              <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/25">
+
+            {/* Right: Badge, Change Plan link and Close button neatly aligned */}
+            <div className="flex items-center gap-2.5 flex-shrink-0 ml-auto sm:ml-0">
+              <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md bg-[#EFEAE2] text-[#78593D] border border-[#78593D]/20 leading-tight">
                 Active Choice
               </span>
               <Link
                 href="/plans"
-                className="text-xs text-[#78593D] hover:underline font-bold"
+                className="text-xs text-[#78593D] hover:text-[#5c432d] hover:underline font-semibold transition"
               >
                 Change Plan
               </Link>
@@ -515,7 +518,7 @@ export default function NewAppPage() {
                   } catch {}
                   setSelectedPlanInfo(null);
                 }}
-                className="text-slate-400 hover:text-slate-700 px-1.5 py-0.5 rounded transition text-xs font-bold leading-none"
+                className="w-5 h-5 rounded-md text-stone-400 hover:text-stone-700 hover:bg-stone-200/60 flex items-center justify-center transition text-sm leading-none"
                 title="Remove selected package"
                 aria-label="Remove selected package"
               >

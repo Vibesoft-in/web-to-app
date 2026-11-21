@@ -24,8 +24,8 @@ export default function PrivacyPolicyPage() {
   const { data: authData } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
-    retry: false,
-    staleTime: 60000,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
   });
 
   const user = authData?.user;

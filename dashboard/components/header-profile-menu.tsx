@@ -16,7 +16,7 @@ import {
   User,
   X,
 } from "lucide-react";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, clearAuthToken } from "@/lib/api-client";
 import { clearUserData } from "@/lib/user-data-store";
 
 interface HeaderProfileMenuProps {
@@ -77,8 +77,9 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
     enabled: propUser === undefined,
-    retry: false,
-    staleTime: 30000,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const user = propUser !== undefined ? propUser : authData?.user;
@@ -176,6 +177,7 @@ export function HeaderProfileMenu({ user: propUser, onLogout, forceMode }: Heade
 
     try {
       clearUserData();
+      clearAuthToken();
       if (typeof window !== "undefined") {
         localStorage.removeItem("appifyhub_user_avatar");
       }

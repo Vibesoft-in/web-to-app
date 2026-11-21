@@ -226,10 +226,13 @@ function UserDashboardContent() {
   const [isLoadingConfig, setIsLoadingConfig] = useState(false);
 
   // 1. Fetch User Profile
-  const { data: userData, isLoading: isUserLoading } = useQuery({
+  const { data: userData, isLoading: isUserLoading, isError } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
-    retry: false,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
 
   const user = userData?.user;
@@ -331,17 +334,15 @@ function UserDashboardContent() {
       apps.some((a: any) => !isAppDraft(a)))
   );
 
-  // Redirect unauthenticated visitors to login, and super admins to /admin
+  // Super admins redirect to /admin if not viewing client mode
   useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.replace("/login");
-    } else if (!isUserLoading && isAdmin) {
+    if (!isUserLoading && isAdmin) {
       const params = new URLSearchParams(window.location.search);
       if (!params.get("view_client") && !params.get("impersonate")) {
         window.location.href = "/admin";
       }
     }
-  }, [isUserLoading, user, isAdmin, router]);
+  }, [isUserLoading, isAdmin]);
 
   // ── ONBOARDING & DASHBOARD GUARD ──
   // 1. Newly registered users with 0 apps are redirected directly to App Creation Step 1 (/dashboard/apps/new)

@@ -10,6 +10,35 @@ export class ApiError extends Error {
   }
 }
 
+const AUTH_TOKEN_KEY = "appifyhub_auth_token";
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(AUTH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthToken(token: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (token) {
+      localStorage.setItem(AUTH_TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+    }
+  } catch {}
+}
+
+export function clearAuthToken(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+  } catch {}
+}
+
 export async function apiClient<T = any>(
   path: string,
   options: RequestInit = {}
@@ -20,7 +49,16 @@ export async function apiClient<T = any>(
     ...(options.headers as Record<string, string>),
   };
 
+  // Attach token from localStorage if not already passed explicitly
+  if (!headers["Authorization"]) {
+    const token = getAuthToken();
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+  }
+
   const res = await fetch(path, {
+    credentials: "include",
     ...options,
     headers,
   });

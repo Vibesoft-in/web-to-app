@@ -329,7 +329,9 @@ export default function PlansPage() {
   const { data: authData } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
-    retry: false,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
   const user = authData?.user;
   const isAdmin = user?.role === "super_admin" || user?.is_super_admin;

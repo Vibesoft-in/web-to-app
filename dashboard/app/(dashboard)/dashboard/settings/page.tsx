@@ -24,6 +24,9 @@ export default function SettingsPage() {
   const { data: userData, isLoading, refetch } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
 
   const user = userData?.user;

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, clearAuthToken } from "@/lib/api-client";
 import { clearUserData } from "@/lib/user-data-store";
 import { HeaderProfileMenu } from "@/components/header-profile-menu";
 import {
@@ -31,15 +31,19 @@ export default function DashboardLayout({
   const queryClient = useQueryClient();
   const pathname = usePathname();
 
-  const { data: userData, isLoading: isUserLoading } = useQuery({
+  const { data: userData, isLoading: isUserLoading, isError } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => apiClient("/api/auth/me"),
-    retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes fresh
+    gcTime: 10 * 60 * 1000,
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
 
   const handleLogout = async () => {
     try {
       clearUserData();
+      clearAuthToken();
       await apiClient("/api/auth/logout", { method: "POST" });
     } finally {
       queryClient.setQueryData(["auth", "me"], { user: null });
@@ -52,15 +56,31 @@ export default function DashboardLayout({
   const isAdmin = Boolean(user?.is_super_admin || user?.email === "admin@webintoapp.com");
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.replace("/login");
-    } else if (!isUserLoading && isAdmin && pathname === "/dashboard") {
+    // Wait until initialization is strictly complete before evaluating authentication
+    if (isUserLoading) return;
+
+    // Do NOT treat transient network or server errors as session expiration
+    if (isError) return;
+
+    // Only redirect if session is genuinely expired or unauthenticated
+    if (userData && userData.user === null) {
+      const currentUrl = typeof window !== "undefined"
+        ? window.location.pathname + window.location.search
+        : pathname;
+
+      if (!currentUrl.startsWith("/login")) {
+        router.replace(`/login?redirect=${encodeURIComponent(currentUrl)}&session_expired=true`);
+      }
+      return;
+    }
+
+    if (isAdmin && pathname === "/dashboard") {
       const urlParams = new URLSearchParams(window.location.search);
       if (!urlParams.get("view_client") && !urlParams.get("impersonate")) {
         router.replace("/admin");
       }
     }
-  }, [isUserLoading, user, isAdmin, pathname, router]);
+  }, [isUserLoading, isError, userData, isAdmin, pathname, router]);
 
   // Synchronize profile photo update across entire dashboard header (Requirement 4)
   useEffect(() => {
@@ -119,6 +139,16 @@ export default function DashboardLayout({
   const isAppAdminPortal = /^\/dashboard\/apps\/[^/]+\/admin/.test(pathname);
   if (isAppAdminPortal) {
     return <><Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Loading...</div>}>{children}</Suspense></>;
+  }
+
+  // Prevent unauthorized layout flicker and premature redirects while auth initializes
+  if (isUserLoading && !user) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <div className="w-9 h-9 border-3 border-[#78593D] border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p className="text-xs font-semibold text-slate-500">Initializing session...</p>
+      </div>
+    );
   }
 
   return (

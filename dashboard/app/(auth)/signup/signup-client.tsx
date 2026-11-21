@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, ShieldCheck, KeyRound, RefreshCw, X, Loader2, CheckCircle2, Lock } from "lucide-react";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, setAuthToken } from "@/lib/api-client";
 import { getUserData, saveUserData } from "@/lib/user-data-store";
 import { normalizeWebsiteUrl } from "@/lib/url-utils";
 
@@ -427,6 +427,10 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
         method: "POST",
         body: JSON.stringify(payload),
       });
+
+      if (signupRes?.token) {
+        setAuthToken(signupRes.token);
+      }
 
       // Synchronize centralized store for all subsequent pages
       saveUserData({

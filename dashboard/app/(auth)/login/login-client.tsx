@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, setAuthToken } from "@/lib/api-client";
 import { AlertCircle, ShieldAlert, X } from "lucide-react";
 
 const loginSchema = z.object({
@@ -53,7 +53,8 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
       return;
     }
 
-    if (explicitRedirect && !explicitRedirect.includes("/dashboard/apps/new")) {
+    // Always restore the exact page and step the user was previously accessing
+    if (explicitRedirect && !explicitRedirect.startsWith("/login") && !explicitRedirect.startsWith("/signup")) {
       router.push(explicitRedirect);
       return;
     }
@@ -69,7 +70,7 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
       return;
     }
 
-    router.push(explicitRedirect || "/dashboard/apps/new");
+    router.push("/dashboard/apps/new");
   };
 
   useEffect(() => {
@@ -117,6 +118,10 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
         method: "POST",
         body: JSON.stringify(data),
       });
+
+      if (res?.token) {
+        setAuthToken(res.token);
+      }
 
       if (res?.user) {
         navigateByAccountState(res.user, queryRedirect, res.token);
@@ -268,6 +273,12 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
 
         {/* Flash Notifications */}
         <div className="auth-flash-wrapper">
+          {searchParams.get("session_expired") === "true" && (
+            <div className="mb-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2.5">
+              <ShieldAlert className="w-4 h-4 text-amber-700 flex-shrink-0" />
+              <span>Your session has expired. Please sign in to resume your previous setup without losing progress.</span>
+            </div>
+          )}
           {errorMessage && (
             <div className="global-alert alert-error" style={{ borderRadius: "8px", margin: "1rem 0" }}>
               {errorMessage}
