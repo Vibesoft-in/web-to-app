@@ -131,18 +131,41 @@ class SetupStateController extends Controller
 
         $allowedSteps = array_values(array_unique($allowedSteps));
 
+        $hasReadyBuild = $app->builds()->where('status', \App\Enums\BuildStatus::Ready)->exists();
+
         foreach ($allSteps as $step) {
+            if (! in_array($step->value, $allowedSteps, true)) {
+                continue;
+            }
+
             if ($step === SetupStep::Build) {
                 // Step 10 (Build) is ONLY marked completed when there is an actual ready build! (Requirement 7)
-                if ($app->builds()->where('status', \App\Enums\BuildStatus::Ready)->exists()) {
+                if ($hasReadyBuild) {
                     $completedSteps[] = SetupStep::Build->value;
                 }
-            } elseif ($step->order() < $currentStep->order() && in_array($step->value, $allowedSteps, true)) {
-                // Prior steps in sequence that were actually passed and unlocked
-                $completedSteps[] = $step->value;
-            } elseif ($hasPaid && $step->order() < SetupStep::Build->order()) {
-                // If this app already paid, all steps prior to Build were completed
-                $completedSteps[] = $step->value;
+            } elseif ($step->order() < $currentStep->order()) {
+                // Preceding step in sequence: must only be marked completed if strictly prior to current progress
+                if ($step === SetupStep::Platform) {
+                    if (! empty($app->name) && ! empty($app->platform)) {
+                        $completedSteps[] = $step->value;
+                    }
+                } elseif ($step === SetupStep::Connect) {
+                    if ($isConnectionVerified) {
+                        $completedSteps[] = $step->value;
+                    }
+                } elseif ($step === SetupStep::Analysis) {
+                    if ($isConnectionVerified) {
+                        $completedSteps[] = $step->value;
+                    }
+                } elseif ($step === SetupStep::DataCollection) {
+                    if ($hasDataConsent) {
+                        $completedSteps[] = $step->value;
+                    }
+                } elseif ($hasPaid) {
+                    $completedSteps[] = $step->value;
+                } else {
+                    $completedSteps[] = $step->value;
+                }
             }
         }
 

@@ -107,9 +107,10 @@ class AppController extends Controller
 
         if ($existingDraft) {
             $existingDraft->update([
-                'name'     => $data['name'],
-                'platform' => $data['platform'],
-                'status'   => 'draft',
+                'name'       => $data['name'],
+                'platform'   => $data['platform'],
+                'status'     => 'draft',
+                'setup_step' => 'connect',
             ]);
             $rawUrl = $data['website_url'] ?? $data['site_url'] ?? $data['url'] ?? null;
             if (!empty($rawUrl)) {

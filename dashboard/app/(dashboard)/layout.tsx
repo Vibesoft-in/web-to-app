@@ -47,12 +47,18 @@ export default function DashboardLayout({
     try {
       clearUserData();
       clearAuthToken();
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+        } catch {}
+      }
       await apiClient("/api/auth/logout", { method: "POST" });
     } catch {
       // Ignored
     } finally {
       queryClient.clear();
-      window.location.href = "/login?logged_out=true";
+      window.location.replace("/login?logged_out=true");
     }
   };
 

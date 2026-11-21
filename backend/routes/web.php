@@ -177,6 +177,8 @@ Route::get('/fix-db', function () {
                 ->where(function ($q) {
                     $q->where('error', 'like', '%Android SDK%')
                       ->orWhere('error', 'like', '%SDK%')
+                      ->orWhere('error', 'like', '%generation failed%')
+                      ->orWhere('error', 'like', '%compilation%')
                       ->orWhereNull('error');
                 })
                 ->get();

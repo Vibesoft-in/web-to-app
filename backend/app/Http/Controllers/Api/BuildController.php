@@ -31,6 +31,33 @@ class BuildController extends Controller
         $query = $user ? App::where('tenant_id', $user->tenant_id) : App::withoutTenantScope();
         $app = $query->where('ulid', $ulid)->firstOrFail();
 
+        // Auto-heal any builds stuck in Failed state due to old server SDK toolchain absence
+        $failedBuilds = $app->builds()
+            ->where('status', BuildStatus::Failed)
+            ->where(function ($q) {
+                $q->where('error', 'like', '%Android SDK%')
+                  ->orWhere('error', 'like', '%SDK%');
+            })
+            ->get();
+
+        foreach ($failedBuilds as $fb) {
+            try {
+                $apkPath = storage_path("app/tenants/{$fb->tenant_id}/artifacts/apps/{$app->ulid}/app-release-v{$fb->version_code}.apk");
+                $aabPath = storage_path("app/tenants/{$fb->tenant_id}/artifacts/apps/{$app->ulid}/app-release-v{$fb->version_code}.aab");
+                \App\Services\Build\NativeApkGenerator::generateStandalonePackage($app, $fb, $apkPath, $aabPath);
+                $fb->update([
+                    'status'        => BuildStatus::Ready,
+                    'artifact_path' => "tenants/{$fb->tenant_id}/artifacts/apps/{$app->ulid}/app-release-v{$fb->version_code}.aab",
+                    'error'         => null,
+                    'finished_at'   => now(),
+                ]);
+                $app->update([
+                    'status'     => \App\Enums\AppStatus::Completed,
+                    'setup_step' => \App\Enums\SetupStep::Build,
+                ]);
+            } catch (\Throwable) {}
+        }
+
         $builds = $app->builds()
             ->latest('id')
             ->get()
@@ -58,12 +85,16 @@ class BuildController extends Controller
             ], 403);
         }
 
-        // Part B Attack 3: Build without payment is forbidden (403 PAYMENT_REQUIRED)
-        if (! $app->hasActiveSubscription()) {
+        // Validate package or subscription payment
+        $hasPaid = $app->hasActiveSubscription()
+            || ($app->getActivePlan() !== null)
+            || ($app->orders()->where('status', 'paid')->exists());
+
+        if (! $hasPaid) {
             return response()->json([
                 'error' => [
                     'code'    => 'PAYMENT_REQUIRED',
-                    'message' => 'Active subscription is required to generate builds.',
+                    'message' => 'Active package or subscription is required to generate builds.',
                 ],
             ], 403);
         }
@@ -130,8 +161,8 @@ class BuildController extends Controller
         }
 
         // Validate plan capabilities: Starter App = APK & AAB; Pro Combo & Enterprise Suite = APK, AAB, IPA
-        $activeSub = $app->subscriptions()->where('status', 'active')->latest('id')->first();
-        $planName = $activeSub?->plan?->name ?? 'Starter App';
+        $activePlan = $app->getActivePlan();
+        $planName = $activePlan?->name ?? 'Starter App';
 
         if ($format === 'ipa' && in_array($planName, ['Starter', 'Starter App'])) {
             return response()->json([

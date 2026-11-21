@@ -1,6 +1,10 @@
 import { cookies, headers } from "next/headers";
 
-const BACKEND_BASE_URL = process.env.BACKEND_API_URL || "http://127.0.0.1:8000";
+const BACKEND_BASE_URL =
+  process.env.BACKEND_API_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://api.livaan.in"
+    : "http://127.0.0.1:8000");
 
 export interface ApiResponse<T = any> {
   data?: T;
@@ -35,6 +39,13 @@ export async function serverFetch<T = any>(
       headersMap["Authorization"] = incomingAuth.startsWith("Bearer ")
         ? incomingAuth
         : `Bearer ${incomingAuth}`;
+      const raw = incomingAuth.replace(/^Bearer\s+/i, "").trim();
+      if (raw) {
+        headersMap["X-Auth-Token"] = raw;
+        headersMap["X-Token"] = raw;
+        headersMap["X-Appify-Token"] = raw;
+        headersMap["Cookie"] = `auth_token=${raw}`;
+      }
     } else {
       try {
         const cookieStore = cookies();
@@ -46,8 +57,21 @@ export async function serverFetch<T = any>(
 
         if (token) {
           headersMap["Authorization"] = `Bearer ${token}`;
+          headersMap["X-Auth-Token"] = token;
+          headersMap["X-Token"] = token;
+          headersMap["X-Appify-Token"] = token;
+          headersMap["Cookie"] = `auth_token=${token}`;
         }
       } catch {}
+    }
+  } else {
+    const authVal = headersMap["Authorization"] || headersMap["authorization"] || "";
+    const raw = authVal.replace(/^Bearer\s+/i, "").trim();
+    if (raw) {
+      headersMap["X-Auth-Token"] = raw;
+      headersMap["X-Token"] = raw;
+      headersMap["X-Appify-Token"] = raw;
+      headersMap["Cookie"] = `auth_token=${raw}`;
     }
   }
 

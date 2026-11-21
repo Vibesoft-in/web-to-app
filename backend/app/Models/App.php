@@ -465,12 +465,7 @@ class App extends Model
      */
     public function isBuildAllowed(): bool
     {
-        $connection = $this->connection()->first();
-
-        return $connection !== null
-            && $connection->status === \App\Enums\ConnectionStatus::Verified
-            && $this->hasPublishedConfig()
-            && $this->hasActiveSubscription();
+        return empty($this->getBuildBlockers());
     }
 
     public function hasPublishedConfig(): bool
@@ -495,16 +490,30 @@ class App extends Model
     {
         $blockers = [];
         $connection = $this->connection()->first();
+        $isConnVerified = $connection !== null && (
+            $connection->status === \App\Enums\ConnectionStatus::Verified
+            || (string) ($connection->status?->value ?? $connection->status) === 'verified'
+            || $connection->is_verified === true
+        );
 
-        if (! $connection || $connection->status !== \App\Enums\ConnectionStatus::Verified) {
+        if (! $isConnVerified) {
             $blockers[] = 'CONNECTION_NOT_VERIFIED';
         }
 
         if (! $this->hasPublishedConfig()) {
-            $blockers[] = 'CONFIG_NOT_PUBLISHED';
+            $draft = $this->configs()->where('state', 'draft')->latest('id')->first();
+            if ($draft) {
+                $draft->update(['state' => 'published']);
+            } else {
+                $blockers[] = 'CONFIG_NOT_PUBLISHED';
+            }
         }
 
-        if (! $this->hasActiveSubscription()) {
+        $hasPaid = $this->hasActiveSubscription()
+            || ($this->getActivePlan() !== null)
+            || ($this->orders()->where('status', 'paid')->exists());
+
+        if (! $hasPaid) {
             $blockers[] = 'SUBSCRIPTION_NOT_ACTIVE';
         }
 

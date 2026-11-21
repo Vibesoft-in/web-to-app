@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-const BACKEND_BASE_URL = process.env.BACKEND_API_URL || "http://127.0.0.1:8000";
+const BACKEND_BASE_URL =
+  process.env.BACKEND_API_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://api.livaan.in"
+    : "http://127.0.0.1:8000");
 
 export async function POST(req: NextRequest) {
   const cookieStore = cookies();
@@ -15,13 +19,20 @@ export async function POST(req: NextRequest) {
 
   if (token) {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
       await fetch(`${BACKEND_BASE_URL}/api/auth/logout`, {
         method: "POST",
         headers: {
           "Accept": "application/json",
           "Authorization": `Bearer ${token}`,
+          "X-Auth-Token": token,
+          "X-Token": token,
+          "X-Appify-Token": token,
         },
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
     } catch {
       // Ignore backend logout errors, always clear cookies
     }

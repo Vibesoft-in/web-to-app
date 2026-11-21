@@ -19,14 +19,13 @@ export async function GET(req: NextRequest) {
     } catch {}
   }
 
-  // If no token exists, the user is definitively unauthenticated
-  if (!token) {
+  // If no token exists or if it is a stale demo token, the user is definitively unauthenticated
+  if (!token || token.startsWith("demo_token_")) {
     const res = NextResponse.json({ user: null });
-    if (cachedUserStr) {
-      try {
-        res.cookies.delete("auth_user");
-      } catch {}
-    }
+    try {
+      res.cookies.delete("auth_token");
+      res.cookies.delete("auth_user");
+    } catch {}
     return res;
   }
 

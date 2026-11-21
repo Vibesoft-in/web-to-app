@@ -264,12 +264,12 @@ export default function WizardStepPage() {
             const isAllowed = Boolean(
               state?.allowed_steps ? state.allowed_steps.includes(s.key) : index <= furthestStepIndex
             );
-            // Completed steps show green checkmark
+            // Completed steps show green checkmark: must be validated in completed_steps, not current, and never prematurely shown on future uncompleted steps
             const isCompleted = Boolean(
               state?.completed_steps
                 ? state.completed_steps.includes(s.key)
                 : index < furthestStepIndex
-            ) && !isCurrent;
+            ) && !isCurrent && (index <= currentStepIndex || Boolean(state?.subscription?.has_active && state?.completed_steps?.includes(s.key)));
 
             return (
               <div key={s.key} className="flex items-center flex-1 last:flex-none">
@@ -332,7 +332,7 @@ export default function WizardStepPage() {
                 state?.completed_steps
                   ? state.completed_steps.includes(s.key)
                   : index < furthestStepIndex
-              ) && !isCurrent;
+              ) && !isCurrent && (index <= currentStepIndex || Boolean(state?.subscription?.has_active && state?.completed_steps?.includes(s.key)));
 
               return (
                 <button

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-const BACKEND_BASE_URL = process.env.BACKEND_API_URL || "http://127.0.0.1:8000";
+const BACKEND_BASE_URL =
+  process.env.BACKEND_API_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://api.livaan.in"
+    : "http://127.0.0.1:8000");
 
 export async function POST(
   req: NextRequest,

@@ -16,12 +16,21 @@ export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
-    if (token) return token;
+    if (token) {
+      if (token.startsWith("demo_token_")) {
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        return null;
+      }
+      return token;
+    }
     // Cookie fallback if localStorage was cleared
     if (typeof document !== "undefined" && document.cookie) {
       const match = document.cookie.match(/(?:^|;\s*)(?:auth_token|token|appifyhub_auth_token)=([^;]+)/);
       if (match && match[1]) {
         const cookieToken = decodeURIComponent(match[1]);
+        if (cookieToken.startsWith("demo_token_")) {
+          return null;
+        }
         try {
           localStorage.setItem(AUTH_TOKEN_KEY, cookieToken);
         } catch {}
@@ -37,7 +46,7 @@ export function getAuthToken(): string | null {
 export function setAuthToken(token: string): void {
   if (typeof window === "undefined") return;
   try {
-    if (token) {
+    if (token && !token.startsWith("demo_token_")) {
       localStorage.setItem(AUTH_TOKEN_KEY, token);
       if (typeof document !== "undefined") {
         document.cookie = `auth_token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
@@ -57,6 +66,14 @@ export function clearAuthToken(): void {
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem("appifyhub_temp_store_url");
     localStorage.removeItem("appifyhub_user_avatar");
+    localStorage.removeItem("appifyhub_user_store_data");
+    localStorage.removeItem("appifyhub_selected_theme");
+    localStorage.removeItem("appifyhub_selected_plan_info");
+    localStorage.removeItem("appifyhub_selected_plan");
+    localStorage.removeItem("appifyhub_selected_plan_id");
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.clear();
+    }
     if (typeof document !== "undefined") {
       const cookieNames = [
         "auth_token",
@@ -88,6 +105,9 @@ export async function apiClient<T = any>(
     if (!headers["Authorization"]) {
       headers["Authorization"] = `Bearer ${token}`;
     }
+    headers["X-Auth-Token"] = token;
+    headers["X-Token"] = token;
+    headers["X-Appify-Token"] = token;
     if (typeof document !== "undefined" && !document.cookie.includes("auth_token=")) {
       try {
         document.cookie = `auth_token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
