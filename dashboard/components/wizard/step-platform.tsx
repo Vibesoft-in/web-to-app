@@ -75,6 +75,10 @@ export function StepPlatform({ ulid, app, onNext }: StepPlatformProps) {
     return "WooCommerce";
   };
 
+  const isAppNameValid = appName.trim().length >= 2;
+  const isUrlValid = Boolean(websiteUrl.trim() && websiteUrl.trim().includes(".") && websiteUrl.trim().length >= 4);
+  const isPlatformStepValid = isAppNameValid && isUrlValid && Boolean(platform);
+
   return (
     <div className="space-y-6">
       <div>
@@ -233,8 +237,12 @@ export function StepPlatform({ ulid, app, onNext }: StepPlatformProps) {
         <button
           type="button"
           onClick={handleSave}
-          disabled={isSubmitting}
-          className="w-full sm:w-auto justify-center px-7 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-indigo-600/20 flex items-center gap-2 disabled:opacity-70 cursor-pointer active:scale-98"
+          disabled={!isPlatformStepValid || isSubmitting}
+          className={`w-full sm:w-auto justify-center px-7 py-3 rounded-xl text-sm font-bold transition shadow-md flex items-center gap-2 ${
+            !isPlatformStepValid || isSubmitting
+              ? "bg-slate-300 text-slate-500 cursor-not-allowed opacity-50 shadow-none pointer-events-none"
+              : "bg-[#78593D] hover:bg-[#634830] text-white shadow-[#78593D]/20 cursor-pointer active:scale-98"
+          }`}
         >
           {isSubmitting ? (
             <>
@@ -249,6 +257,11 @@ export function StepPlatform({ ulid, app, onNext }: StepPlatformProps) {
           )}
         </button>
       </div>
+      {!isPlatformStepValid && (
+        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200/70 p-2.5 rounded-xl text-center">
+          🔒 <strong>Step Incomplete:</strong> Please provide a valid Application Name (min 2 characters) and live Website URL to proceed.
+        </p>
+      )}
     </div>
   );
 }

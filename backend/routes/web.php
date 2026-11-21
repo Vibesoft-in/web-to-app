@@ -43,7 +43,7 @@ Route::get('/migrate-db', function () {
         // If SQLite, ensure database file and directory exist with write permissions
         if ($dbConnection === 'sqlite') {
             $path = config('database.connections.sqlite.database');
-            if (empty($path) || $path === ':memory:') {
+            if (empty($path) || $path === ':memory:' || ! file_exists($path)) {
                 $path = database_path('database.sqlite');
                 config(['database.connections.sqlite.database' => $path]);
             }

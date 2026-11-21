@@ -220,7 +220,18 @@ export function StepBranding({ ulid, app, setupState, onNext }: StepBrandingProp
     }
   };
 
+  const isBrandingValid = appName.trim().length >= 2 && Boolean(logoUrl.trim());
+
   const handleSave = async () => {
+    if (!appName.trim() || appName.trim().length < 2) {
+      setErrorMsg("Application name must be at least 2 characters.");
+      return;
+    }
+    if (!logoUrl.trim()) {
+      setErrorMsg("Please select or upload an application logo.");
+      return;
+    }
+
     setIsSaving(true);
     setErrorMsg(null);
 
@@ -604,8 +615,12 @@ export function StepBranding({ ulid, app, setupState, onNext }: StepBrandingProp
         <button
           type="button"
           onClick={handleSave}
-          disabled={isSaving}
-          className="w-full sm:w-auto justify-center px-7 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-70 cursor-pointer active:scale-98"
+          disabled={!isBrandingValid || isSaving}
+          className={`w-full sm:w-auto justify-center px-7 py-3 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md ${
+            !isBrandingValid || isSaving
+              ? "bg-slate-300 text-slate-500 cursor-not-allowed opacity-50 shadow-none pointer-events-none"
+              : "bg-[#78593D] hover:bg-[#634830] text-white shadow-[#78593D]/20 cursor-pointer active:scale-98"
+          }`}
         >
           {isSaving ? (
             <>

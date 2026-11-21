@@ -1525,7 +1525,7 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
           disabled={!hasActiveSubscription && !hasPaymentConsented}
           className={`w-full sm:w-auto justify-center px-7 py-3 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md ${
             hasActiveSubscription || hasPaymentConsented
-              ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20 cursor-pointer active:scale-98"
+              ? "bg-[#78593D] hover:bg-[#634830] text-white shadow-[#78593D]/20 cursor-pointer active:scale-98"
               : "bg-slate-300 text-slate-500 cursor-not-allowed shadow-none"
           }`}
         >

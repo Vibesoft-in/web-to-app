@@ -56,24 +56,41 @@ class SetupStateController extends Controller
             ]);
         }
 
+        // Strict Step Validation: If data collection consent missing and past data collection, roll back
+        if ($app->setup_step->order() > SetupStep::DataCollection->order() && ! $hasDataConsent) {
+            $app->update([
+                'setup_step' => SetupStep::DataCollection,
+                'status'     => \App\Enums\AppStatus::Draft,
+            ]);
+        }
+
         $currentStep = $app->setup_step;
         $allSteps = SetupStep::cases();
         $completedSteps = [];
         
-        // Strict Sequential Allowed Steps calculation (Requirement 3)
-        $allowedSteps = [SetupStep::Platform->value, SetupStep::Connect->value];
+        // Strict Sequential Allowed Steps calculation (Requirement 1 & 2)
+        // 1. Platform is always allowed.
+        $allowedSteps = [SetupStep::Platform->value];
 
+        // 2. Connect is unlocked once app has a name/platform
+        if (!empty($app->name)) {
+            $allowedSteps[] = SetupStep::Connect->value;
+        }
+
+        // 3. Analysis & Data Collection are unlocked ONLY if store connection is verified
         if ($isConnectionVerified) {
             $allowedSteps[] = SetupStep::Analysis->value;
             $allowedSteps[] = SetupStep::DataCollection->value;
 
-            if ($hasDataConsent || $currentStep->order() >= SetupStep::Theme->order()) {
+            // 4. Subsequent steps are unlocked ONLY if data collection consent has been explicitly granted
+            if ($hasDataConsent) {
                 $allowedSteps[] = SetupStep::Theme->value;
                 $allowedSteps[] = SetupStep::Branding->value;
                 $allowedSteps[] = SetupStep::Preview->value;
                 $allowedSteps[] = SetupStep::Integrations->value;
                 $allowedSteps[] = SetupStep::Payment->value;
 
+                // 5. Build unlocked ONLY if active plan exists or app completed
                 if ($hasActive || $currentStep === SetupStep::Build || $app->isCompleted()) {
                     $allowedSteps[] = SetupStep::Build->value;
                 }
@@ -116,6 +133,11 @@ class SetupStateController extends Controller
             }
         }
 
+        $draft = $app->configs()->where('state', 'draft')->latest()->first();
+        $themeKey = $draft?->config['selected_theme_key'] ?? $draft?->config['theme']['key'] ?? $app->assigned_theme_key ?? 'theme_a';
+        $themeModel = \App\Models\Theme::where('key', $themeKey)->first();
+        $price = (int) ($themeModel?->price ?? 0);
+
         return response()->json([
             'app' => [
                 'ulid'             => $app->ulid,
@@ -129,6 +151,31 @@ class SetupStateController extends Controller
                 'has_admin_panel'  => $hasAdminPanel,
                 'can_download_ipa' => $canDownloadIpa,
             ],
+            'shared_data' => [
+                'app_name'         => $app->name,
+                'store_name'       => $app->name,
+                'website_url'      => $siteUrl,
+                'site_url'         => $siteUrl,
+                'platform'         => $app->platform?->value ?? (string) $app->platform,
+                'package_name'     => $app->package_name,
+                'is_verified'      => $isConnectionVerified,
+                'logo_url'         => $draft?->config['app']['logo_url'] ?? $cachedWebsiteData['brand']['logo_url'] ?? null,
+                'colors'           => $draft?->config['theme']['colors'] ?? $cachedWebsiteData['brand']['colors'] ?? [
+                    'primary'    => '#E91E63',
+                    'secondary'  => '#222222',
+                    'accent'     => '#F59E0B',
+                    'background' => '#FFFFFF',
+                ],
+                'fonts'            => [
+                    'heading' => $draft?->config['theme']['font'] ?? $cachedWebsiteData['brand']['font_heading'] ?? 'Poppins',
+                    'body'    => $cachedWebsiteData['brand']['font_body'] ?? 'Inter',
+                ],
+                'selected_theme'   => $themeKey,
+                'has_data_consent' => $hasDataConsent,
+                'has_active_plan'  => $hasActive,
+                'plan_name'        => $planName,
+            ],
+            'draft_config'    => $draft?->config ?? [],
             'website_data'    => $cachedWebsiteData,
             'current_step'    => $currentStep->value,
             'completed_steps' => array_values(array_unique($completedSteps)),
@@ -142,21 +189,14 @@ class SetupStateController extends Controller
                 'data_consent'        => $hasDataConsent,
                 'payment_consent'     => $hasPaymentConsent,
             ],
-            'selected_theme'  => (function () use ($app) {
-                $draft = $app->configs()->where('state', 'draft')->latest()->first();
-                $themeKey = $draft?->config['selected_theme_key'] ?? $draft?->config['theme']['key'] ?? $app->assigned_theme_key ?? 'theme_a';
-                $themeModel = \App\Models\Theme::where('key', $themeKey)->first();
-                $price = (int) ($themeModel?->price ?? 0);
-
-                return [
-                    'key'             => $themeKey,
-                    'name'            => $themeModel?->name ?? 'Modern Retail',
-                    'price'           => $price,
-                    'price_rupees'    => (int) round($price / 100),
-                    'price_formatted' => $price > 0 ? ('₹' . number_format(round($price / 100))) : 'Free',
-                    'is_free_theme'   => (bool) ($themeModel?->is_free_theme ?? ($themeKey === 'theme_a')),
-                ];
-            })(),
+            'selected_theme'  => [
+                'key'             => $themeKey,
+                'name'            => $themeModel?->name ?? 'Modern Retail',
+                'price'           => $price,
+                'price_rupees'    => (int) round($price / 100),
+                'price_formatted' => $price > 0 ? ('₹' . number_format(round($price / 100))) : 'Free',
+                'is_free_theme'   => (bool) ($themeModel?->is_free_theme ?? ($themeKey === 'theme_a')),
+            ],
             'subscription'    => [
                 'has_active'         => $hasActive,
                 'plan_id'            => $activePlan?->id ?? null,
@@ -203,13 +243,20 @@ class SetupStateController extends Controller
 
             // Update or create Connection URL if provided
             $rawUrl = $validated['website_url'] ?? $validated['site_url'] ?? null;
+            $isUrlChanged = false;
             if (!empty($rawUrl)) {
                 $cleanUrl = trim((string) $rawUrl);
                 if (!str_starts_with($cleanUrl, 'http://') && !str_starts_with($cleanUrl, 'https://')) {
                     $cleanUrl = 'https://' . $cleanUrl;
                 }
                 if ($app->connection) {
-                    $app->connection->update(['site_url' => $cleanUrl]);
+                    if ($app->connection->site_url !== $cleanUrl) {
+                        $isUrlChanged = true;
+                        $app->connection->update([
+                            'site_url' => $cleanUrl,
+                            'status'   => \App\Enums\ConnectionStatus::NotStarted, // Invalidate previous verification!
+                        ]);
+                    }
                 } else {
                     \App\Models\Connection::create([
                         'tenant_id'   => $app->tenant_id,
@@ -220,11 +267,12 @@ class SetupStateController extends Controller
                         'status'      => \App\Enums\ConnectionStatus::NotStarted,
                     ]);
                 }
+                $app->update(['website_url' => $cleanUrl]);
             }
 
-            if ($isPlatformChanged) {
-                // Invalidate connection credentials and subsequent step artifacts
-                if ($app->connection) {
+            if ($isPlatformChanged || $isUrlChanged) {
+                // Invalidate connection credentials and subsequent step artifacts if platform changed
+                if ($app->connection && $isPlatformChanged) {
                     $app->connection->update(['credentials' => [], 'status' => \App\Enums\ConnectionStatus::NotStarted]);
                 }
 
@@ -244,7 +292,10 @@ class SetupStateController extends Controller
                     'target'     => "app:{$app->ulid}",
                     'ip'         => $request->ip(),
                     'user_agent' => $request->userAgent(),
-                    'meta'       => ['new_platform' => $newPlatform->value],
+                    'meta'       => [
+                        'new_platform' => $newPlatform->value,
+                        'url_changed'  => $isUrlChanged,
+                    ],
                 ]);
             } elseif ($app->setup_step === SetupStep::Platform) {
                 $app->update([
@@ -357,20 +408,19 @@ class SetupStateController extends Controller
             }
         }
 
-        // 2. Advancing past Data Collection: ensure consent
+        // 2. Advancing past Data Collection: strictly require explicit user consent
         if ($target->order() > SetupStep::DataCollection->order()) {
-            UserConsent::firstOrCreate(
-                ['app_id' => $app->id, 'consent_type' => 'data_collection'],
-                [
-                    'tenant_id'      => $app->tenant_id,
-                    'user_id'        => $app->tenant?->owner_id ?? 1,
-                    'agreed'         => true,
-                    'ip_address'     => $request->ip() ?? '127.0.0.1',
-                    'user_agent'     => $request->userAgent() ?? 'WebIntoApp/1.0',
-                    'policy_version' => 'v1.0',
-                    'metadata'       => ['auto_consented_on_advance' => true],
-                ]
-            );
+            $hasDataConsent = UserConsent::where('app_id', $app->id)
+                ->where('consent_type', 'data_collection')
+                ->where('agreed', true)
+                ->exists();
+
+            if (! $hasDataConsent) {
+                return response()->json([
+                    'error' => 'You must explicitly check and agree to the Data Collection and Privacy Policy before proceeding.',
+                    'code'  => 'CONSENT_REQUIRED',
+                ], 422);
+            }
         }
 
         // 3. Advancing to Build: require active plan or completed payment
@@ -382,19 +432,6 @@ class SetupStateController extends Controller
                     'code'  => 'PLAN_REQUIRED',
                 ], 422);
             }
-
-            UserConsent::firstOrCreate(
-                ['app_id' => $app->id, 'consent_type' => 'payment_terms'],
-                [
-                    'tenant_id'      => $app->tenant_id,
-                    'user_id'        => $app->tenant?->owner_id ?? 1,
-                    'agreed'         => true,
-                    'ip_address'     => $request->ip() ?? '127.0.0.1',
-                    'user_agent'     => $request->userAgent() ?? 'WebIntoApp/1.0',
-                    'policy_version' => 'v1.0',
-                    'metadata'       => ['auto_consented_on_advance' => true],
-                ]
-            );
         }
 
         // Prevent skipping ahead more than 1 step without sequential progression

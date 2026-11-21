@@ -87,6 +87,41 @@ class AppController extends Controller
         $user = $request->user();
         $tenant = $user->tenant;
 
+        // Draft recovery: if an incomplete draft already exists for this tenant, update and reuse it (never create duplicate drafts)
+        $existingDraft = App::where('tenant_id', $tenant->id)
+            ->where('status', 'draft')
+            ->whereDoesntHave('builds')
+            ->latest('id')
+            ->first();
+
+        if ($existingDraft) {
+            $existingDraft->update([
+                'name'     => $data['name'],
+                'platform' => $data['platform'],
+                'status'   => 'draft',
+            ]);
+            $rawUrl = $data['website_url'] ?? $data['site_url'] ?? $data['url'] ?? null;
+            if (!empty($rawUrl)) {
+                $cleanUrl = trim((string) $rawUrl);
+                if (!str_starts_with($cleanUrl, 'http://') && !str_starts_with($cleanUrl, 'https://')) {
+                    $cleanUrl = 'https://' . $cleanUrl;
+                }
+                $existingDraft->connection()->updateOrCreate(
+                    ['tenant_id' => $tenant->id],
+                    [
+                        'platform' => $existingDraft->platform,
+                        'site_url' => $cleanUrl,
+                        'status'   => \App\Enums\ConnectionStatus::NotStarted,
+                    ]
+                );
+            }
+            return response()->json([
+                'ulid' => $existingDraft->ulid,
+                'app'  => $existingDraft->fresh(['connection']),
+                'message' => 'Restored and updated existing application draft',
+            ], 200);
+        }
+
         // Idempotency check: if an identical draft app was created within the last 30 seconds for this tenant, return it
         $recentDuplicate = App::where('tenant_id', $tenant->id)
             ->where('name', $data['name'])

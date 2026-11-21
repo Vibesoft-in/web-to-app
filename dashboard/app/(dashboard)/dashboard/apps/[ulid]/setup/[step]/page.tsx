@@ -242,25 +242,27 @@ export default function WizardStepPage() {
 
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <span>Editing Step {currentStepIndex + 1} of {STEPS.length}:</span>
-          <span className="font-extrabold text-indigo-600 bg-indigo-50 border border-indigo-200/60 px-2.5 py-0.5 rounded-full">
+          <span className="font-extrabold text-[#78593D] bg-[#78593D]/10 border border-[#78593D]/30 px-2.5 py-0.5 rounded-full">
             {currentStep.label}
           </span>
         </div>
       </div>
 
-      {/* 10-Step Progress Stepper Header - Fully visible without scroll effect */}
+      {/* 10-Step Progress Stepper Header - WebIntoApp Visual Stepper */}
       <div className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-sm">
-        {/* Desktop & Laptops: Single continuous bar with all 11 steps visible */}
+        {/* Desktop & Laptops: Single continuous bar with all 10 steps visible */}
         <div className="hidden md:flex items-center justify-between w-full">
           {STEPS.map((s, index) => {
             const isCurrent = currentStepParam === s.key;
-            // Travelled steps can be visited and viewed again
-            const isTravelled =
-              index <= furthestStepIndex &&
-              (state?.allowed_steps ? state.allowed_steps.includes(s.key) : index <= furthestStepIndex);
-            const isAllowed = isTravelled;
+            const isAllowed = Boolean(
+              state?.allowed_steps ? state.allowed_steps.includes(s.key) : index <= furthestStepIndex
+            );
             // Completed steps show green checkmark
-            const isCompleted = isTravelled && !isCurrent && index < Math.max(currentStepIndex, furthestStepIndex);
+            const isCompleted = Boolean(
+              state?.completed_steps
+                ? state.completed_steps.includes(s.key)
+                : index < furthestStepIndex
+            ) && !isCurrent;
 
             return (
               <div key={s.key} className="flex items-center flex-1 last:flex-none">
@@ -276,7 +278,7 @@ export default function WizardStepPage() {
                   <div
                     className={`w-6 h-6 lg:w-7 lg:h-7 rounded-full flex items-center justify-center text-[11px] lg:text-xs font-bold flex-shrink-0 transition ${
                       isCurrent
-                        ? "bg-indigo-600 text-white ring-4 ring-indigo-100 shadow-sm"
+                        ? "bg-[#78593D] text-white ring-4 ring-[#78593D]/20 shadow-sm"
                         : isCompleted
                         ? "bg-emerald-500 text-white shadow-xs"
                         : "bg-slate-100 text-slate-400 group-hover:bg-slate-200"
@@ -287,7 +289,7 @@ export default function WizardStepPage() {
                   <span
                     className={`text-[11px] lg:text-xs font-semibold whitespace-nowrap ${
                       isCurrent
-                        ? "text-indigo-600 font-bold"
+                        ? "text-[#78593D] font-bold"
                         : isCompleted
                         ? "text-slate-800"
                         : "text-slate-400"
@@ -300,7 +302,7 @@ export default function WizardStepPage() {
                 {index < STEPS.length - 1 && (
                   <div
                     className={`flex-1 h-0.5 mx-1.5 transition-colors ${
-                      index < currentStepIndex && index < furthestStepIndex
+                      isCompleted || (index < currentStepIndex && isAllowed)
                         ? "bg-emerald-300"
                         : "bg-slate-200"
                     }`}
@@ -316,11 +318,14 @@ export default function WizardStepPage() {
           <div className="grid grid-cols-5 gap-1 sm:gap-1.5">
             {STEPS.map((s, index) => {
               const isCurrent = currentStepParam === s.key;
-              const isTravelled =
-                index <= furthestStepIndex &&
-                (state?.allowed_steps ? state.allowed_steps.includes(s.key) : index <= furthestStepIndex);
-              const isAllowed = isTravelled;
-              const isCompleted = isTravelled && !isCurrent && index < Math.max(currentStepIndex, furthestStepIndex);
+              const isAllowed = Boolean(
+                state?.allowed_steps ? state.allowed_steps.includes(s.key) : index <= furthestStepIndex
+              );
+              const isCompleted = Boolean(
+                state?.completed_steps
+                  ? state.completed_steps.includes(s.key)
+                  : index < furthestStepIndex
+              ) && !isCurrent;
 
               return (
                 <button
@@ -331,7 +336,7 @@ export default function WizardStepPage() {
                   title={!isAllowed ? "Complete previous steps first" : undefined}
                   className={`min-w-0 p-1 sm:p-1.5 rounded-xl flex flex-col items-center justify-center text-center transition ${
                     isCurrent
-                      ? "bg-indigo-50 border border-indigo-300 ring-1 ring-indigo-500 shadow-sm"
+                      ? "bg-[#78593D]/10 border border-[#78593D]/40 ring-1 ring-[#78593D] shadow-sm"
                       : isCompleted
                       ? "bg-emerald-50/70 border border-emerald-200"
                       : "bg-slate-50 border border-slate-100"
@@ -340,7 +345,7 @@ export default function WizardStepPage() {
                   <div
                     className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold mb-0.5 sm:mb-1 transition flex-shrink-0 ${
                       isCurrent
-                        ? "bg-indigo-600 text-white"
+                        ? "bg-[#78593D] text-white"
                         : isCompleted
                         ? "bg-emerald-500 text-white"
                         : "bg-slate-200 text-slate-500"
@@ -351,7 +356,7 @@ export default function WizardStepPage() {
                   <span
                     className={`text-[9px] sm:text-[10px] leading-tight font-semibold truncate w-full block ${
                       isCurrent
-                        ? "text-indigo-700 font-bold"
+                        ? "text-[#78593D] font-bold"
                         : isCompleted
                         ? "text-slate-800"
                         : "text-slate-400"
@@ -369,7 +374,7 @@ export default function WizardStepPage() {
             <span className="text-slate-500 font-medium">
               Step {currentStepIndex + 1} of {STEPS.length}
             </span>
-            <span className="font-bold text-indigo-600">
+            <span className="font-bold text-[#78593D]">
               {currentStep?.label}
             </span>
           </div>

@@ -555,25 +555,16 @@ export function StepConnect({ ulid, app, setupState, onNext }: StepConnectProps)
 
           <button
             type="button"
-            onClick={async () => {
+            onClick={() => {
               if (isStepVerified) {
                 onNext();
-              } else {
-                const isValid = await trigger();
-                if (isValid) {
-                  const data = getValues();
-                  const success = await onVerify(data);
-                  if (success) {
-                    onNext();
-                  }
-                }
               }
             }}
-            disabled={isVerifying}
-            className={`w-full sm:w-auto justify-center px-7 py-3 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md cursor-pointer active:scale-98 disabled:opacity-70 ${
+            disabled={!isStepVerified || isVerifying}
+            className={`w-full sm:w-auto justify-center px-7 py-3 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md ${
               isStepVerified
-                ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20"
-                : "bg-slate-700 hover:bg-slate-800 text-white"
+                ? "bg-[#78593D] hover:bg-[#634830] text-white shadow-[#78593D]/20 cursor-pointer active:scale-98"
+                : "bg-slate-300 text-slate-500 cursor-not-allowed opacity-50 shadow-none pointer-events-none"
             }`}
           >
             <span>Next</span>

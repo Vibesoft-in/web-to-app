@@ -343,6 +343,29 @@ function UserDashboardContent() {
     }
   }, [isUserLoading, user, isAdmin, router]);
 
+  // ── ONBOARDING & DASHBOARD GUARD ──
+  // 1. Newly registered users with 0 apps are redirected directly to App Creation Step 1 (/dashboard/apps/new)
+  // 2. Users with only an incomplete draft are redirected to their draft's last incomplete step
+  // 3. Only users with completed/built applications access the full management dashboard
+  useEffect(() => {
+    if (isUserLoading || isAppsLoading || !user || isAdmin) return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("force") === "true") return;
+
+    if (!apps || apps.length === 0) {
+      router.replace("/dashboard/apps/new");
+      return;
+    }
+
+    const hasBuiltApp = apps.some((a: any) => !isAppDraft(a));
+    if (!hasBuiltApp) {
+      const draft = apps[0];
+      const targetStep = draft?.setup_step || "platform";
+      router.replace(`/dashboard/apps/${draft.ulid}/setup/${targetStep}`);
+    }
+  }, [isUserLoading, isAppsLoading, user, isAdmin, apps, router]);
+
   // 3. Fetch Billing & Subscriptions
   const {
     data: billingData,

@@ -1121,8 +1121,12 @@ export function StepDataCollection({ ulid, app, setupState, onNext }: StepDataCo
         <button
           type="button"
           onClick={handleApplyAndContinue}
-          disabled={isApplying}
-          className="w-full sm:w-auto px-7 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-200 transition shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer active:scale-98"
+          disabled={!hasConsented || isApplying}
+          className={`w-full sm:w-auto px-7 py-3 rounded-xl font-bold text-white transition shadow-md flex items-center justify-center gap-2 ${
+            !hasConsented || isApplying
+              ? "bg-slate-300 text-slate-500 cursor-not-allowed opacity-50 shadow-none pointer-events-none"
+              : "bg-[#78593D] hover:bg-[#634830] shadow-[#78593D]/20 cursor-pointer active:scale-98"
+          }`}
         >
           {isApplying ? (
             <>
