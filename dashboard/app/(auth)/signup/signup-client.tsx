@@ -323,7 +323,7 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
       });
       setOtpSent(true);
       setOtpResendCountdown(60);
-      setInlineOtpSuccess(`Verification code dispatched to ${cleanEmail}. Check your inbox.`);
+      setInlineOtpSuccess(`Verification code dispatched to ${cleanEmail}. Please check your Inbox, Spam, or Promotions tab.`);
     } catch (err: any) {
       setInlineOtpError(err.message || "Failed to dispatch verification code. Please check your email.");
     } finally {
