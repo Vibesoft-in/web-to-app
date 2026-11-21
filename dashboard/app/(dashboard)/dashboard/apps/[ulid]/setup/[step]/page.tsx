@@ -115,6 +115,13 @@ export default function WizardStepPage() {
   useEffect(() => {
     if (isAdvancing) return;
     if (state && state.allowed_steps && Array.isArray(state.allowed_steps) && state.allowed_steps.length > 0) {
+      // Never kick a paid or active app backward out of the Build step
+      if (
+        currentStepParam === "build" &&
+        (state.subscription?.has_active || state.build_allowed || state.is_setup_complete || state.has_active_plan)
+      ) {
+        return;
+      }
       const isAllowed = state.allowed_steps.includes(currentStepParam);
       if (!isAllowed && state.current_step && state.current_step !== currentStepParam) {
         router.replace(`/dashboard/apps/${ulid}/setup/${state.current_step}`);

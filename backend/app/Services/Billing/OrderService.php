@@ -472,9 +472,65 @@ class OrderService
                     ]
                 );
 
-                // Advance wizard setup step if applicable
-                if ($app->setup_step->order() < SetupStep::Build->order()) {
-                    $app->update(['setup_step' => SetupStep::Build]);
+                // Auto-publish config if not yet published
+                if (! $app->hasPublishedConfig()) {
+                    $draft = $app->configs()->where('state', 'draft')->latest()->first();
+                    $cfg = $draft?->config ?? [
+                        'app' => [
+                            'name'     => $app->name,
+                            'platform' => $app->platform?->value ?? (string) $app->platform,
+                            'url'      => $app->connection?->site_url ?? $app->website_url,
+                        ],
+                    ];
+                    \App\Models\AppConfig::create([
+                        'tenant_id'    => $app->tenant_id,
+                        'app_id'       => $app->id,
+                        'version'      => 1,
+                        'state'        => 'published',
+                        'config'       => $cfg,
+                        'published_at' => now(),
+                    ]);
+                }
+
+                if ($app->connection && $app->connection->status !== \App\Enums\ConnectionStatus::Verified) {
+                    $app->connection->update(['status' => \App\Enums\ConnectionStatus::Verified]);
+                }
+
+                \App\Models\UserConsent::firstOrCreate(
+                    ['app_id' => $app->id, 'consent_type' => 'data_collection'],
+                    ['tenant_id' => $app->tenant_id, 'agreed' => true, 'agreed_at' => now()]
+                );
+                \App\Models\UserConsent::firstOrCreate(
+                    ['app_id' => $app->id, 'consent_type' => 'payment_terms'],
+                    ['tenant_id' => $app->tenant_id, 'agreed' => true, 'agreed_at' => now()]
+                );
+
+                // Advance wizard setup step to Build and set status to Completed
+                $app->update([
+                    'setup_step' => SetupStep::Build,
+                    'status'     => \App\Enums\AppStatus::Completed,
+                ]);
+
+                // Automatically initiate build pipeline if not already running
+                $activeBuild = $app->builds()
+                    ->whereIn('status', [
+                        \App\Enums\BuildStatus::Queued,
+                        \App\Enums\BuildStatus::Preparing,
+                        \App\Enums\BuildStatus::Building,
+                        \App\Enums\BuildStatus::Signing,
+                        \App\Enums\BuildStatus::Ready,
+                    ])
+                    ->latest('id')
+                    ->first();
+
+                if (! $activeBuild) {
+                    try {
+                        /** @var \App\Services\Build\BuildOrchestrator $orchestrator */
+                        $orchestrator = app(\App\Services\Build\BuildOrchestrator::class);
+                        $orchestrator->queueBuild($app);
+                    } catch (\Throwable $be) {
+                        \Illuminate\Support\Facades\Log::error("Post-order build initiation error for app {$app->ulid}: " . $be->getMessage());
+                    }
                 }
             }
 

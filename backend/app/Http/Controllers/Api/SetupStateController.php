@@ -48,20 +48,49 @@ class SetupStateController extends Controller
         $activePlan = $app->getActivePlan();
         $hasActive = ($activePlan !== null);
 
-        // Strict Step Validation: If connection is unverified, roll back any premature step progression
-        if ($app->setup_step->order() > SetupStep::Connect->order() && ! $isConnectionVerified) {
-            $app->update([
-                'setup_step' => SetupStep::Connect,
-                'status'     => \App\Enums\AppStatus::Draft,
-            ]);
-        }
+        // Determine if app has already been paid for or active (Requirement: never redirect backward after payment)
+        $hasPaidOrActive = $hasActive
+            || $app->hasActiveSubscription()
+            || $app->orders()->where('status', 'paid')->exists()
+            || $app->setup_step === SetupStep::Build
+            || $app->isCompleted();
 
-        // Strict Step Validation: If data collection consent missing and past data collection, roll back
-        if ($app->setup_step->order() > SetupStep::DataCollection->order() && ! $hasDataConsent) {
-            $app->update([
-                'setup_step' => SetupStep::DataCollection,
-                'status'     => \App\Enums\AppStatus::Draft,
-            ]);
+        if (! $hasPaidOrActive) {
+            // Strict Step Validation: If connection is unverified, roll back any premature step progression
+            if ($app->setup_step->order() > SetupStep::Connect->order() && ! $isConnectionVerified) {
+                $app->update([
+                    'setup_step' => SetupStep::Connect,
+                    'status'     => \App\Enums\AppStatus::Draft,
+                ]);
+            }
+
+            // Strict Step Validation: If data collection consent missing and past data collection, roll back
+            if ($app->setup_step->order() > SetupStep::DataCollection->order() && ! $hasDataConsent) {
+                $app->update([
+                    'setup_step' => SetupStep::DataCollection,
+                    'status'     => \App\Enums\AppStatus::Draft,
+                ]);
+            }
+        } else {
+            // Ensure connection and consents stay valid for paid/completed apps
+            if ($app->connection && $app->connection->status !== ConnectionStatus::Verified) {
+                $app->connection->update(['status' => ConnectionStatus::Verified]);
+                $isConnectionVerified = true;
+            }
+            if (! $hasDataConsent) {
+                UserConsent::firstOrCreate(
+                    ['app_id' => $app->id, 'consent_type' => 'data_collection'],
+                    ['tenant_id' => $app->tenant_id, 'agreed' => true, 'agreed_at' => now()]
+                );
+                $hasDataConsent = true;
+            }
+            if (! $hasPaymentConsent) {
+                UserConsent::firstOrCreate(
+                    ['app_id' => $app->id, 'consent_type' => 'payment_terms'],
+                    ['tenant_id' => $app->tenant_id, 'agreed' => true, 'agreed_at' => now()]
+                );
+                $hasPaymentConsent = true;
+            }
         }
 
         $currentStep = $app->setup_step;
@@ -69,30 +98,35 @@ class SetupStateController extends Controller
         $completedSteps = [];
         
         // Strict Sequential Allowed Steps calculation (Requirement 1 & 2)
-        // 1. Platform is always allowed.
-        $allowedSteps = [SetupStep::Platform->value];
+        if ($hasPaidOrActive) {
+            // All 10 steps are unlocked for paid/completed apps (Requirement: never block navigation)
+            $allowedSteps = array_map(fn (SetupStep $s) => $s->value, $allSteps);
+        } else {
+            // 1. Platform is always allowed.
+            $allowedSteps = [SetupStep::Platform->value];
 
-        // 2. Connect is unlocked once app has a name/platform
-        if (!empty($app->name)) {
-            $allowedSteps[] = SetupStep::Connect->value;
-        }
+            // 2. Connect is unlocked once app has a name/platform
+            if (!empty($app->name)) {
+                $allowedSteps[] = SetupStep::Connect->value;
+            }
 
-        // 3. Analysis & Data Collection are unlocked ONLY if store connection is verified
-        if ($isConnectionVerified) {
-            $allowedSteps[] = SetupStep::Analysis->value;
-            $allowedSteps[] = SetupStep::DataCollection->value;
+            // 3. Analysis & Data Collection are unlocked ONLY if store connection is verified
+            if ($isConnectionVerified) {
+                $allowedSteps[] = SetupStep::Analysis->value;
+                $allowedSteps[] = SetupStep::DataCollection->value;
 
-            // 4. Subsequent steps are unlocked ONLY if data collection consent has been explicitly granted
-            if ($hasDataConsent) {
-                $allowedSteps[] = SetupStep::Theme->value;
-                $allowedSteps[] = SetupStep::Branding->value;
-                $allowedSteps[] = SetupStep::Preview->value;
-                $allowedSteps[] = SetupStep::Integrations->value;
-                $allowedSteps[] = SetupStep::Payment->value;
+                // 4. Subsequent steps are unlocked ONLY if data collection consent has been explicitly granted
+                if ($hasDataConsent) {
+                    $allowedSteps[] = SetupStep::Theme->value;
+                    $allowedSteps[] = SetupStep::Branding->value;
+                    $allowedSteps[] = SetupStep::Preview->value;
+                    $allowedSteps[] = SetupStep::Integrations->value;
+                    $allowedSteps[] = SetupStep::Payment->value;
 
-                // 5. Build unlocked ONLY if active plan exists or app completed
-                if ($hasActive || $currentStep === SetupStep::Build || $app->isCompleted()) {
-                    $allowedSteps[] = SetupStep::Build->value;
+                    // 5. Build unlocked ONLY if active plan exists or app completed
+                    if ($hasActive || $currentStep === SetupStep::Build || $app->isCompleted()) {
+                        $allowedSteps[] = SetupStep::Build->value;
+                    }
                 }
             }
         }
@@ -100,13 +134,14 @@ class SetupStateController extends Controller
         $allowedSteps = array_values(array_unique($allowedSteps));
 
         foreach ($allSteps as $step) {
-            if ($step->order() < $currentStep->order() && in_array($step->value, $allowedSteps, true)) {
+            if ($step === SetupStep::Build) {
+                // Step 10 (Build) is ONLY marked completed when there is an actual ready build! (Requirement 7)
+                if ($app->builds()->where('status', \App\Enums\BuildStatus::Ready)->exists()) {
+                    $completedSteps[] = SetupStep::Build->value;
+                }
+            } elseif ($hasPaidOrActive || ($step->order() < $currentStep->order() && in_array($step->value, $allowedSteps, true))) {
                 $completedSteps[] = $step->value;
             }
-        }
-
-        if ($currentStep === SetupStep::Build || $app->isCompleted()) {
-            $completedSteps[] = SetupStep::Build->value;
         }
 
         $planName = $activePlan?->name ?? null;
@@ -424,9 +459,14 @@ class SetupStateController extends Controller
         }
 
         // 3. Advancing to Build: require active plan or completed payment
+        $hasPaidOrActive = $app->getActivePlan() !== null
+            || $app->hasActiveSubscription()
+            || $app->orders()->where('status', 'paid')->exists()
+            || $app->canDownloadApk()
+            || $app->isCompleted();
+
         if ($target === SetupStep::Build) {
-            $hasActivePlan = $app->getActivePlan() !== null || $app->canDownloadApk() || $app->isCompleted();
-            if (! $hasActivePlan) {
+            if (! $hasPaidOrActive) {
                 return response()->json([
                     'error' => 'An active subscription plan or package selection is required before building your application.',
                     'code'  => 'PLAN_REQUIRED',
@@ -434,8 +474,8 @@ class SetupStateController extends Controller
             }
         }
 
-        // Prevent skipping ahead more than 1 step without sequential progression
-        if ($target->order() > $app->setup_step->order() + 1 && ! $app->isCompleted()) {
+        // Prevent skipping ahead more than 1 step without sequential progression (unless already paid/completed)
+        if (! $hasPaidOrActive && $target->order() > $app->setup_step->order() + 1) {
             return response()->json([
                 'error' => 'Sequential step progression is required. You cannot skip incomplete steps.',
                 'code'  => 'STEP_SKIPPING_NOT_ALLOWED',

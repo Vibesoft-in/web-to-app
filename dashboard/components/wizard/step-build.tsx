@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -215,33 +215,117 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
     }
   };
 
-  // Check for any existing ready builds on mount
+  const autoTriggeredRef = useRef(false);
+
+  // Synchronize internal state with backend build record
+  const syncBuildStatus = useCallback((build: any) => {
+    if (!build) return "none";
+
+    const status = (build.status || "").toLowerCase();
+
+    if (status === "ready" || build.is_ready) {
+      setBuildStep(4);
+      setIsBuilding(false);
+      setDownloadBuildId(build.id);
+      setLatestBuildInfo({
+        id: build.id,
+        version_code: build.version_code || 1,
+        version_name: build.version_name || "1.0.0",
+        finished_at: build.finished_at || new Date().toISOString(),
+      });
+      return "ready";
+    }
+
+    if (status === "signing" || status === "building") {
+      setBuildStep(3);
+      setIsBuilding(true);
+      return "in_progress";
+    }
+
+    if (status === "preparing") {
+      setBuildStep(2);
+      setIsBuilding(true);
+      return "in_progress";
+    }
+
+    if (status === "queued") {
+      setBuildStep(1);
+      setIsBuilding(true);
+      return "in_progress";
+    }
+
+    if (status === "failed") {
+      setBuildStep(0);
+      setIsBuilding(false);
+      setBuildError(build.error || "Application compilation failed. Click below to retry safely without re-charging.");
+      return "failed";
+    }
+
+    return "unknown";
+  }, []);
+
+  const fetchAndSyncBuilds = useCallback(async () => {
+    try {
+      const json = await apiClient<any>(`/api/apps/${ulid}/builds`);
+      const builds = json.data || [];
+      if (builds.length > 0) {
+        const latest = builds[0];
+        const result = syncBuildStatus(latest);
+        if (result === "ready") {
+          queryClient.invalidateQueries({ queryKey: ["setup-state", ulid] });
+          queryClient.invalidateQueries({ queryKey: ["apps"] });
+        }
+        return result;
+      }
+      return "none";
+    } catch {
+      return "none";
+    }
+  }, [ulid, syncBuildStatus, queryClient]);
+
+  // Initial check on mount & automatic build initiation if not yet built
   useEffect(() => {
     let isMounted = true;
-    async function fetchExistingBuilds() {
-      try {
-        const json = await apiClient<any>(`/api/apps/${ulid}/builds`);
-        const builds = json.data || [];
-        const readyBuild = builds.find((b: any) => b.is_ready || b.status === "ready");
-        if (readyBuild && isMounted) {
-          setBuildStep(4);
-          setDownloadBuildId(readyBuild.id);
-          setLatestBuildInfo({
-            id: readyBuild.id,
-            version_code: readyBuild.version_code,
-            version_name: readyBuild.version_name,
-            finished_at: readyBuild.finished_at,
-          });
-        }
-      } catch (e) {
-        // Silent fail on check
+
+    async function checkAndAutoStart() {
+      const currentStatus = await fetchAndSyncBuilds();
+      if (!isMounted) return;
+
+      // If build is in progress, keep polling active
+      if (currentStatus === "in_progress") {
+        setIsBuilding(true);
+      } else if (
+        currentStatus === "none" &&
+        !isAdmin &&
+        !autoTriggeredRef.current &&
+        (buildAllowed || subInfo?.has_active)
+      ) {
+        // Automatically trigger app build without requiring manual button click (Requirement 4)
+        autoTriggeredRef.current = true;
+        handleStartBuild();
       }
     }
-    fetchExistingBuilds();
+
+    checkAndAutoStart();
+
     return () => {
       isMounted = false;
     };
-  }, [ulid]);
+  }, [ulid, buildAllowed, subInfo?.has_active, isAdmin, fetchAndSyncBuilds]);
+
+  // Live polling for build status while in progress
+  useEffect(() => {
+    if (!isBuilding) return;
+
+    const interval = setInterval(async () => {
+      const status = await fetchAndSyncBuilds();
+      if (status === "ready" || status === "failed") {
+        setIsBuilding(false);
+      }
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [isBuilding, fetchAndSyncBuilds]);
 
   const handleStartBuild = async () => {
     if (isAdmin) {
@@ -254,44 +338,20 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
     setBuildStep(1);
 
     try {
-      // Step 1: Queued
-      // Visual progress transitions
-      setTimeout(() => setBuildStep(2), 800);
-      setTimeout(() => setBuildStep(3), 1800);
-
       const json = await apiClient<any>(`/api/apps/${ulid}/builds`, {
         method: "POST",
       });
 
       const buildData = json.build || json;
-      const buildId = buildData.id;
+      syncBuildStatus(buildData);
 
-      // Finish build step
-      setTimeout(async () => {
-        setBuildStep(4);
-        setIsBuilding(false);
-        setDownloadBuildId(buildId);
-        setLatestBuildInfo({
-          id: buildId,
-          version_code: buildData.version_code || 1,
-          version_name: buildData.version_name || "1.0.0",
-          finished_at: new Date().toISOString(),
-        });
-
-        try {
-          await apiClient(`/api/apps/${ulid}/complete`, { method: "POST" });
-        } catch (e) {
-          console.error("Could not complete app:", e);
-        }
-
-        queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
-        queryClient.invalidateQueries({ queryKey: ["apps"] });
-        queryClient.invalidateQueries({ queryKey: ["setup-state", ulid] });
-      }, 2600);
+      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      queryClient.invalidateQueries({ queryKey: ["apps"] });
+      queryClient.invalidateQueries({ queryKey: ["setup-state", ulid] });
     } catch (err: any) {
       setIsBuilding(false);
       setBuildStep(0);
-      setBuildError(err.message || "Build generation failed.");
+      setBuildError(err.message || "Build generation failed. Please try again.");
     }
   };
 
@@ -341,12 +401,23 @@ export function StepBuild({ ulid, setupState }: StepBuildProps) {
       )}
 
       {buildError && (
-        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold text-sm">Build Initiation Failed</p>
-            <p className="text-xs text-rose-700 mt-0.5">{buildError}</p>
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-sm">Build Process Encountered an Issue</p>
+              <p className="text-xs text-rose-700 mt-0.5">{buildError}</p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={handleStartBuild}
+            disabled={isBuilding || isAdmin}
+            className="self-start sm:self-auto px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${isBuilding ? "animate-spin" : ""}`} />
+            <span>Retry Build (Free)</span>
+          </button>
         </div>
       )}
 

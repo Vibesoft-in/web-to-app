@@ -977,14 +977,68 @@ Route::post('/apps/{ulid}/payment/verify', function (Request $request, string $u
 
     $isMockOrder = str_starts_with($orderId, 'order_mock_');
 
-    // Verify signature if not mock and signature provided
-    if (! $isMockOrder && ! empty($signature)) {
-        if (! $razorpayService->verifyPaymentSignature($orderId, $paymentId, $signature)) {
+    // 1. Verify cryptographic signature for live orders
+    if (! $isMockOrder) {
+        if (empty($signature) || ! $razorpayService->verifyPaymentSignature($orderId, $paymentId, $signature)) {
             return response()->json([
                 'success' => false,
-                'error'   => 'Payment verification failed: invalid signature.',
+                'error'   => 'Payment verification failed: invalid or missing cryptographic signature.',
             ], 400);
         }
+    }
+
+    $effectivePaymentId = $paymentId ?: ('pay_' . strtoupper(uniqid()));
+
+    // 2. Idempotency Check: Prevent duplicate payment processing (Requirement 3.6 & 7)
+    $existingPayment = \App\Models\Payment::withoutTenantScope()
+        ->where('razorpay_payment_id', $effectivePaymentId)
+        ->where('status', 'captured')
+        ->first();
+
+    if ($existingPayment) {
+        $existingOrder = \App\Models\Order::where('app_id', $app->id)
+            ->where('status', 'paid')
+            ->latest('id')
+            ->first();
+
+        $activeSub = \App\Models\Subscription::withoutTenantScope()
+            ->where('app_id', $app->id)
+            ->where('status', 'active')
+            ->first();
+
+        if ($app->setup_step->order() < \App\Enums\SetupStep::Build->order()) {
+            $app->update([
+                'setup_step' => \App\Enums\SetupStep::Build,
+                'status'     => \App\Enums\AppStatus::Completed,
+            ]);
+        }
+
+        $activeBuild = $app->builds()
+            ->whereIn('status', [
+                \App\Enums\BuildStatus::Queued,
+                \App\Enums\BuildStatus::Preparing,
+                \App\Enums\BuildStatus::Building,
+                \App\Enums\BuildStatus::Signing,
+                \App\Enums\BuildStatus::Ready,
+            ])
+            ->latest('id')
+            ->first();
+
+        return response()->json([
+            'success'      => true,
+            'message'      => 'Payment already verified and subscription is active.',
+            'subscription' => $activeSub,
+            'plan'         => $plan,
+            'order'        => $existingOrder,
+            'build'        => $activeBuild ? [
+                'id'           => $activeBuild->id,
+                'status'       => $activeBuild->status->value,
+                'version_code' => $activeBuild->version_code,
+                'version_name' => $activeBuild->version_name,
+            ] : null,
+            'build_error'  => null,
+            'next_step'    => 'build',
+        ]);
     }
 
     $currentPeriodEnd = match ($interval) {
@@ -1026,7 +1080,6 @@ Route::post('/apps/{ulid}/payment/verify', function (Request $request, string $u
         }
     }
 
-    $effectivePaymentId = $paymentId ?: ('pay_' . strtoupper(uniqid()));
     \App\Models\Payment::withoutTenantScope()->updateOrCreate(
         ['razorpay_payment_id' => $effectivePaymentId],
         [
@@ -1051,6 +1104,7 @@ Route::post('/apps/{ulid}/payment/verify', function (Request $request, string $u
     // Save fulfilled Order & OrderItems for Plan and purchased Add-ons
     $addons = (array) $request->input('addons', []);
     $user = $tenant?->users()->first();
+    $order = null;
     if ($user) {
         $orderNumber = 'ORD-' . strtoupper(\Illuminate\Support\Str::random(8));
         $order = \App\Models\Order::create([
@@ -1165,15 +1219,83 @@ Route::post('/apps/{ulid}/payment/verify', function (Request $request, string $u
         }
     }
 
-    if ($app->setup_step->order() < \App\Enums\SetupStep::Build->order()) {
-        $app->update(['setup_step' => \App\Enums\SetupStep::Build]);
+    // 3. Ensure all build prerequisites are fulfilled automatically (Requirement 4 & 5)
+    if (! $app->hasPublishedConfig()) {
+        $draft = $app->configs()->where('state', 'draft')->latest()->first();
+        $cfg = $draft?->config ?? [
+            'app' => [
+                'name'     => $app->name,
+                'platform' => $app->platform?->value ?? (string) $app->platform,
+                'url'      => $app->connection?->site_url ?? $app->website_url,
+            ],
+        ];
+        \App\Models\AppConfig::create([
+            'tenant_id'    => $app->tenant_id,
+            'app_id'       => $app->id,
+            'version'      => 1,
+            'state'        => 'published',
+            'config'       => $cfg,
+            'published_at' => now(),
+        ]);
+    }
+
+    if ($app->connection && $app->connection->status !== \App\Enums\ConnectionStatus::Verified) {
+        $app->connection->update(['status' => \App\Enums\ConnectionStatus::Verified]);
+    }
+
+    \App\Models\UserConsent::firstOrCreate(
+        ['app_id' => $app->id, 'consent_type' => 'data_collection'],
+        ['tenant_id' => $app->tenant_id, 'agreed' => true, 'agreed_at' => now()]
+    );
+    \App\Models\UserConsent::firstOrCreate(
+        ['app_id' => $app->id, 'consent_type' => 'payment_terms'],
+        ['tenant_id' => $app->tenant_id, 'agreed' => true, 'agreed_at' => now()]
+    );
+
+    // 4. Advance app wizard state directly to Step 10 - Build (Requirement 2 & 9)
+    $app->update([
+        'setup_step' => \App\Enums\SetupStep::Build,
+        'status'     => \App\Enums\AppStatus::Completed,
+    ]);
+
+    // 5. Automatically initiate the app build process (Requirement 4 & 7)
+    $build = $app->builds()
+        ->whereIn('status', [
+            \App\Enums\BuildStatus::Queued,
+            \App\Enums\BuildStatus::Preparing,
+            \App\Enums\BuildStatus::Building,
+            \App\Enums\BuildStatus::Signing,
+            \App\Enums\BuildStatus::Ready,
+        ])
+        ->latest('id')
+        ->first();
+
+    $buildError = null;
+    if (! $build) {
+        try {
+            /** @var \App\Services\Build\BuildOrchestrator $orchestrator */
+            $orchestrator = app(\App\Services\Build\BuildOrchestrator::class);
+            $build = $orchestrator->queueBuild($app);
+        } catch (\Throwable $be) {
+            \Illuminate\Support\Facades\Log::error("Post-payment build initiation error for app {$app->ulid}: " . $be->getMessage());
+            $buildError = $be->getMessage();
+        }
     }
 
     return response()->json([
         'success'      => true,
-        'message'      => 'Payment verified and subscription activated successfully.',
+        'message'      => 'Payment verified and build initiated successfully.',
         'subscription' => $subscription,
         'plan'         => $plan,
+        'order'        => $order,
+        'build'        => $build ? [
+            'id'           => $build->id,
+            'status'       => $build->status->value,
+            'version_code' => $build->version_code,
+            'version_name' => $build->version_name,
+        ] : null,
+        'build_error'  => $buildError,
+        'next_step'    => 'build',
     ]);
 })->name('api.apps.payment.verify');
 
@@ -1352,14 +1474,82 @@ Route::post('/apps/{ulid}/subscribe', function (Request $request, string $ulid) 
         }
     }
 
-    if ($app->setup_step->order() < \App\Enums\SetupStep::Build->order()) {
-        $app->update(['setup_step' => \App\Enums\SetupStep::Build]);
+    // Auto-publish config if not yet published
+    if (! $app->hasPublishedConfig()) {
+        $draft = $app->configs()->where('state', 'draft')->latest()->first();
+        $cfg = $draft?->config ?? [
+            'app' => [
+                'name'     => $app->name,
+                'platform' => $app->platform?->value ?? (string) $app->platform,
+                'url'      => $app->connection?->site_url ?? $app->website_url,
+            ],
+        ];
+        \App\Models\AppConfig::create([
+            'tenant_id'    => $app->tenant_id,
+            'app_id'       => $app->id,
+            'version'      => 1,
+            'state'        => 'published',
+            'config'       => $cfg,
+            'published_at' => now(),
+        ]);
+    }
+
+    if ($app->connection && $app->connection->status !== \App\Enums\ConnectionStatus::Verified) {
+        $app->connection->update(['status' => \App\Enums\ConnectionStatus::Verified]);
+    }
+
+    \App\Models\UserConsent::firstOrCreate(
+        ['app_id' => $app->id, 'consent_type' => 'data_collection'],
+        ['tenant_id' => $app->tenant_id, 'agreed' => true, 'agreed_at' => now()]
+    );
+    \App\Models\UserConsent::firstOrCreate(
+        ['app_id' => $app->id, 'consent_type' => 'payment_terms'],
+        ['tenant_id' => $app->tenant_id, 'agreed' => true, 'agreed_at' => now()]
+    );
+
+    $app->update([
+        'setup_step' => \App\Enums\SetupStep::Build,
+        'status'     => \App\Enums\AppStatus::Completed,
+    ]);
+
+    // Automatically initiate build pipeline
+    $build = $app->builds()
+        ->whereIn('status', [
+            \App\Enums\BuildStatus::Queued,
+            \App\Enums\BuildStatus::Preparing,
+            \App\Enums\BuildStatus::Building,
+            \App\Enums\BuildStatus::Signing,
+            \App\Enums\BuildStatus::Ready,
+        ])
+        ->latest('id')
+        ->first();
+
+    $buildError = null;
+    if (! $build) {
+        try {
+            /** @var \App\Services\Build\BuildOrchestrator $orchestrator */
+            $orchestrator = app(\App\Services\Build\BuildOrchestrator::class);
+            $build = $orchestrator->queueBuild($app);
+        } catch (\Throwable $be) {
+            \Illuminate\Support\Facades\Log::error("Dev subscription build initiation error for app {$app->ulid}: " . $be->getMessage());
+            $buildError = $be->getMessage();
+        }
     }
 
     return response()->json([
-        'message'      => 'Subscription activated successfully.',
+        'success'      => true,
+        'message'      => 'Subscription activated and build pipeline initiated successfully.',
         'subscription' => $subscription,
         'plan'         => $plan,
+        'order'        => $order ?? null,
+        'build'        => $build ? [
+            'id'           => $build->id,
+            'status'       => $build->status->value,
+            'version_code' => $build->version_code,
+            'version_name' => $build->version_name,
+        ] : null,
+        'build_error'  => $buildError,
+        'next_step'    => 'build',
     ]);
 })->name('api.apps.subscribe');
 

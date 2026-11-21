@@ -38,7 +38,8 @@ function getAddonOneLineDesc(shortName: string, desc: string): string {
 import { AddonLearnMoreModal, AddonDetail } from "@/components/addons/addon-learn-more-modal";
 import { STANDARDIZED_ADDONS } from "@/lib/addons-data";
 import { useEffect, useState, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Check,
@@ -220,6 +221,8 @@ const FALLBACK_ADDONS: AddOnItem[] = [
 ];
 
 export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const hasActiveSubscription = Boolean(setupState?.subscription?.has_active);
   const currentPlanId = hasActiveSubscription ? Number(setupState?.subscription?.plan_id) : null;
   const currentPlanPaidRupees = hasActiveSubscription ? Number(setupState?.subscription?.paid_amount_rupees || 0) : 0;
@@ -582,9 +585,44 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
 
         setPaymentSuccess(`Payment verified! ID: ${paymentResponse.razorpay_payment_id}`);
 
-        setTimeout(() => {
+        const allStepKeys = [
+          "platform",
+          "connect",
+          "analysis",
+          "data-collection",
+          "theme",
+          "branding",
+          "preview",
+          "integrations",
+          "payment",
+          "build",
+        ];
+
+        // Optimistically unlock all steps, mark 1-9 completed, and set current to build
+        queryClient.setQueryData(["setup-state", ulid], (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            current_step: "build",
+            allowed_steps: allStepKeys,
+            completed_steps: allStepKeys.slice(0, 9),
+            subscription: {
+              ...(old.subscription || {}),
+              has_active: true,
+              plan_id: planToActivate,
+            },
+          };
+        });
+
+        await queryClient.invalidateQueries({ queryKey: ["setup-state", ulid] });
+        await queryClient.invalidateQueries({ queryKey: ["apps"] });
+
+        // Navigate directly to Step 10 – Build (preventing any backward navigation)
+        if (ulid) {
+          router.push(`/dashboard/apps/${ulid}/setup/build`);
+        } else {
           onNext();
-        }, 1000);
+        }
       } catch (err: any) {
         if (err.message === "PAYMENT_CANCELLED") {
           setPaymentError("Payment window was cancelled. You can retry whenever you are ready.");
@@ -614,7 +652,39 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
             theme_key: selectedThemeKey,
           }),
         });
-        onNext();
+
+        const allStepKeys = [
+          "platform",
+          "connect",
+          "analysis",
+          "data-collection",
+          "theme",
+          "branding",
+          "preview",
+          "integrations",
+          "payment",
+          "build",
+        ];
+
+        queryClient.setQueryData(["setup-state", ulid], (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            current_step: "build",
+            allowed_steps: allStepKeys,
+            completed_steps: allStepKeys.slice(0, 9),
+            subscription: {
+              ...(old.subscription || {}),
+              has_active: true,
+              plan_id: planToActivate,
+            },
+          };
+        });
+
+        await queryClient.invalidateQueries({ queryKey: ["setup-state", ulid] });
+        await queryClient.invalidateQueries({ queryKey: ["apps"] });
+
+        router.push(`/dashboard/apps/${ulid}/setup/build`);
       } catch (e: any) {
         setPaymentError(e.message || "Activation failed.");
       } finally {
@@ -1521,7 +1591,13 @@ export function StepPayment({ ulid, setupState, onNext }: StepPaymentProps) {
 
         <button
           type="button"
-          onClick={onNext}
+          onClick={() => {
+            if (ulid && hasActiveSubscription) {
+              router.push(`/dashboard/apps/${ulid}/setup/build`);
+            } else {
+              onNext();
+            }
+          }}
           disabled={!hasActiveSubscription && !hasPaymentConsented}
           className={`w-full sm:w-auto justify-center px-7 py-3 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md ${
             hasActiveSubscription || hasPaymentConsented
