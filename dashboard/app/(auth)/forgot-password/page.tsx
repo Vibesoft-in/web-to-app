@@ -16,7 +16,9 @@ type ForgotFormData = z.infer<typeof forgotSchema>;
 
 export default function ForgotPasswordPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const {
     register,
@@ -28,15 +30,22 @@ export default function ForgotPasswordPage() {
 
   const onSubmit = async (data: ForgotFormData) => {
     setIsSubmitting(true);
+    setErrorMsg(null);
+    setSubmittedEmail(data.email.trim());
+
     try {
       await apiClient("/api/auth/forgot-password", {
         method: "POST",
         body: JSON.stringify(data),
       });
       setSubmitted(true);
-    } catch {
-      // Always treat as success to avoid user enumeration
-      setSubmitted(true);
+    } catch (err: any) {
+      if (err.status === 429) {
+        setErrorMsg("Too many reset attempts. Please wait a few minutes before trying again.");
+      } else {
+        // Still treat as dispatched to avoid enumeration while saving the email state
+        setSubmitted(true);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -54,14 +63,32 @@ export default function ForgotPasswordPage() {
         </Link>
 
         {submitted ? (
-          <div className="text-center py-4">
-            <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-8 h-8" />
+          <div className="text-center py-4 space-y-4">
+            <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-xs border border-emerald-200">
+              <CheckCircle2 className="w-8 h-8 stroke-[2.2]" />
             </div>
-            <h2 className="text-xl font-bold text-slate-900">Check your inbox</h2>
-            <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-              If an account exists with that email address, we have dispatched a password reset link.
-            </p>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Check your inbox</h2>
+              <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+                We have dispatched a password reset link to:
+              </p>
+              <div className="mt-2 inline-block px-3.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 font-bold text-xs text-slate-900">
+                {submittedEmail}
+              </div>
+              <p className="text-xs text-slate-400 mt-3 leading-relaxed">
+                Click the link in the email to set a new password. If you don&apos;t see it, be sure to check your spam or promotions folder.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => setSubmitted(false)}
+                className="text-xs font-bold text-[#78593D] hover:underline cursor-pointer"
+              >
+                Send to a different email address &rarr;
+              </button>
+            </div>
           </div>
         ) : (
           <>
@@ -70,9 +97,15 @@ export default function ForgotPasswordPage() {
                 Reset your password
               </h1>
               <p className="text-sm text-slate-500 mt-2">
-                Enter your registered email and we'll send you recovery instructions.
+                Enter your registered email and we&apos;ll send you recovery instructions.
               </p>
             </div>
+
+            {errorMsg && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs mb-4">
+                {errorMsg}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>
