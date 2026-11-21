@@ -73,7 +73,7 @@ class App extends Model
             return true;
         }
 
-        return empty($this->getPendingSetupSteps());
+        return false;
     }
 
     public function markCompleted(): void
@@ -225,19 +225,13 @@ class App extends Model
 
         $pending = [];
 
-        // 1. Platform & Store Connection (must have store URL configured or verified)
+        // 1. Platform & Store Connection (must be verified with valid credentials)
         $connection = $this->connection()->first();
-        $hasUrl = !empty($connection?->store_url)
-            || !empty($connection?->site_url)
-            || !empty($connection?->api_url)
-            || !empty($this->url)
-            || !empty($this->metadata['site_url'])
-            || !empty($this->metadata['store_url']);
-        $isConnVerified = $hasUrl || ($connection && (
+        $isConnVerified = $connection && (
             $connection->status === \App\Enums\ConnectionStatus::Verified
             || (string)($connection->status?->value ?? $connection->status) === 'verified'
             || $connection->is_verified === true
-        )) || $this->builds()->exists() || $this->status === \App\Enums\AppStatus::Completed;
+        );
 
         if (! $isConnVerified) {
             $pending[] = [
@@ -247,19 +241,38 @@ class App extends Model
             ];
         }
 
-        // 2. Theme & Branding Configuration
-        $hasConfig = $this->configs()->exists()
-            || !empty($this->theme_config)
-            || !empty($this->assigned_theme_key)
-            || !empty($this->metadata['theme'])
-            || !empty($this->metadata['brand'])
-            || $this->builds()->exists()
-            || $this->status === \App\Enums\AppStatus::Completed;
+        // 2. Data Collection Consent
+        $hasDataConsent = $this->userConsents()
+            ->where('consent_type', 'data_collection')
+            ->where('agreed', true)
+            ->exists();
+
+        if (! $hasDataConsent) {
+            $pending[] = [
+                'id'    => 'data-collection',
+                'label' => 'Data Collection & Privacy Policy',
+                'step'  => 'data-collection',
+            ];
+        }
+
+        // 3. Theme & Branding Configuration
+        $hasConfig = $this->hasPublishedConfig()
+            || ($this->configs()->where('state', 'published')->exists());
+
         if (! $hasConfig) {
             $pending[] = [
                 'id'    => 'theme',
                 'label' => 'Theme & Branding Configuration',
                 'step'  => 'theme',
+            ];
+        }
+
+        // 4. Plan Selection / Payment
+        if (! $this->hasActiveSubscription()) {
+            $pending[] = [
+                'id'    => 'payment',
+                'label' => 'Subscription Plan Selection',
+                'step'  => 'payment',
             ];
         }
 

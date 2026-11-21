@@ -48,14 +48,12 @@ class SetupStateController extends Controller
         $activePlan = $app->getActivePlan();
         $hasActive = ($activePlan !== null);
 
-        // Determine if app has already been paid for or active (Requirement: never redirect backward after payment)
-        $hasPaidOrActive = $hasActive
+        // Strict Check: Has this application actually completed payment for a package/subscription?
+        $hasPaid = $hasActive
             || $app->hasActiveSubscription()
-            || $app->orders()->where('status', 'paid')->exists()
-            || $app->setup_step === SetupStep::Build
-            || $app->isCompleted();
+            || $app->orders()->where('status', 'paid')->exists();
 
-        if (! $hasPaidOrActive) {
+        if (! $hasPaid) {
             // Strict Step Validation: If connection is unverified, roll back any premature step progression
             if ($app->setup_step->order() > SetupStep::Connect->order() && ! $isConnectionVerified) {
                 $app->update([
@@ -72,7 +70,7 @@ class SetupStateController extends Controller
                 ]);
             }
         } else {
-            // Ensure connection and consents stay valid for paid/completed apps
+            // Ensure connection and consents stay valid for paid apps
             if ($app->connection && $app->connection->status !== ConnectionStatus::Verified) {
                 $app->connection->update(['status' => ConnectionStatus::Verified]);
                 $isConnectionVerified = true;
@@ -98,8 +96,8 @@ class SetupStateController extends Controller
         $completedSteps = [];
         
         // Strict Sequential Allowed Steps calculation (Requirement 1 & 2)
-        if ($hasPaidOrActive) {
-            // All 10 steps are unlocked for paid/completed apps (Requirement: never block navigation)
+        if ($hasPaid) {
+            // All 10 steps are unlocked for paid apps (Requirement: never block navigation)
             $allowedSteps = array_map(fn (SetupStep $s) => $s->value, $allSteps);
         } else {
             // 1. Platform is always allowed.
@@ -123,8 +121,8 @@ class SetupStateController extends Controller
                     $allowedSteps[] = SetupStep::Integrations->value;
                     $allowedSteps[] = SetupStep::Payment->value;
 
-                    // 5. Build unlocked ONLY if active plan exists or app completed
-                    if ($hasActive || $currentStep === SetupStep::Build || $app->isCompleted()) {
+                    // 5. Build unlocked ONLY if active plan exists
+                    if ($hasActive || $currentStep === SetupStep::Build) {
                         $allowedSteps[] = SetupStep::Build->value;
                     }
                 }
@@ -139,7 +137,11 @@ class SetupStateController extends Controller
                 if ($app->builds()->where('status', \App\Enums\BuildStatus::Ready)->exists()) {
                     $completedSteps[] = SetupStep::Build->value;
                 }
-            } elseif ($hasPaidOrActive || ($step->order() < $currentStep->order() && in_array($step->value, $allowedSteps, true))) {
+            } elseif ($step->order() < $currentStep->order() && in_array($step->value, $allowedSteps, true)) {
+                // Prior steps in sequence that were actually passed and unlocked
+                $completedSteps[] = $step->value;
+            } elseif ($hasPaid && $step->order() < SetupStep::Build->order()) {
+                // If this app already paid, all steps prior to Build were completed
                 $completedSteps[] = $step->value;
             }
         }
@@ -459,14 +461,12 @@ class SetupStateController extends Controller
         }
 
         // 3. Advancing to Build: require active plan or completed payment
-        $hasPaidOrActive = $app->getActivePlan() !== null
+        $hasPaid = $app->getActivePlan() !== null
             || $app->hasActiveSubscription()
-            || $app->orders()->where('status', 'paid')->exists()
-            || $app->canDownloadApk()
-            || $app->isCompleted();
+            || $app->orders()->where('status', 'paid')->exists();
 
         if ($target === SetupStep::Build) {
-            if (! $hasPaidOrActive) {
+            if (! $hasPaid) {
                 return response()->json([
                     'error' => 'An active subscription plan or package selection is required before building your application.',
                     'code'  => 'PLAN_REQUIRED',
@@ -474,8 +474,8 @@ class SetupStateController extends Controller
             }
         }
 
-        // Prevent skipping ahead more than 1 step without sequential progression (unless already paid/completed)
-        if (! $hasPaidOrActive && $target->order() > $app->setup_step->order() + 1) {
+        // Prevent skipping ahead more than 1 step without sequential progression (unless already paid)
+        if (! $hasPaid && $target->order() > $app->setup_step->order() + 1) {
             return response()->json([
                 'error' => 'Sequential step progression is required. You cannot skip incomplete steps.',
                 'code'  => 'STEP_SKIPPING_NOT_ALLOWED',

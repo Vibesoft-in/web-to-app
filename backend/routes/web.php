@@ -203,6 +203,42 @@ Route::get('/fix-db', function () {
             $actions[] = 'Build auto-repair note: ' . $be->getMessage();
         }
 
+        // 6. Clean up any draft apps whose connection was prematurely forced to verified without credentials
+        try {
+            $resetDrafts = 0;
+            \App\Models\App::withoutGlobalScopes()
+                ->where('status', 'draft')
+                ->whereDoesntHave('orders', fn ($q) => $q->where('status', 'paid'))
+                ->whereDoesntHave('subscriptions', fn ($q) => $q->where('status', 'active'))
+                ->each(function ($draftApp) use (&$resetDrafts) {
+                    $changed = false;
+                    if ($draftApp->connection) {
+                        $creds = $draftApp->connection->credentials;
+                        $hasCreds = is_array($creds) && (!empty($creds['consumer_key']) || !empty($creds['key']) || !empty($creds['api_key']));
+                        if (! $hasCreds && $draftApp->connection->status === \App\Enums\ConnectionStatus::Verified) {
+                            $draftApp->connection->update([
+                                'status' => \App\Enums\ConnectionStatus::NotStarted,
+                            ]);
+                            $changed = true;
+                        }
+                    }
+                    if ($draftApp->setup_step === \App\Enums\SetupStep::Build) {
+                        $draftApp->update([
+                            'setup_step' => \App\Enums\SetupStep::Connect,
+                        ]);
+                        $changed = true;
+                    }
+                    if ($changed) {
+                        $resetDrafts++;
+                    }
+                });
+            if ($resetDrafts > 0) {
+                $actions[] = "Reset unverified connections for {$resetDrafts} draft apps back to initial state";
+            }
+        } catch (\Throwable $re) {
+            $actions[] = 'Draft reset note: ' . $re->getMessage();
+        }
+
         return response()->json([
             'status'        => 'success',
             'message'       => 'Database and cache resolved successfully.',
