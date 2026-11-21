@@ -454,7 +454,19 @@ export default function NewAppPage() {
     } catch (err: any) {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
-      setErrorMsg(err.message || "Failed to initialize application.");
+      const isUnauth =
+        err?.status === 401 ||
+        err?.message?.toLowerCase()?.includes("unauthenticated") ||
+        err?.code === "UNAUTHENTICATED";
+
+      if (isUnauth) {
+        setErrorMsg("Your session has expired or requires verification. Redirecting to sign in...");
+        setTimeout(() => {
+          router.push("/login?redirect=/dashboard/apps/new");
+        }, 1200);
+      } else {
+        setErrorMsg(err.message || "Failed to initialize application.");
+      }
     }
   };
 

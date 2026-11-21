@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 const BACKEND_BASE_URL = process.env.BACKEND_API_URL || "http://127.0.0.1:8000";
 
@@ -17,17 +17,38 @@ export async function serverFetch<T = any>(
   path: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
-  const cookieStore = cookies();
-  const token = cookieStore.get("auth_token")?.value;
-
-  const headers: Record<string, string> = {
+  const headersMap: Record<string, string> = {
     "Accept": "application/json",
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
 
-  if (!headers["Authorization"] && token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  // If Authorization header is not already passed in options, resolve from incoming request
+  if (!headersMap["Authorization"] && !headersMap["authorization"]) {
+    let incomingAuth: string | null = null;
+    try {
+      const reqHeaders = headers();
+      incomingAuth = reqHeaders.get("authorization") || reqHeaders.get("Authorization");
+    } catch {}
+
+    if (incomingAuth) {
+      headersMap["Authorization"] = incomingAuth.startsWith("Bearer ")
+        ? incomingAuth
+        : `Bearer ${incomingAuth}`;
+    } else {
+      try {
+        const cookieStore = cookies();
+        const token =
+          cookieStore.get("auth_token")?.value ||
+          cookieStore.get("appifyhub_auth_token")?.value ||
+          cookieStore.get("token")?.value ||
+          cookieStore.get("appifyhub_token")?.value;
+
+        if (token) {
+          headersMap["Authorization"] = `Bearer ${token}`;
+        }
+      } catch {}
+    }
   }
 
   const url = `${BACKEND_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
@@ -35,7 +56,7 @@ export async function serverFetch<T = any>(
   try {
     const res = await fetch(url, {
       ...options,
-      headers,
+      headers: headersMap,
       cache: "no-store",
     });
 

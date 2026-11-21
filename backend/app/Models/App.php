@@ -185,6 +185,11 @@ class App extends Model
         return $this->hasMany(CustomFeatureRequest::class);
     }
 
+    public function userConsents(): HasMany
+    {
+        return $this->hasMany(UserConsent::class);
+    }
+
     public function getActivePlan(): ?Plan
     {
         $sub = $this->subscriptions()
@@ -244,7 +249,7 @@ class App extends Model
         // 2. Data Collection Consent
         $hasDataConsent = $this->userConsents()
             ->where('consent_type', 'data_collection')
-            ->where('agreed', true)
+            ->whereNotNull('consented_at')
             ->exists();
 
         if (! $hasDataConsent) {

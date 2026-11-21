@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { serverFetch } from "@/lib/server-api";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const result = await serverFetch("/api/apps");
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+    const headersMap: Record<string, string> = {};
+    if (authHeader) headersMap["Authorization"] = authHeader;
+
+    const result = await serverFetch("/api/apps", {
+      headers: headersMap,
+    });
     if (!result.error && result.data) {
       return NextResponse.json(result.data);
     }
@@ -85,8 +91,13 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
+  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+  const headersMap: Record<string, string> = {};
+  if (authHeader) headersMap["Authorization"] = authHeader;
+
   const result = await serverFetch("/api/apps", {
     method: "POST",
+    headers: headersMap,
     body: JSON.stringify(body),
   });
 

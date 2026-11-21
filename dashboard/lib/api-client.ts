@@ -15,7 +15,20 @@ const AUTH_TOKEN_KEY = "appifyhub_auth_token";
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return localStorage.getItem(AUTH_TOKEN_KEY);
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) return token;
+    // Cookie fallback if localStorage was cleared
+    if (typeof document !== "undefined" && document.cookie) {
+      const match = document.cookie.match(/(?:^|;\s*)(?:auth_token|token|appifyhub_auth_token)=([^;]+)/);
+      if (match && match[1]) {
+        const cookieToken = decodeURIComponent(match[1]);
+        try {
+          localStorage.setItem(AUTH_TOKEN_KEY, cookieToken);
+        } catch {}
+        return cookieToken;
+      }
+    }
+    return null;
   } catch {
     return null;
   }
@@ -26,8 +39,14 @@ export function setAuthToken(token: string): void {
   try {
     if (token) {
       localStorage.setItem(AUTH_TOKEN_KEY, token);
+      if (typeof document !== "undefined") {
+        document.cookie = `auth_token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
+      }
     } else {
       localStorage.removeItem(AUTH_TOKEN_KEY);
+      if (typeof document !== "undefined") {
+        document.cookie = "auth_token=; path=/; max-age=0; SameSite=Lax";
+      }
     }
   } catch {}
 }
@@ -36,6 +55,9 @@ export function clearAuthToken(): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(AUTH_TOKEN_KEY);
+    if (typeof document !== "undefined") {
+      document.cookie = "auth_token=; path=/; max-age=0; SameSite=Lax";
+    }
   } catch {}
 }
 
@@ -49,11 +71,16 @@ export async function apiClient<T = any>(
     ...(options.headers as Record<string, string>),
   };
 
-  // Attach token from localStorage if not already passed explicitly
-  if (!headers["Authorization"]) {
-    const token = getAuthToken();
-    if (token) {
+  // Attach token from localStorage or cookie if not already passed explicitly
+  const token = getAuthToken();
+  if (token) {
+    if (!headers["Authorization"]) {
       headers["Authorization"] = `Bearer ${token}`;
+    }
+    if (typeof document !== "undefined" && !document.cookie.includes("auth_token=")) {
+      try {
+        document.cookie = `auth_token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
+      } catch {}
     }
   }
 

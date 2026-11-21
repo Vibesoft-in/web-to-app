@@ -78,7 +78,25 @@ class AppController extends Controller
         }
 
         $user = $request->user();
+        if (! $user) {
+            return response()->json([
+                'error' => [
+                    'code'    => 'UNAUTHENTICATED',
+                    'message' => 'Authentication required.',
+                ],
+            ], 401);
+        }
+
         $tenant = $user->tenant;
+        if (! $tenant) {
+            $tenant = \App\Models\Tenant::create([
+                'name'          => ($user->name ?? 'User') . "'s Workspace",
+                'owner_user_id' => $user->id,
+                'status'        => 'trial',
+            ]);
+            $user->update(['tenant_id' => $tenant->id]);
+            $user->load('tenant');
+        }
 
         // Draft recovery: if an incomplete draft already exists for this tenant, update and reuse it (never create duplicate drafts)
         $existingDraft = App::where('tenant_id', $tenant->id)
