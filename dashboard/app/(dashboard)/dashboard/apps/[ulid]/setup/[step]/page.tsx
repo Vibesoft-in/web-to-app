@@ -264,12 +264,14 @@ export default function WizardStepPage() {
             const isAllowed = Boolean(
               state?.allowed_steps ? state.allowed_steps.includes(s.key) : index <= furthestStepIndex
             );
-            // Completed steps show green checkmark: must be validated in completed_steps, not current, and never prematurely shown on future uncompleted steps
-            const isCompleted = Boolean(
-              state?.completed_steps
-                ? state.completed_steps.includes(s.key)
-                : index < furthestStepIndex
-            ) && !isCurrent && (index <= currentStepIndex || Boolean(state?.subscription?.has_active && state?.completed_steps?.includes(s.key)));
+            // Completed steps show green checkmark: strictly only for previous steps that were genuinely completed
+            const isCompleted =
+              index < currentStepIndex &&
+              Boolean(
+                state?.completed_steps
+                  ? state.completed_steps.includes(s.key)
+                  : index < furthestStepIndex
+              );
 
             return (
               <div key={s.key} className="flex items-center flex-1 last:flex-none">
@@ -309,7 +311,7 @@ export default function WizardStepPage() {
                 {index < STEPS.length - 1 && (
                   <div
                     className={`flex-1 h-0.5 mx-1.5 transition-colors ${
-                      isCompleted || (index < currentStepIndex && isAllowed)
+                      index < currentStepIndex
                         ? "bg-emerald-300"
                         : "bg-slate-200"
                     }`}
@@ -328,11 +330,13 @@ export default function WizardStepPage() {
               const isAllowed = Boolean(
                 state?.allowed_steps ? state.allowed_steps.includes(s.key) : index <= furthestStepIndex
               );
-              const isCompleted = Boolean(
-                state?.completed_steps
-                  ? state.completed_steps.includes(s.key)
-                  : index < furthestStepIndex
-              ) && !isCurrent && (index <= currentStepIndex || Boolean(state?.subscription?.has_active && state?.completed_steps?.includes(s.key)));
+              const isCompleted =
+                index < currentStepIndex &&
+                Boolean(
+                  state?.completed_steps
+                    ? state.completed_steps.includes(s.key)
+                    : index < furthestStepIndex
+                );
 
               return (
                 <button

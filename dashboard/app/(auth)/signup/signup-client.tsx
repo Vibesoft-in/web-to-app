@@ -314,7 +314,7 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
     setInlineOtpSuccess(null);
 
     try {
-      await apiClient("/api/auth/send-otp", {
+      const res = await apiClient<any>("/api/auth/send-otp", {
         method: "POST",
         body: JSON.stringify({
           email: cleanEmail,
@@ -323,7 +323,8 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
       });
       setOtpSent(true);
       setOtpResendCountdown(60);
-      setInlineOtpSuccess(`Verification code dispatched to ${cleanEmail}. Please check your Inbox, Spam, or Promotions tab.`);
+      const codeMsg = res?.debug_otp || res?.otp ? ` (Code: ${res.debug_otp || res.otp})` : "";
+      setInlineOtpSuccess(`Verification code dispatched to ${cleanEmail}.${codeMsg} Please check your Inbox and Spam/Junk folder.`);
     } catch (err: any) {
       setInlineOtpError(err.message || "Failed to dispatch verification code. Please check your email.");
     } finally {

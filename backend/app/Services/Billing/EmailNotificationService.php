@@ -23,7 +23,7 @@ class EmailNotificationService
     public function __construct()
     {
         $this->adminEmail = config('services.admin_notification_email', env('ADMIN_NOTIFICATION_EMAIL', 'admin@webintoapp.com'));
-        $this->fromAddress = config('mail.from.address', 'seo.vibesoft@gmail.com');
+        $this->fromAddress = config('mail.from.address', 'noreply@livaan.in');
         $this->fromName = config('mail.from.name', 'WebIntoApp');
     }
 

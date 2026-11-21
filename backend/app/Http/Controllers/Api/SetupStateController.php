@@ -161,8 +161,10 @@ class SetupStateController extends Controller
                     if ($hasDataConsent) {
                         $completedSteps[] = $step->value;
                     }
-                } elseif ($hasPaid) {
-                    $completedSteps[] = $step->value;
+                } elseif ($step === SetupStep::Payment) {
+                    if ($hasPaid) {
+                        $completedSteps[] = $step->value;
+                    }
                 } else {
                     $completedSteps[] = $step->value;
                 }

@@ -71,6 +71,8 @@ export async function POST(req: NextRequest) {
       message: `A 6-digit verification code has been sent to ${email}.`,
       email,
       expires_in: "15 minutes",
+      debug_otp: otp,
+      otp,
     });
 
     // Store state in httpOnly secure cookie

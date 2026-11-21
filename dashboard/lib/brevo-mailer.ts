@@ -126,7 +126,7 @@ export async function sendOtpEmailViaBrevo(
   `;
 
   await transporter.sendMail({
-    from: '"WebIntoApp" <seo.vibesoft@gmail.com>',
+    from: '"WebIntoApp" <noreply@livaan.in>',
     to: recipientEmail,
     subject: `Your WebIntoApp Verification Code: ${otp}`,
     html,
@@ -214,7 +214,7 @@ export async function sendPasswordResetEmailViaBrevo(
   `;
 
   await transporter.sendMail({
-    from: '"WebIntoApp" <seo.vibesoft@gmail.com>',
+    from: '"WebIntoApp" <noreply@livaan.in>',
     to: recipientEmail,
     subject: "Reset Your WebIntoApp Password",
     html,

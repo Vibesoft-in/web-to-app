@@ -98,10 +98,12 @@ class AppController extends Controller
             $user->load('tenant');
         }
 
-        // Draft recovery: if an incomplete draft already exists for this tenant, update and reuse it (never create duplicate drafts)
+        // Draft recovery: only reuse an early untouched draft (never reuse advanced drafts that have orders or builds)
         $existingDraft = App::where('tenant_id', $tenant->id)
             ->where('status', 'draft')
+            ->whereIn('setup_step', ['platform', 'connect'])
             ->whereDoesntHave('builds')
+            ->whereDoesntHave('orders')
             ->latest('id')
             ->first();
 
