@@ -721,6 +721,33 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
                 ->get()
                 ->map(function ($u) {
                     $appsCount = \App\Models\App::withoutGlobalScopes()->where('tenant_id', $u->tenant_id)->count();
+
+                    // Find active subscription or paid package order
+                    $activeSub = \App\Models\Subscription::withoutGlobalScopes()
+                        ->where('tenant_id', $u->tenant_id)
+                        ->where('status', 'active')
+                        ->with('plan')
+                        ->latest('id')
+                        ->first();
+
+                    $activeOrder = \App\Models\Order::withoutGlobalScopes()
+                        ->where('tenant_id', $u->tenant_id)
+                        ->where('status', 'paid')
+                        ->whereNotNull('package_id')
+                        ->with('package')
+                        ->latest('id')
+                        ->first();
+
+                    $planName = $activeSub?->plan?->name ?? $activeOrder?->package?->name ?? null;
+                    $isLifetime = $activeOrder && ! $activeSub;
+                    $daysLeft = null;
+                    if ($activeSub && $activeSub->current_period_end) {
+                        $daysLeft = max(0, (int) now()->diffInDays($activeSub->current_period_end, false));
+                    }
+
+                    $isBlocked = $u->isBlocked();
+                    $blockedReason = $u->blocked_reason ?? \App\Models\BlockedEmail::getReason($u->email);
+
                     return [
                         'id'                => $u->id,
                         'name'              => $u->name,
@@ -728,14 +755,25 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
                         'phone'             => $u->phone,
                         'role'              => $u->role instanceof \App\Enums\UserRole ? $u->role->value : (string) $u->role,
                         'avatar_url'        => $u->avatar_url,
-                        'status'            => $u->trashed() ? 'suspended' : ($u->email_verified_at ? 'active' : 'pending_verification'),
-                        'status_label'      => $u->trashed() ? 'Suspended' : ($u->email_verified_at ? 'Active' : 'Pending Verification'),
+                        'is_blocked'        => $isBlocked,
+                        'blocked_reason'    => $blockedReason,
+                        'blocked_at'        => $u->blocked_at?->toIso8601String(),
+                        'status'            => $isBlocked ? 'blocked' : ($u->trashed() ? 'suspended' : ($u->email_verified_at ? 'active' : 'pending_verification')),
+                        'status_label'      => $isBlocked ? 'Blocked' : ($u->trashed() ? 'Suspended' : ($u->email_verified_at ? 'Active' : 'Pending Verification')),
                         'email_verified_at' => $u->email_verified_at,
                         'created_at'        => $u->created_at?->toIso8601String(),
                         'tenant_id'         => $u->tenant_id,
                         'tenant_name'       => $u->tenant?->name,
                         'apps_count'        => $appsCount,
                         'apps'              => $u->apps,
+                        'active_plan'       => $planName ? [
+                            'name'            => $planName,
+                            'days_left'       => $daysLeft,
+                            'is_lifetime'     => $isLifetime,
+                            'status'          => 'Active',
+                            'subscription_id' => $activeSub?->id,
+                            'order_id'        => $activeOrder?->id,
+                        ] : null,
                     ];
                 });
 
@@ -744,6 +782,108 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
                 'users' => $users,
             ]);
         })->name('api.admin.users');
+
+        // ── Admin Customer & User Controls ──────────────────────────────────────
+        Route::post('/users/{id}/block', function (Request $request, int $id) {
+            $admin = $request->user();
+            if (! $admin || ! $admin->isSuperAdmin()) {
+                return response()->json(['error' => 'Unauthorized. Super Admin access required.'], 403);
+            }
+
+            $target = \App\Models\User::withoutGlobalScopes()->findOrFail($id);
+            if ($target->isSuperAdmin()) {
+                return response()->json(['error' => 'Super Administrator accounts cannot be blocked.'], 422);
+            }
+
+            $reason = trim((string) $request->input('reason', 'Account suspended by administrator'));
+            $target->block($reason, $admin->id);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Customer {$target->name} ({$target->email}) has been blocked. Any sign-in attempts will be rejected and sent to their email.",
+                'user'    => $target->fresh(),
+            ]);
+        })->name('api.admin.users.block');
+
+        Route::post('/users/{id}/unblock', function (Request $request, int $id) {
+            $admin = $request->user();
+            if (! $admin || ! $admin->isSuperAdmin()) {
+                return response()->json(['error' => 'Unauthorized. Super Admin access required.'], 403);
+            }
+
+            $target = \App\Models\User::withoutGlobalScopes()->findOrFail($id);
+            $target->unblock();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Customer {$target->name} ({$target->email}) has been unblocked successfully.",
+                'user'    => $target->fresh(),
+            ]);
+        })->name('api.admin.users.unblock');
+
+        Route::post('/users/{id}/revoke-subscription', function (Request $request, int $id) {
+            $admin = $request->user();
+            if (! $admin || ! $admin->isSuperAdmin()) {
+                return response()->json(['error' => 'Unauthorized. Super Admin access required.'], 403);
+            }
+
+            $target = \App\Models\User::withoutGlobalScopes()->findOrFail($id);
+            $reason = $request->input('reason', 'Subscription revoked by Super Administrator');
+
+            $revokedCount = $target->revokeAllSubscriptions($reason);
+
+            return response()->json([
+                'success'       => true,
+                'message'       => "All subscriptions and commercial licenses for customer {$target->name} ({$target->email}) have been revoked immediately.",
+                'revoked_count' => $revokedCount,
+            ]);
+        })->name('api.admin.users.revoke-subscription');
+
+        // ── Admin Blocked Emails Directory ──────────────────────────────────────
+        Route::get('/blocked-emails', function (Request $request) {
+            $admin = $request->user();
+            if (! $admin || ! $admin->isSuperAdmin()) {
+                return response()->json(['error' => 'Unauthorized. Super Admin access required.'], 403);
+            }
+
+            $records = \App\Models\BlockedEmail::with('blockedBy')->latest()->get();
+            return response()->json(['blocked_emails' => $records]);
+        })->name('api.admin.blocked-emails.index');
+
+        Route::post('/blocked-emails', function (Request $request) {
+            $admin = $request->user();
+            if (! $admin || ! $admin->isSuperAdmin()) {
+                return response()->json(['error' => 'Unauthorized. Super Admin access required.'], 403);
+            }
+
+            $validated = $request->validate([
+                'email'  => 'required|email|max:255',
+                'reason' => 'nullable|string|max:500',
+            ]);
+
+            $record = \App\Models\BlockedEmail::blockEmail($validated['email'], $validated['reason'] ?? null, $admin->id);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Email {$record->email} has been added to the blocked directory.",
+                'record'  => $record,
+            ]);
+        })->name('api.admin.blocked-emails.store');
+
+        Route::delete('/blocked-emails/{id}', function (Request $request, int $id) {
+            $admin = $request->user();
+            if (! $admin || ! $admin->isSuperAdmin()) {
+                return response()->json(['error' => 'Unauthorized. Super Admin access required.'], 403);
+            }
+
+            $record = \App\Models\BlockedEmail::findOrFail($id);
+            \App\Models\BlockedEmail::unblockEmail($record->email);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Email {$record->email} has been unblocked.",
+            ]);
+        })->name('api.admin.blocked-emails.destroy');
 
         Route::get('/apps', function (Request $request) {
             $user = $request->user();

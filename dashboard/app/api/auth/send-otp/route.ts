@@ -47,11 +47,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(data);
     }
 
-    // If backend returned an error (e.g. account already exists), return that
-    if (response.status === 422) {
+    // If backend returned an error (e.g. account suspended, email blocked, or account exists), return that
+    if (response.status === 403 || response.status === 422) {
       return NextResponse.json(
-        data.error || { code: "OTP_FAILED", message: data.message || "Failed to send verification code." },
-        { status: 422 }
+        data.error || {
+          code: response.status === 403 ? "EMAIL_BLOCKED" : "OTP_FAILED",
+          message: data.message || "Request failed.",
+        },
+        { status: response.status }
       );
     }
   } catch {

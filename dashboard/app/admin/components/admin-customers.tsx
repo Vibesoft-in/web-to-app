@@ -77,6 +77,9 @@ export interface CustomerRecord {
   joinedDate: string;
   verified: boolean;
   avatarColor: string;
+  isBlocked?: boolean;
+  blockedReason?: string;
+  blockedAt?: string;
 }
 
 export interface CustomerDetailData {
@@ -266,15 +269,15 @@ function getCustomerDetailData(cust: CustomerRecord): CustomerDetailData {
     case "usr_101":
       return {
         plan: {
-          name: "Growth Fashion Tier",
-          tier: "Growth",
-          price: "₹14,999 / year",
-          billingCycle: "Annual",
+          name: "Pro Combo",
+          tier: "Pro Combo",
+          price: "₹8,999",
+          billingCycle: "Lifetime",
           status: "Active",
           startDate: "Nov 14, 2026",
-          expireDate: "Nov 14, 2027",
-          daysLeft: 359,
-          autoRenew: true,
+          expireDate: "Perpetual (No Expiration)",
+          daysLeft: 999,
+          autoRenew: false,
           paymentMethod: "Razorpay (UPI / HDFC Bank)",
           lastPaymentDate: "Nov 14, 2026",
         },
@@ -282,7 +285,7 @@ function getCustomerDetailData(cust: CustomerRecord): CustomerDetailData {
           {
             invoiceId: "INV-2026-0881",
             date: "Nov 14, 2026",
-            description: "Growth Fashion Annual Subscription",
+            description: "Pro Combo Lifetime License Purchase",
             amount: 14999,
             orderId: "order_PW9812481",
             gateway: "Razorpay",
@@ -708,6 +711,142 @@ export function AdminCustomers() {
 
   // Sensitive action state
   const [impersonateTarget, setImpersonateTarget] = useState<CustomerRecord | null>(null);
+
+  // Live overrides for Plan, Blocked status, and Audit History
+  const [customerPlanOverrides, setCustomerPlanOverrides] = useState<Record<string, CustomerDetailData["plan"]>>({});
+  const [customerBlockedOverrides, setCustomerBlockedOverrides] = useState<Record<string, { isBlocked: boolean; reason?: string }>>({});
+  const [customerHistoryOverrides, setCustomerHistoryOverrides] = useState<Record<string, any[]>>({});
+
+  // Block Customer Modal State
+  const [blockModalTarget, setBlockModalTarget] = useState<CustomerRecord | null>(null);
+  const [blockReason, setBlockReason] = useState<string>("Account suspended by Super Administrator");
+  const [isSubmittingBlock, setIsSubmittingBlock] = useState<boolean>(false);
+
+  // Revoke Subscription Modal State
+  const [revokeModalTarget, setRevokeModalTarget] = useState<CustomerRecord | null>(null);
+  const [revokeReason, setRevokeReason] = useState<string>("Subscription revoked by Super Administrator");
+  const [isSubmittingRevoke, setIsSubmittingRevoke] = useState<boolean>(false);
+
+  const handleOpenBlockModal = (customer: CustomerRecord) => {
+    setBlockModalTarget(customer);
+    setBlockReason("Account suspended by Super Administrator");
+  };
+
+  const handleConfirmBlock = async () => {
+    if (!blockModalTarget) return;
+    setIsSubmittingBlock(true);
+
+    const targetNumericId = blockModalTarget.id.replace("usr_", "");
+    try {
+      await fetch(`/api/admin/users/${targetNumericId}/block`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: blockReason }),
+      });
+    } catch {}
+
+    setCustomerBlockedOverrides((prev) => ({
+      ...prev,
+      [blockModalTarget.id]: { isBlocked: true, reason: blockReason },
+    }));
+
+    const newHistoryItem = {
+      id: "h_blk_" + Date.now(),
+      event: "Account & Email Blocked",
+      detail: `Customer email (${blockModalTarget.email}) suspended by Super Admin. Future sign-in attempts will be rejected and automated security alert emails will be dispatched. Reason: ${blockReason}`,
+      timestamp: "Just now",
+      actor: "Super Admin",
+      severity: "danger",
+    };
+    setCustomerHistoryOverrides((prev) => ({
+      ...prev,
+      [blockModalTarget.id]: [newHistoryItem, ...(prev[blockModalTarget.id] || [])],
+    }));
+
+    setIsSubmittingBlock(false);
+    setBlockModalTarget(null);
+  };
+
+  const handleUnblockCustomer = async (customer: CustomerRecord) => {
+    if (!confirm(`Are you sure you want to unblock ${customer.name} (${customer.email})?`)) return;
+
+    const targetNumericId = customer.id.replace("usr_", "");
+    try {
+      await fetch(`/api/admin/users/${targetNumericId}/unblock`, {
+        method: "POST",
+      });
+    } catch {}
+
+    setCustomerBlockedOverrides((prev) => ({
+      ...prev,
+      [customer.id]: { isBlocked: false },
+    }));
+
+    const newHistoryItem = {
+      id: "h_unblk_" + Date.now(),
+      event: "Account Unblocked",
+      detail: `Customer email (${customer.email}) unblocked by Super Admin. Full sign-in and platform access restored.`,
+      timestamp: "Just now",
+      actor: "Super Admin",
+      severity: "success",
+    };
+    setCustomerHistoryOverrides((prev) => ({
+      ...prev,
+      [customer.id]: [newHistoryItem, ...(prev[customer.id] || [])],
+    }));
+  };
+
+  const handleOpenRevokeSubscriptionModal = (customer: CustomerRecord) => {
+    setRevokeModalTarget(customer);
+    setRevokeReason("Subscription revoked by Super Administrator");
+  };
+
+  const handleConfirmRevokeSubscription = async () => {
+    if (!revokeModalTarget) return;
+    setIsSubmittingRevoke(true);
+
+    const targetNumericId = revokeModalTarget.id.replace("usr_", "");
+    try {
+      await fetch(`/api/admin/users/${targetNumericId}/revoke-subscription`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: revokeReason }),
+      });
+    } catch {}
+
+    setCustomerPlanOverrides((prev) => ({
+      ...prev,
+      [revokeModalTarget.id]: {
+        name: "Free Tier (Revoked by Admin)",
+        tier: "Free",
+        price: "₹0",
+        billingCycle: "Monthly",
+        status: "Expired",
+        startDate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        expireDate: "Revoked Immediately",
+        daysLeft: 0,
+        autoRenew: false,
+        paymentMethod: "Revoked by Super Administrator",
+        lastPaymentDate: "N/A",
+      },
+    }));
+
+    const newHistoryItem = {
+      id: "h_rev_" + Date.now(),
+      event: "Subscription Revoked",
+      detail: `Super Admin revoked active subscription and paid license entitlements even though remaining time was present. Reason: ${revokeReason}. Reverted to Free tier.`,
+      timestamp: "Just now",
+      actor: "Super Admin",
+      severity: "danger",
+    };
+    setCustomerHistoryOverrides((prev) => ({
+      ...prev,
+      [revokeModalTarget.id]: [newHistoryItem, ...(prev[revokeModalTarget.id] || [])],
+    }));
+
+    setIsSubmittingRevoke(false);
+    setRevokeModalTarget(null);
+  };
 
   // Email composer modal state
   const [emailTarget, setEmailTarget] = useState<CustomerRecord | null>(null);
@@ -1214,11 +1353,183 @@ export function AdminCustomers() {
     );
   };
 
+  const renderBlockModal = () => {
+    if (!blockModalTarget) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in">
+        <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-rose-200 flex flex-col overflow-hidden my-auto animate-in zoom-in-95">
+          <div className="p-5 border-b border-rose-100 bg-rose-50/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
+                <Shield className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900">Block Customer &amp; Email</h3>
+                <p className="text-[11px] text-slate-500 font-mono">{blockModalTarget.email}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setBlockModalTarget(null)}
+              className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="p-5 space-y-4 text-xs">
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 leading-relaxed space-y-1.5">
+              <strong className="block font-bold">Security &amp; Access Policy:</strong>
+              <p>
+                Blocking this email address will immediately revoke active sessions. If this user attempts to log in or register with this email, the login will be rejected and an automated security email notification will be dispatched to <strong>{blockModalTarget.email}</strong>.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-slate-700 font-bold uppercase tracking-wider text-[11px] mb-1.5">
+                Administrative Reason
+              </label>
+              <textarea
+                rows={3}
+                value={blockReason}
+                onChange={(e) => setBlockReason(e.target.value)}
+                placeholder="e.g. Terms violation, fraudulent chargeback, security risk..."
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500"
+              />
+            </div>
+          </div>
+
+          <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setBlockModalTarget(null)}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200/60 transition cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isSubmittingBlock}
+              onClick={handleConfirmBlock}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+            >
+              {isSubmittingBlock ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Blocking...</span>
+                </>
+              ) : (
+                <>
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>Block Email &amp; Suspend Access</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderRevokeModal = () => {
+    if (!revokeModalTarget) return null;
+    const currentPlan = customerPlanOverrides[revokeModalTarget.id] ?? getCustomerDetailData(revokeModalTarget).plan;
+
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in">
+        <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-rose-200 flex flex-col overflow-hidden my-auto animate-in zoom-in-95">
+          <div className="p-5 border-b border-rose-100 bg-rose-50/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
+                <XCircle className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900">Revoke / Remove Subscription</h3>
+                <p className="text-[11px] text-slate-500">{revokeModalTarget.name} ({revokeModalTarget.tenantName})</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setRevokeModalTarget(null)}
+              className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="p-5 space-y-4 text-xs">
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 leading-relaxed space-y-1.5">
+              <strong className="block font-bold">Administrative Plan Revocation:</strong>
+              <p>
+                You are about to revoke <strong>{currentPlan.name}</strong> ({currentPlan.tier} Tier, {currentPlan.daysLeft} days remaining / {currentPlan.billingCycle} License).
+              </p>
+              <p className="text-[11px] text-amber-800">
+                This will immediately terminate all paid plan entitlements, disable APK/AAB build artifact downloads, and revert all customer applications to the standard Free tier even though time remains.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-slate-700 font-bold uppercase tracking-wider text-[11px] mb-1.5">
+                Revocation Reason (Logged &amp; Sent to Customer)
+              </label>
+              <textarea
+                rows={3}
+                value={revokeReason}
+                onChange={(e) => setRevokeReason(e.target.value)}
+                placeholder="e.g. Account audit, requested termination, policy breach..."
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500"
+              />
+            </div>
+          </div>
+
+          <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setRevokeModalTarget(null)}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200/60 transition cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isSubmittingRevoke}
+              onClick={handleConfirmRevokeSubscription}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+            >
+              {isSubmittingRevoke ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Revoking...</span>
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>Revoke Subscription Immediately</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ═══════════════════════════════════════════════════════════════════════
   // FULL PAGE CUSTOMER DETAIL VIEW (Triggered by "View Details")
   // ═══════════════════════════════════════════════════════════════════════
   if (selectedCustomer) {
-    const details = getCustomerDetailData(selectedCustomer);
+    const baseDetails = getCustomerDetailData(selectedCustomer);
+    const plan = customerPlanOverrides[selectedCustomer.id] ?? baseDetails.plan;
+    const isCustomerBlocked = customerBlockedOverrides[selectedCustomer.id]?.isBlocked ?? selectedCustomer.isBlocked ?? false;
+    const blockedReason = customerBlockedOverrides[selectedCustomer.id]?.reason ?? selectedCustomer.blockedReason;
+    const history = [
+      ...(customerHistoryOverrides[selectedCustomer.id] || []),
+      ...baseDetails.history,
+    ];
+    const details = {
+      ...baseDetails,
+      plan,
+      history,
+    };
     const customerAddons = customerAddonsOverrides[selectedCustomer.id] ?? details.addons;
     const customerApps = customerAppsOverrides[selectedCustomer.id] ?? details.apps;
 
@@ -1240,7 +1551,30 @@ export function AdminCustomers() {
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Block / Unblock Action Button */}
+            {isCustomerBlocked ? (
+              <button
+                type="button"
+                onClick={() => handleUnblockCustomer(selectedCustomer)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition shadow-2xs cursor-pointer"
+                title={`Unblock ${selectedCustomer.email}`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Unblock Account</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleOpenBlockModal(selectedCustomer)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition shadow-2xs cursor-pointer"
+                title={`Block ${selectedCustomer.email}`}
+              >
+                <Shield className="w-3.5 h-3.5 text-rose-600" />
+                <span>Block Email</span>
+              </button>
+            )}
+
             <button
               onClick={() => setImpersonateTarget(selectedCustomer)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold border border-amber-200 transition shadow-2xs cursor-pointer"
@@ -1269,6 +1603,32 @@ export function AdminCustomers() {
             </button>
           </div>
         </div>
+
+        {/* ── BLOCKED ACCOUNT BANNER ── */}
+        {isCustomerBlocked && (
+          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center flex-shrink-0 font-bold">
+                <Shield className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <strong className="block text-xs font-bold text-rose-900 uppercase tracking-wide">
+                  Account &amp; Email Suspended by Super Administrator
+                </strong>
+                <p className="text-[11px] text-rose-700 mt-0.5">
+                  Sign-in attempts with <strong>{selectedCustomer.email}</strong> will be rejected and an automated notification will be sent to their email. {blockedReason ? `(Reason: ${blockedReason})` : ""}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleUnblockCustomer(selectedCustomer)}
+              className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer flex-shrink-0 shadow-2xs"
+            >
+              Unblock Account
+            </button>
+          </div>
+        )}
 
         {/* ── CUSTOMER PROFILE HEADER CARD ── */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-2xs">
@@ -1877,6 +2237,12 @@ export function AdminCustomers() {
 
         {/* ── EMAIL COMPOSER MODAL ── */}
         {renderEmailModal()}
+
+        {/* ── BLOCK CUSTOMER MODAL ── */}
+        {renderBlockModal()}
+
+        {/* ── REVOKE SUBSCRIPTION MODAL ── */}
+        {renderRevokeModal()}
 
         {/* ── ASSIGN ADD-ON MODAL ── */}
         {isAssignAddonOpen && (
@@ -2627,36 +2993,47 @@ export function AdminCustomers() {
                   </td>
                 </tr>
               ) : (
-                filteredCustomers.map((cust) => (
-                  <tr
-                    key={cust.id}
-                    onClick={() => setSelectedCustomer(cust)}
-                    className="hover:bg-indigo-50/50 cursor-pointer transition-colors group select-none"
-                    title={`Click anywhere to view full details for ${cust.name}`}
-                  >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-9 h-9 rounded-xl ${cust.avatarColor} text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform`}
-                        >
-                          {cust.name.charAt(0)}
-                        </div>
-                        <div>
-                          <div className="font-bold text-slate-900 group-hover:text-indigo-700 transition-colors flex items-center gap-1.5">
-                            {cust.name}
-                            {cust.verified && (
-                              <span title="Verified Email">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                              </span>
+                filteredCustomers.map((cust) => {
+                  const isCustBlocked = customerBlockedOverrides[cust.id]?.isBlocked ?? cust.isBlocked;
+                  return (
+                    <tr
+                      key={cust.id}
+                      onClick={() => setSelectedCustomer(cust)}
+                      className={`hover:bg-indigo-50/50 cursor-pointer transition-colors group select-none ${
+                        isCustBlocked ? "bg-rose-50/30" : ""
+                      }`}
+                      title={`Click anywhere to view full details for ${cust.name}`}
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-9 h-9 rounded-xl ${
+                              isCustBlocked ? "bg-rose-600" : cust.avatarColor
+                            } text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform`}
+                          >
+                            {cust.name.charAt(0)}
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-900 group-hover:text-indigo-700 transition-colors flex items-center gap-1.5 flex-wrap">
+                              <span>{cust.name}</span>
+                              {cust.verified && (
+                                <span title="Verified Email">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                                </span>
+                              )}
+                              {isCustBlocked && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200 uppercase tracking-wide">
+                                  Blocked
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-slate-500 font-mono">{cust.email}</div>
+                            {cust.phone && (
+                              <div className="text-[11px] text-slate-400">{cust.phone}</div>
                             )}
                           </div>
-                          <div className="text-xs text-slate-500 font-mono">{cust.email}</div>
-                          {cust.phone && (
-                            <div className="text-[11px] text-slate-400">{cust.phone}</div>
-                          )}
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
                     <td className="px-6 py-4">
                       <div className="font-semibold text-slate-800 flex items-center gap-1.5">
@@ -2688,8 +3065,9 @@ export function AdminCustomers() {
                       </button>
                     </td>
                   </tr>
-                ))
-              )}
+                );
+              })
+            )}
             </tbody>
           </table>
         </div>
@@ -2697,6 +3075,12 @@ export function AdminCustomers() {
 
       {/* ── EMAIL COMPOSER MODAL ── */}
       {renderEmailModal()}
+
+      {/* ── BLOCK CUSTOMER MODAL ── */}
+      {renderBlockModal()}
+
+      {/* ── REVOKE SUBSCRIPTION MODAL ── */}
+      {renderRevokeModal()}
     </div>
   );
 }

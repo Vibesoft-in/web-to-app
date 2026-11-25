@@ -122,6 +122,7 @@ class UserResource extends Resource
                     ->label('Account Status')
                     ->badge()
                     ->state(function (User $record): string {
+                        if ($record->isBlocked()) return 'Blocked';
                         if ($record->trashed()) return 'Suspended';
                         if ($record->email_verified_at) return 'Active';
                         return 'Pending Verification';
@@ -130,6 +131,7 @@ class UserResource extends Resource
                         'Active' => 'success',
                         'Pending Verification' => 'warning',
                         'Suspended' => 'danger',
+                        'Blocked' => 'danger',
                         default => 'gray',
                     }),
                 Tables\Columns\TextColumn::make('health_score')
@@ -240,6 +242,58 @@ class UserResource extends Resource
                         $impersonation->startImpersonation(auth()->user(), $record->tenant);
                         Notification::make()
                             ->title("Now impersonating {$record->tenant->name}")
+                            ->warning()
+                            ->send();
+                    }),
+                Tables\Actions\Action::make('block_user')
+                    ->label(fn (User $record): string => $record->isBlocked() ? 'Unblock' : 'Block Email')
+                    ->icon(fn (User $record): string => $record->isBlocked() ? 'heroicon-o-check-circle' : 'heroicon-o-no-symbol')
+                    ->color(fn (User $record): string => $record->isBlocked() ? 'success' : 'danger')
+                    ->requiresConfirmation(fn (User $record): bool => ! $record->isBlocked())
+                    ->modalHeading(fn (User $record): string => $record->isBlocked() ? "Unblock {$record->name}?" : "Block Customer & Email: {$record->email}?")
+                    ->modalDescription(fn (User $record): string => $record->isBlocked()
+                        ? "This will restore login and app builder access for {$record->email}."
+                        : "Any future sign-in attempts by {$record->email} will be rejected and an automated security email will be dispatched to their address."
+                    )
+                    ->form(fn (User $record): array => $record->isBlocked() ? [] : [
+                        Forms\Components\TextInput::make('reason')
+                            ->label('Reason for Blocking')
+                            ->placeholder('e.g. Terms violation, fraudulent activity, excessive failed attempts...')
+                            ->default('Suspended by Super Administrator'),
+                    ])
+                    ->action(function (User $record, array $data) {
+                        if ($record->isBlocked()) {
+                            $record->unblock();
+                            Notification::make()
+                                ->title("Customer {$record->name} unblocked")
+                                ->success()
+                                ->send();
+                        } else {
+                            $record->block($data['reason'] ?? 'Suspended by administrator', auth()->id());
+                            Notification::make()
+                                ->title("Customer {$record->email} blocked")
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+                Tables\Actions\Action::make('revoke_subscription')
+                    ->label('Revoke Subscription')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading(fn (User $record): string => "Revoke All Subscriptions for {$record->name}?")
+                    ->modalDescription('This action will immediately terminate all active subscriptions, commercial packages, and lifetime licenses for this customer, even if there is remaining time left. Apps will revert to the standard Free tier.')
+                    ->form([
+                        Forms\Components\TextInput::make('reason')
+                            ->label('Administrative Revocation Reason')
+                            ->placeholder('e.g. Requested refund, policy breach, account audit...')
+                            ->default('Subscription revoked by Super Administrator'),
+                    ])
+                    ->action(function (User $record, array $data) {
+                        $count = $record->revokeAllSubscriptions($data['reason'] ?? 'Subscription revoked by administrator');
+                        Notification::make()
+                            ->title("Revoked active subscriptions for {$record->name}")
+                            ->body("Revoked {$count} active plan record(s). Apps reverted to Free tier.")
                             ->warning()
                             ->send();
                     }),

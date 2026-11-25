@@ -35,6 +35,9 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         'phone',
         'password',
         'role',
+        'is_blocked',
+        'blocked_at',
+        'blocked_reason',
         'email_verified_at',
         'phone_verified_at',
     ];
@@ -50,6 +53,8 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         'phone_verified_at'  => 'datetime',
         'password'           => 'hashed',
         'role'               => UserRole::class,
+        'is_blocked'         => 'boolean',
+        'blocked_at'         => 'datetime',
         'two_factor_secret'  => 'encrypted', // stored encrypted at rest
     ];
 
@@ -59,6 +64,7 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         'apps_count',
         'has_built_apps',
         'latest_draft',
+        'is_blocked',
     ];
 
     // ── Relationships ──────────────────────────────────────────────────────────
@@ -169,8 +175,90 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         return in_array($this->role, [UserRole::Owner, UserRole::Editor], strict: true);
     }
 
+    public function isBlocked(): bool
+    {
+        return (bool) $this->is_blocked || BlockedEmail::where('email', strtolower($this->email))->exists();
+    }
+
+    public function block(?string $reason = null, ?int $adminId = null): void
+    {
+        $this->update([
+            'is_blocked'     => true,
+            'blocked_at'     => now(),
+            'blocked_reason' => $reason,
+        ]);
+
+        BlockedEmail::updateOrCreate(
+            ['email' => strtolower($this->email)],
+            [
+                'reason'             => $reason,
+                'blocked_by_user_id' => $adminId,
+            ]
+        );
+
+        $this->tokens()->delete();
+    }
+
+    public function unblock(): void
+    {
+        $this->update([
+            'is_blocked'     => false,
+            'blocked_at'     => null,
+            'blocked_reason' => null,
+        ]);
+
+        BlockedEmail::where('email', strtolower($this->email))->delete();
+    }
+
+    /**
+     * Revoke all active subscriptions and commercial plan entitlements for this user/tenant,
+     * immediately cancelling access even if time remains.
+     */
+    public function revokeAllSubscriptions(?string $reason = null): int
+    {
+        $tenantId = $this->tenant_id;
+        if (! $tenantId) {
+            return 0;
+        }
+
+        $revokedCount = Subscription::withoutGlobalScopes()
+            ->where('tenant_id', $tenantId)
+            ->where('status', 'active')
+            ->update([
+                'status'             => 'cancelled',
+                'current_period_end' => now(),
+            ]);
+
+        // Revoke active commercial package orders for this tenant
+        if (\Illuminate\Support\Facades\Schema::hasTable('orders')) {
+            Order::withoutGlobalScopes()
+                ->where('tenant_id', $tenantId)
+                ->whereNotNull('package_id')
+                ->whereIn('status', ['paid', 'completed'])
+                ->update(['status' => 'revoked']);
+        }
+
+        // Notify user via email
+        try {
+            app(\App\Services\Billing\EmailNotificationService::class)->sendSubscriptionRevokedEmail(
+                $this->email,
+                $this->name,
+                'Commercial Package / Subscription',
+                $reason
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Revocation email notice: ' . $e->getMessage());
+        }
+
+        return $revokedCount;
+    }
+
     public function canAccessPanel(Panel $panel): bool
     {
+        if ($this->isBlocked()) {
+            return false;
+        }
+
         return $this->isSuperAdmin() || $this->email === 'admin@webintoapp.com';
     }
 }

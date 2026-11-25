@@ -40,6 +40,15 @@ class Subscription extends Model
     public function isActive(): bool
     {
         return $this->status === 'active'
+            && $this->current_period_end
             && $this->current_period_end->isFuture();
+    }
+
+    public function revoke(?string $reason = null): void
+    {
+        $this->update([
+            'status'             => 'cancelled',
+            'current_period_end' => now(),
+        ]);
     }
 }

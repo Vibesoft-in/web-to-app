@@ -121,6 +121,21 @@ class SubscriptionResource extends Resource
                 Tables\Columns\TextColumn::make('current_period_end')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
             ])
             ->actions([
+                Tables\Actions\Action::make('revoke_now')
+                    ->label('Revoke Immediately')
+                    ->icon('heroicon-o-no-symbol')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Revoke Subscription Immediately?')
+                    ->modalDescription('This will terminate the active subscription immediately, even if remaining time is left. The plan status will change to cancelled and expire now.')
+                    ->visible(fn (Subscription $record): bool => $record->status === 'active')
+                    ->action(function (Subscription $record) {
+                        $record->revoke();
+                        \Filament\Notifications\Notification::make()
+                            ->title("Subscription #{$record->id} revoked immediately")
+                            ->warning()
+                            ->send();
+                    }),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ]);

@@ -647,6 +647,113 @@ class EmailNotificationService
     }
 
     /**
+     * K. Account Blocked / Login Attempt on Suspended Account Email
+     */
+    public function sendAccountBlockedLoginAttemptEmail(
+        string $recipientEmail,
+        string $recipientName = 'User',
+        ?string $reason = null,
+        ?string $ip = null
+    ): void {
+        $subject = "Security Notice: Login Attempt on Suspended Account - WebIntoApp";
+        $dateFormatted = now()->format('d M Y, h:i A T');
+        $ipString = $ip ?: request()->ip() ?: 'Unknown IP';
+        $reasonBlock = $reason
+            ? "<div style='background-color: #FEF2F2; border-left: 4px solid #DC2626; padding: 12px 16px; margin: 16px 0; border-radius: 4px;'>
+                <strong style='color: #991B1B; font-size: 13px; text-transform: uppercase;'>Administrative Reason:</strong>
+                <p style='color: #B91C1C; margin: 6px 0 0 0; font-size: 14px;'>{$reason}</p>
+               </div>"
+            : "";
+
+        $html = $this->wrapLayout("
+            <div style='background-color: #FEE2E2; border-radius: 12px; padding: 16px; margin-bottom: 20px; border: 1px solid #FECACA; text-align: center;'>
+                <span style='color: #DC2626; font-size: 24px; font-weight: bold;'>&#9888;</span>
+                <h2 style='color: #991B1B; margin: 8px 0 4px 0; font-size: 20px; font-weight: 800;'>Account Access Suspended</h2>
+                <p style='color: #B91C1C; margin: 0; font-size: 13px;'>A login attempt was detected and rejected by security policies.</p>
+            </div>
+
+            <p style='color: #5A4A3E; font-size: 15px; line-height: 1.6;'>
+                Hi <strong>{$recipientName}</strong>,<br>
+                A sign-in or authorization attempt was recently detected for your account (<strong>{$recipientEmail}</strong>).
+            </p>
+
+            <p style='color: #5A4A3E; font-size: 14px; line-height: 1.6;'>
+                Your email address and user account have been <strong>suspended by the Super Administrator</strong>. While suspended, login sessions are blocked and access to mobile app builds, store synchronizations, and API credentials is disabled.
+            </p>
+
+            {$reasonBlock}
+
+            <div style='background-color: #FAF7F2; border-radius: 12px; padding: 16px; margin: 20px 0; border: 1px solid #EFE8DC;'>
+                <table style='width: 100%; border-collapse: collapse; font-size: 13px;'>
+                    <tr>
+                        <td style='color: #8A7A6D; padding-bottom: 6px;'>Attempted Action:</td>
+                        <td style='text-align: right; font-weight: bold; color: #DC2626;'>User Sign-In / Authentication</td>
+                    </tr>
+                    <tr>
+                        <td style='color: #8A7A6D; padding-bottom: 6px;'>Date &amp; Time:</td>
+                        <td style='text-align: right; color: #2D241E;'>{$dateFormatted}</td>
+                    </tr>
+                    <tr>
+                        <td style='color: #8A7A6D;'>IP Address:</td>
+                        <td style='text-align: right; font-family: monospace; color: #2D241E;'>{$ipString}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <p style='color: #5A4A3E; font-size: 14px; line-height: 1.6;'>
+                If you believe this suspension was made in error or wish to appeal the decision, please contact our administrative team directly at <a href='mailto:seo.vibesoft@gmail.com' style='color: #78593D; font-weight: bold;'>seo.vibesoft@gmail.com</a>.
+            </p>
+        ");
+
+        $this->dispatchEmail($recipientEmail, $recipientName, $subject, 'account_blocked_login_attempt', $html, null, [
+            'reason' => $reason,
+            'ip'     => $ipString,
+        ]);
+    }
+
+    /**
+     * L. Subscription Revoked by Super Admin Email
+     */
+    public function sendSubscriptionRevokedEmail(
+        string $recipientEmail,
+        string $recipientName = 'Customer',
+        string $planName = 'Active Plan',
+        ?string $reason = null
+    ): void {
+        $subject = "Subscription Notice: {$planName} Plan Revoked - WebIntoApp";
+        $dateFormatted = now()->format('d M Y, h:i A T');
+        $reasonBlock = $reason
+            ? "<div style='background-color: #FFFBEB; border-left: 4px solid #F59E0B; padding: 12px 16px; margin: 16px 0; border-radius: 4px;'>
+                <strong style='color: #92400E; font-size: 13px;'>Administrative Reason:</strong>
+                <p style='color: #B45309; margin: 6px 0 0 0; font-size: 14px;'>{$reason}</p>
+               </div>"
+            : "";
+
+        $html = $this->wrapLayout("
+            <h2 style='color: #2D241E; margin-top: 0; font-size: 20px;'>Subscription Access Update</h2>
+            <p style='color: #5A4A3E; font-size: 15px; line-height: 1.6;'>
+                Hi <strong>{$recipientName}</strong>,<br>
+                This notice confirms that your <strong>{$planName}</strong> subscription has been <strong>revoked</strong> by the platform administrator as of <strong>{$dateFormatted}</strong>.
+            </p>
+
+            {$reasonBlock}
+
+            <p style='color: #5A4A3E; font-size: 14px; line-height: 1.6;'>
+                Remaining time and paid entitlements associated with this plan (including APK/AAB builds and active feature licenses) have been concluded. Your account applications have been reverted to the standard free tier.
+            </p>
+
+            <p style='color: #8A7A6D; font-size: 13px; line-height: 1.5;'>
+                For billing inquiries, questions regarding refunds, or to upgrade to a new package, please visit your account dashboard or contact <a href='mailto:seo.vibesoft@gmail.com' style='color: #78593D; font-weight: bold;'>seo.vibesoft@gmail.com</a>.
+            </p>
+        ");
+
+        $this->dispatchEmail($recipientEmail, $recipientName, $subject, 'subscription_revoked', $html, null, [
+            'plan_name' => $planName,
+            'reason'    => $reason,
+        ]);
+    }
+
+    /**
      * Core Dispatcher: sends email and creates audit log in email_logs
      */
     private function dispatchEmail(

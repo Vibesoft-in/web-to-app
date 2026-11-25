@@ -151,6 +151,8 @@ export function LoginClient({ initialTheme }: LoginClientProps) {
       let title = "Invalid Credentials";
       if (err.status === 429 || msg.toLowerCase().includes("too many")) {
         title = "Too Many Attempts";
+      } else if (err.code === "ACCOUNT_BLOCKED" || msg.toLowerCase().includes("suspended") || msg.toLowerCase().includes("blocked")) {
+        title = "Account Suspended";
       } else if (err.code === "EMAIL_NOT_VERIFIED" || msg.toLowerCase().includes("verify your email")) {
         title = "Email Not Verified";
       } else if (err.status === 500 || err.code === "SERVER_ERROR") {

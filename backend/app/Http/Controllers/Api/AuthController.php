@@ -11,9 +11,11 @@ use App\Http\Requests\Api\Auth\RegisterRequest;
 use App\Http\Requests\Api\Auth\ResetPasswordRequest;
 use App\Models\App;
 use App\Models\AuditLog;
+use App\Models\BlockedEmail;
 use App\Models\Connection;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\Billing\EmailNotificationService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,6 +37,28 @@ class AuthController extends Controller
         try {
             $data = $request->validated();
             $email = strtolower(trim((string) $data['email']));
+
+            // Strict Block Check
+            if (BlockedEmail::isBlocked($email)) {
+                $reason = BlockedEmail::getReason($email);
+                try {
+                    app(EmailNotificationService::class)->sendAccountBlockedLoginAttemptEmail(
+                        $email,
+                        $data['name'] ?? 'User',
+                        $reason,
+                        $request->ip()
+                    );
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Blocked registration attempt email dispatch error: ' . $e->getMessage());
+                }
+
+                return response()->json([
+                    'error' => [
+                        'code'    => 'ACCOUNT_BLOCKED',
+                        'message' => 'Your account has been suspended by an administrator. A notification email has been dispatched to your email address.',
+                    ],
+                ], 403);
+            }
 
             // Strict Email OTP Verification check
             $cachedOtp = \Illuminate\Support\Facades\Cache::get("register_otp_{$email}");
@@ -208,7 +232,42 @@ class AuthController extends Controller
     {
         $data = $request->validated();
         $email = trim(strtolower((string) $data['email']));
-        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+        $user = User::withoutGlobalScopes()->whereRaw('LOWER(email) = ?', [$email])->first();
+
+        // 1. Strict Block Check
+        if (BlockedEmail::isBlocked($email) || ($user && $user->isBlocked())) {
+            $reason = BlockedEmail::getReason($email) ?? $user?->blocked_reason;
+            $name = $user?->name ?? 'User';
+            try {
+                app(EmailNotificationService::class)->sendAccountBlockedLoginAttemptEmail(
+                    $email,
+                    $name,
+                    $reason,
+                    $request->ip()
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Blocked login attempt email dispatch error: ' . $e->getMessage());
+            }
+
+            try {
+                if ($user?->tenant_id) {
+                    AuditLog::create([
+                        'tenant_id'  => $user->tenant_id,
+                        'actor_id'   => $user->id,
+                        'action'     => 'auth.login_blocked',
+                        'ip'         => $request->ip(),
+                        'user_agent' => $request->userAgent(),
+                    ]);
+                }
+            } catch (\Throwable) {}
+
+            return response()->json([
+                'error' => [
+                    'code'    => 'ACCOUNT_BLOCKED',
+                    'message' => 'Your account has been suspended by an administrator. A notification email has been dispatched to your email address.',
+                ],
+            ], 403);
+        }
 
         $validPassword = false;
         if ($user) {
@@ -322,6 +381,27 @@ class AuthController extends Controller
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
     {
         $email = strtolower(trim((string) $request->input('email')));
+
+        if (BlockedEmail::isBlocked($email)) {
+            $reason = BlockedEmail::getReason($email);
+            $user = User::withoutGlobalScopes()->whereRaw('LOWER(email) = ?', [$email])->first();
+            try {
+                app(EmailNotificationService::class)->sendAccountBlockedLoginAttemptEmail(
+                    $email,
+                    $user?->name ?? 'User',
+                    $reason,
+                    $request->ip()
+                );
+            } catch (\Throwable $e) {}
+
+            return response()->json([
+                'error' => [
+                    'code'    => 'ACCOUNT_BLOCKED',
+                    'message' => 'Your account has been suspended by an administrator. A notification email has been dispatched to your email address.',
+                ],
+            ], 403);
+        }
+
         $user = User::where('email', $email)->first();
 
         if ($user) {
@@ -408,6 +488,26 @@ class AuthController extends Controller
 
         $email = strtolower(trim((string) $validated['email']));
         $name = trim((string) ($validated['name'] ?? 'there'));
+
+        // Strict Block Check
+        if (BlockedEmail::isBlocked($email)) {
+            $reason = BlockedEmail::getReason($email);
+            try {
+                app(EmailNotificationService::class)->sendAccountBlockedLoginAttemptEmail(
+                    $email,
+                    $name,
+                    $reason,
+                    $request->ip()
+                );
+            } catch (\Throwable $e) {}
+
+            return response()->json([
+                'error' => [
+                    'code'    => 'EMAIL_BLOCKED',
+                    'message' => 'This email address has been suspended by an administrator. A notification email has been dispatched to your email address.',
+                ],
+            ], 403);
+        }
 
         // Check if email already registered
         if (User::whereRaw('LOWER(email) = ?', [$email])->exists()) {
