@@ -443,7 +443,6 @@ class AuthController extends Controller
             'message'   => "A 6-digit verification code has been sent to {$email}.",
             'email'     => $email,
             'expires_in'=> '15 minutes',
-            'debug_otp' => $otp,
         ]);
     }
 

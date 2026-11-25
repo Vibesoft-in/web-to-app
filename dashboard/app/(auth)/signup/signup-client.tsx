@@ -323,8 +323,7 @@ export function SignupClient({ initialTheme, initialPlan }: SignupClientProps) {
       });
       setOtpSent(true);
       setOtpResendCountdown(60);
-      const codeMsg = res?.debug_otp || res?.otp ? ` (Code: ${res.debug_otp || res.otp})` : "";
-      setInlineOtpSuccess(`Verification code dispatched to ${cleanEmail}.${codeMsg} Please check your Inbox and Spam/Junk folder.`);
+      setInlineOtpSuccess(`Verification code dispatched to ${cleanEmail}. Please check your Inbox and Spam/Junk folder.`);
     } catch (err: any) {
       setInlineOtpError(err.message || "Failed to dispatch verification code. Please check your email.");
     } finally {
