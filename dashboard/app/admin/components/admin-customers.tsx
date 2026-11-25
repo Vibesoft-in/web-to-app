@@ -743,7 +743,7 @@ export function AdminCustomers() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: blockReason }),
       });
-    } catch {}
+    } catch { }
 
     setCustomerBlockedOverrides((prev) => ({
       ...prev,
@@ -775,7 +775,7 @@ export function AdminCustomers() {
       await fetch(`/api/admin/users/${targetNumericId}/unblock`, {
         method: "POST",
       });
-    } catch {}
+    } catch { }
 
     setCustomerBlockedOverrides((prev) => ({
       ...prev,
@@ -812,7 +812,7 @@ export function AdminCustomers() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: revokeReason }),
       });
-    } catch {}
+    } catch { }
 
     setCustomerPlanOverrides((prev) => ({
       ...prev,
@@ -1601,17 +1601,6 @@ export function AdminCustomers() {
               <PackagePlus className="w-3.5 h-3.5 text-indigo-600" />
               <span>Assign Add-on</span>
             </button>
-            {details.plan.status !== "Expired" && (
-              <button
-                type="button"
-                onClick={() => handleOpenRevokeSubscriptionModal(selectedCustomer)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition shadow-2xs cursor-pointer"
-                title={`Cancel or revoke active subscription plan anytime for ${selectedCustomer.name}`}
-              >
-                <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                <span>Cancel Plan</span>
-              </button>
-            )}
           </div>
         </div>
 
@@ -1764,16 +1753,9 @@ export function AdminCustomers() {
                 <Calendar className="w-3 h-3 text-slate-400" />
                 <span>Joined {details.plan.startDate}</span>
               </span>
-              {details.plan.status !== "Expired" && (
-                <button
-                  type="button"
-                  onClick={() => handleOpenRevokeSubscriptionModal(selectedCustomer)}
-                  className="text-rose-600 hover:text-rose-700 font-bold hover:underline cursor-pointer text-[11px]"
-                  title="Super Admin can cancel plan anytime"
-                >
-                  Cancel Plan
-                </button>
-              )}
+              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                Active Entitlement
+              </span>
             </div>
           </div>
 
@@ -1881,26 +1863,8 @@ export function AdminCustomers() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Full entitlement, validity cycle, renewal settings, payment details, and Super Admin cancellation controls
+                    Full entitlement, validity cycle, renewal settings, and payment details
                   </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {details.plan.status !== "Expired" ? (
-                    <button
-                      type="button"
-                      onClick={() => handleOpenRevokeSubscriptionModal(selectedCustomer)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                      title="Super Admin can cancel and revoke this customer's plan anytime"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      <span>Cancel Plan Anytime</span>
-                    </button>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 text-xs font-semibold">
-                      <XCircle className="w-3.5 h-3.5 text-slate-400" />
-                      Plan Revoked / Free Tier
-                    </span>
-                  )}
                 </div>
               </div>
 
@@ -1944,24 +1908,13 @@ export function AdminCustomers() {
                   </span>
                 </div>
 
-                <div className="p-3 bg-white rounded-xl border border-rose-100 shadow-2xs flex flex-col justify-between">
+                <div className="p-3 bg-white rounded-xl border border-indigo-100/80 shadow-2xs flex flex-col justify-between">
                   <div className="flex items-center justify-between text-slate-400 mb-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700">Admin Control</span>
-                    <Shield className="w-3.5 h-3.5 text-rose-500" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">License Status</span>
+                    <Shield className="w-3.5 h-3.5 text-indigo-500" />
                   </div>
-                  {details.plan.status !== "Expired" ? (
-                    <button
-                      type="button"
-                      onClick={() => handleOpenRevokeSubscriptionModal(selectedCustomer)}
-                      className="w-full mt-1 px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
-                    >
-                      <XCircle className="w-3 h-3" />
-                      <span>Cancel Plan Anytime</span>
-                    </button>
-                  ) : (
-                    <span className="text-[11px] text-slate-500 font-semibold mt-1">Plan Revoked</span>
-                  )}
-                  <span className="text-[10px] text-slate-400 mt-1 block leading-tight">Super admin privilege</span>
+                  <div className="text-sm font-black text-slate-900">{details.plan.status}</div>
+                  <span className="text-[10px] text-slate-400 mt-1 block leading-tight">Perpetual lifetime license</span>
                 </div>
               </div>
 
@@ -2035,18 +1988,7 @@ export function AdminCustomers() {
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-500">Super Admin Override:</span>
-                    {details.plan.status !== "Expired" ? (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenRevokeSubscriptionModal(selectedCustomer)}
-                        className="text-xs text-rose-600 font-bold hover:underline cursor-pointer flex items-center gap-1"
-                      >
-                        <XCircle className="w-3.5 h-3.5" />
-                        <span>Cancel Plan Anytime</span>
-                      </button>
-                    ) : (
-                      <span className="text-slate-500 font-bold">Revoked</span>
-                    )}
+                    <span className="text-slate-700 font-bold">Full Authority Active</span>
                   </div>
                 </div>
               </div>
@@ -3156,17 +3098,15 @@ export function AdminCustomers() {
                     <tr
                       key={cust.id}
                       onClick={() => setSelectedCustomer(cust)}
-                      className={`hover:bg-indigo-50/50 cursor-pointer transition-colors group select-none ${
-                        isCustBlocked ? "bg-rose-50/30" : ""
-                      }`}
+                      className={`hover:bg-indigo-50/50 cursor-pointer transition-colors group select-none ${isCustBlocked ? "bg-rose-50/30" : ""
+                        }`}
                       title={`Click anywhere to view full details for ${cust.name}`}
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-9 h-9 rounded-xl ${
-                              isCustBlocked ? "bg-rose-600" : cust.avatarColor
-                            } text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform`}
+                            className={`w-9 h-9 rounded-xl ${isCustBlocked ? "bg-rose-600" : cust.avatarColor
+                              } text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform`}
                           >
                             {cust.name.charAt(0)}
                           </div>
@@ -3192,39 +3132,39 @@ export function AdminCustomers() {
                         </div>
                       </td>
 
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-slate-800 flex items-center gap-1.5">
-                        <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                        {cust.tenantName}
-                      </div>
-                      <span className="text-[11px] text-slate-400 font-mono">
-                        Tenant #{cust.tenantId}
-                      </span>
-                    </td>
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                          {cust.tenantName}
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-mono">
+                          Tenant #{cust.tenantId}
+                        </span>
+                      </td>
 
-                    <td className="px-6 py-4">
-                      {getHealthBadge(cust.healthScore, cust.healthScoreValue)}
-                    </td>
+                      <td className="px-6 py-4">
+                        {getHealthBadge(cust.healthScore, cust.healthScoreValue)}
+                      </td>
 
-                    {/* ── HORIZONTAL TAB ACTION: VIEW DETAILS ── */}
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedCustomer(cust);
-                        }}
-                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-50 group-hover:bg-indigo-600 text-indigo-700 group-hover:text-white text-xs font-bold transition border border-indigo-200/80 group-hover:border-indigo-600 shadow-2xs cursor-pointer"
-                        title="View complete customer details, plans, expiry, billing, add-ons, and history"
-                      >
-                        <Eye className="w-3.5 h-3.5 group-hover:scale-110 transition-transform text-indigo-600 group-hover:text-white" />
-                        <span>View Details</span>
-                        <ArrowRight className="w-3.5 h-3.5 text-indigo-400 group-hover:text-white group-hover:translate-x-0.5 transition-transform" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
+                      {/* ── HORIZONTAL TAB ACTION: VIEW DETAILS ── */}
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedCustomer(cust);
+                          }}
+                          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-50 group-hover:bg-indigo-600 text-indigo-700 group-hover:text-white text-xs font-bold transition border border-indigo-200/80 group-hover:border-indigo-600 shadow-2xs cursor-pointer"
+                          title="View complete customer details, plans, expiry, billing, add-ons, and history"
+                        >
+                          <Eye className="w-3.5 h-3.5 group-hover:scale-110 transition-transform text-indigo-600 group-hover:text-white" />
+                          <span>View Details</span>
+                          <ArrowRight className="w-3.5 h-3.5 text-indigo-400 group-hover:text-white group-hover:translate-x-0.5 transition-transform" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
