@@ -64,14 +64,14 @@ export interface CustomerRecord {
   healthScore: "Healthy" | "Needs Attention" | "At Risk" | "Inactive";
   healthScoreValue: number; // 0 - 100
   segment:
-    | "Free"
-    | "Paid"
-    | "Enterprise"
-    | "High-Revenue"
-    | "Multiple Apps"
-    | "Inactive (30d)"
-    | "Failed Builds"
-    | "Upcoming Renewal";
+  | "Free"
+  | "Paid"
+  | "Enterprise"
+  | "High-Revenue"
+  | "Multiple Apps"
+  | "Inactive (30d)"
+  | "Failed Builds"
+  | "Upcoming Renewal";
   ltv: number; // in INR
   appsCount: number;
   joinedDate: string;
@@ -1112,12 +1112,12 @@ export function AdminCustomers() {
       const updatedList = currentList.map((a) =>
         a.id === buildModalApp.id
           ? {
-              ...a,
-              version: newVersion,
-              status: "Live" as const,
-              lastBuildDate: "Just now",
-              downloadsCount: a.downloadsCount + 1,
-            }
+            ...a,
+            version: newVersion,
+            status: "Live" as const,
+            lastBuildDate: "Just now",
+            downloadsCount: a.downloadsCount + 1,
+          }
           : a
       );
 
@@ -1136,8 +1136,8 @@ export function AdminCustomers() {
               email: selectedCustomer.email,
               app_name: buildModalApp.name,
             }),
-          }).catch(() => {});
-        } catch {}
+          }).catch(() => { });
+        } catch { }
       }
     }, 1900);
   };
@@ -1601,6 +1601,17 @@ export function AdminCustomers() {
               <PackagePlus className="w-3.5 h-3.5 text-indigo-600" />
               <span>Assign Add-on</span>
             </button>
+            {details.plan.status !== "Expired" && (
+              <button
+                type="button"
+                onClick={() => handleOpenRevokeSubscriptionModal(selectedCustomer)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition shadow-2xs cursor-pointer"
+                title={`Cancel or revoke active subscription plan anytime for ${selectedCustomer.name}`}
+              >
+                <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                <span>Cancel Plan</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -1717,20 +1728,53 @@ export function AdminCustomers() {
             />
           </div>
 
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-              Plan Expiration
-            </span>
-            <div className="text-lg font-black text-slate-900 mt-1">
-              {details.plan.expireDate}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between pb-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Plan Validity &amp; Expiry
+                </span>
+                <span
+                  className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                    details.plan.status === "Active"
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : details.plan.status === "Expiring Soon"
+                        ? "bg-amber-50 text-amber-700 border border-amber-200"
+                        : "bg-rose-50 text-rose-700 border border-rose-200"
+                  }`}
+                >
+                  {details.plan.status}
+                </span>
+              </div>
+              <div className="text-base font-black text-slate-900 mt-1 truncate" title={details.plan.expireDate}>
+                {details.plan.expireDate}
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span
+                  className={`text-xs font-bold ${
+                    details.plan.daysLeft < 30 ? "text-amber-600" : "text-emerald-700"
+                  }`}
+                >
+                  {details.plan.daysLeft} days remaining
+                </span>
+              </div>
             </div>
-            <span
-              className={`text-xs font-bold ${
-                details.plan.daysLeft < 30 ? "text-amber-600" : "text-slate-500"
-              }`}
-            >
-              {details.plan.daysLeft} days remaining
-            </span>
+            <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+              <span className="flex items-center gap-1" title={`Subscription started on ${details.plan.startDate}`}>
+                <Calendar className="w-3 h-3 text-slate-400" />
+                <span>Joined {details.plan.startDate}</span>
+              </span>
+              {details.plan.status !== "Expired" && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenRevokeSubscriptionModal(selectedCustomer)}
+                  className="text-rose-600 hover:text-rose-700 font-bold hover:underline cursor-pointer text-[11px]"
+                  title="Super Admin can cancel plan anytime"
+                >
+                  Cancel Plan
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
@@ -1762,55 +1806,50 @@ export function AdminCustomers() {
         <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 overflow-x-auto">
           <button
             onClick={() => setDetailTab("plan")}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              detailTab === "plan"
-                ? "bg-white text-indigo-700 shadow-2xs border border-slate-200/60"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${detailTab === "plan"
+              ? "bg-white text-indigo-700 shadow-2xs border border-slate-200/60"
+              : "text-slate-600 hover:text-slate-900"
+              }`}
           >
             <Shield className="w-3.5 h-3.5" />
             <span>Plan &amp; Expiry</span>
           </button>
           <button
             onClick={() => setDetailTab("billing")}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              detailTab === "billing"
-                ? "bg-white text-indigo-700 shadow-2xs border border-slate-200/60"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${detailTab === "billing"
+              ? "bg-white text-indigo-700 shadow-2xs border border-slate-200/60"
+              : "text-slate-600 hover:text-slate-900"
+              }`}
           >
             <Receipt className="w-3.5 h-3.5" />
             <span>Billing &amp; Invoices ({details.invoices.length})</span>
           </button>
           <button
             onClick={() => setDetailTab("addons")}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              detailTab === "addons"
-                ? "bg-white text-indigo-700 shadow-2xs border border-slate-200/60"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${detailTab === "addons"
+              ? "bg-white text-indigo-700 shadow-2xs border border-slate-200/60"
+              : "text-slate-600 hover:text-slate-900"
+              }`}
           >
             <Package className="w-3.5 h-3.5" />
             <span>Purchased Add-ons ({customerAddons.length})</span>
           </button>
           <button
             onClick={() => setDetailTab("apps")}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              detailTab === "apps"
-                ? "bg-white text-indigo-700 shadow-2xs border border-slate-200/60"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${detailTab === "apps"
+              ? "bg-white text-indigo-700 shadow-2xs border border-slate-200/60"
+              : "text-slate-600 hover:text-slate-900"
+              }`}
           >
             <Smartphone className="w-3.5 h-3.5" />
             <span>Mobile Apps ({customerApps.length})</span>
           </button>
           <button
             onClick={() => setDetailTab("history")}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              detailTab === "history"
-                ? "bg-white text-indigo-700 shadow-2xs border border-slate-200/60"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${detailTab === "history"
+              ? "bg-white text-indigo-700 shadow-2xs border border-slate-200/60"
+              : "text-slate-600 hover:text-slate-900"
+              }`}
           >
             <History className="w-3.5 h-3.5" />
             <span>Audit History ({details.history.length})</span>
@@ -1822,26 +1861,108 @@ export function AdminCustomers() {
           {/* TAB 1: PLAN & EXPIRY DETAILS */}
           {detailTab === "plan" && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              {/* Header with Title and Cancel Plan Trigger */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Active Subscription Plan &amp; Expiry Information
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Full entitlement, validity cycle, renewal settings, and payment details
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900">
+                      Active Subscription Plan &amp; Expiry Information
+                    </h3>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        details.plan.status === "Active"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : details.plan.status === "Expiring Soon"
+                            ? "bg-amber-50 text-amber-700 border border-amber-200"
+                            : "bg-rose-50 text-rose-700 border border-rose-200"
+                      }`}
+                    >
+                      {details.plan.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Full entitlement, validity cycle, renewal settings, payment details, and Super Admin cancellation controls
                   </p>
                 </div>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                    details.plan.status === "Active"
-                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                      : details.plan.status === "Expiring Soon"
-                      ? "bg-amber-50 text-amber-700 border border-amber-200"
-                      : "bg-slate-100 text-slate-600"
-                  }`}
-                >
-                  {details.plan.status}
-                </span>
+                <div className="flex items-center gap-2">
+                  {details.plan.status !== "Expired" ? (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenRevokeSubscriptionModal(selectedCustomer)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                      title="Super Admin can cancel and revoke this customer's plan anytime"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      <span>Cancel Plan Anytime</span>
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 text-xs font-semibold">
+                      <XCircle className="w-3.5 h-3.5 text-slate-400" />
+                      Plan Revoked / Free Tier
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Comprehensive Plan Validity, Expiry & Days Left Dashboard Strip */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100">
+                <div className="p-3 bg-white rounded-xl border border-indigo-100/80 shadow-2xs">
+                  <div className="flex items-center justify-between text-slate-400 mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Plan Joined On</span>
+                    <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                  </div>
+                  <div className="text-sm font-black text-slate-900">{details.plan.startDate}</div>
+                  <span className="text-[11px] text-slate-500 mt-0.5 block">Subscribed &amp; activated</span>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl border border-indigo-100/80 shadow-2xs">
+                  <div className="flex items-center justify-between text-slate-400 mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Expiration Date</span>
+                    <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                  </div>
+                  <div className="text-sm font-black text-indigo-700 truncate" title={details.plan.expireDate}>
+                    {details.plan.expireDate}
+                  </div>
+                  <span className="text-[11px] text-slate-500 mt-0.5 block">{details.plan.billingCycle} billing cycle</span>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl border border-indigo-100/80 shadow-2xs">
+                  <div className="flex items-center justify-between text-slate-400 mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Days Remaining</span>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  </div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-sm font-black text-slate-900">{details.plan.daysLeft}</span>
+                    <span className="text-xs font-semibold text-slate-500">days left</span>
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold inline-block mt-0.5 ${
+                      details.plan.daysLeft < 30 ? "text-amber-600" : "text-emerald-600"
+                    }`}
+                  >
+                    {details.plan.daysLeft < 30 ? "Renewal due soon" : "Active entitlement"}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl border border-rose-100 shadow-2xs flex flex-col justify-between">
+                  <div className="flex items-center justify-between text-slate-400 mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700">Admin Control</span>
+                    <Shield className="w-3.5 h-3.5 text-rose-500" />
+                  </div>
+                  {details.plan.status !== "Expired" ? (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenRevokeSubscriptionModal(selectedCustomer)}
+                      className="w-full mt-1 px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+                    >
+                      <XCircle className="w-3 h-3" />
+                      <span>Cancel Plan Anytime</span>
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-slate-500 font-semibold mt-1">Plan Revoked</span>
+                  )}
+                  <span className="text-[10px] text-slate-400 mt-1 block leading-tight">Super admin privilege</span>
+                </div>
               </div>
 
               {/* Full Featured Plan Pricing Box matching screenshot */}
@@ -1897,7 +2018,7 @@ export function AdminCustomers() {
                     Validity &amp; Expiration
                   </span>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500">Subscription Started:</span>
+                    <span className="text-slate-500">Joined / Started Plan:</span>
                     <strong className="text-slate-900">{details.plan.startDate}</strong>
                   </div>
                   <div className="flex items-center justify-between text-xs">
@@ -1907,27 +2028,67 @@ export function AdminCustomers() {
                     </strong>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500">Days Remaining:</span>
-                    <strong className="text-slate-900">
-                      {details.plan.daysLeft} days
+                    <span className="text-slate-500">Days Remaining / Left:</span>
+                    <strong className={`font-black ${details.plan.daysLeft < 30 ? "text-amber-600" : "text-emerald-700"}`}>
+                      {details.plan.daysLeft} days left
                     </strong>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500">Payment Method:</span>
-                    <strong className="text-slate-900">
-                      {details.plan.paymentMethod}
-                    </strong>
+                    <span className="text-slate-500">Super Admin Override:</span>
+                    {details.plan.status !== "Expired" ? (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenRevokeSubscriptionModal(selectedCustomer)}
+                        className="text-xs text-rose-600 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                        <span>Cancel Plan Anytime</span>
+                      </button>
+                    ) : (
+                      <span className="text-slate-500 font-bold">Revoked</span>
+                    )}
                   </div>
                 </div>
               </div>
 
+              {/* Super Admin Plan Cancellation & Override Privilege Card */}
+              <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center flex-shrink-0 font-bold mt-0.5">
+                    <Shield className="w-4 h-4 text-rose-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                      Super Administrator Plan Termination Privilege
+                    </h4>
+                    <p className="text-[11px] text-slate-600 mt-0.5 max-w-xl">
+                      You have full authority to cancel or revoke this customer&apos;s subscription plan at any time, even if there are days, months, or years remaining on their billing cycle. Cancellation takes effect immediately, downgrades the tenant to the Free tier, disables paid APK/AAB build artifact downloads, and dispatches an automated notification email.
+                    </p>
+                  </div>
+                </div>
+                {details.plan.status !== "Expired" ? (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenRevokeSubscriptionModal(selectedCustomer)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-xs cursor-pointer whitespace-nowrap flex-shrink-0"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>Cancel Plan Anytime</span>
+                  </button>
+                ) : (
+                  <span className="px-3.5 py-1.5 rounded-xl bg-slate-200 text-slate-600 text-xs font-bold whitespace-nowrap flex-shrink-0">
+                    Plan Cancelled / Inactive
+                  </span>
+                )}
+              </div>
+
               {/* Alert if expiring soon */}
-              {details.plan.daysLeft < 30 && (
+              {details.plan.daysLeft < 30 && details.plan.status !== "Expired" && (
                 <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-2 text-amber-800 font-medium">
                     <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
                     <span>
-                      This customer's plan expires in {details.plan.daysLeft} days. An automated renewal notice has been queued.
+                      This customer&apos;s plan expires in {details.plan.daysLeft} days. An automated renewal notice has been queued.
                     </span>
                   </div>
                   <button
@@ -2151,13 +2312,12 @@ export function AdminCustomers() {
                           </td>
                           <td className="px-4 py-3">
                             <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                app.status === "Live"
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : app.status === "Build Failed"
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${app.status === "Live"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : app.status === "Build Failed"
                                   ? "bg-rose-50 text-rose-700"
                                   : "bg-indigo-50 text-indigo-700"
-                              }`}
+                                }`}
                             >
                               {app.status}
                             </span>
@@ -2444,11 +2604,10 @@ export function AdminCustomers() {
                       type="button"
                       disabled={isBuildingApp}
                       onClick={() => setBuildTargetFormat("apk")}
-                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                        buildTargetFormat === "apk"
-                          ? "border-indigo-600 bg-indigo-50/70 text-indigo-900 ring-1 ring-indigo-600"
-                          : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
-                      }`}
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${buildTargetFormat === "apk"
+                        ? "border-indigo-600 bg-indigo-50/70 text-indigo-900 ring-1 ring-indigo-600"
+                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                        }`}
                     >
                       <div className="font-bold text-xs flex items-center justify-between">
                         <span>Android APK</span>
@@ -2461,11 +2620,10 @@ export function AdminCustomers() {
                       type="button"
                       disabled={isBuildingApp}
                       onClick={() => setBuildTargetFormat("aab")}
-                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                        buildTargetFormat === "aab"
-                          ? "border-indigo-600 bg-indigo-50/70 text-indigo-900 ring-1 ring-indigo-600"
-                          : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
-                      }`}
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${buildTargetFormat === "aab"
+                        ? "border-indigo-600 bg-indigo-50/70 text-indigo-900 ring-1 ring-indigo-600"
+                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                        }`}
                     >
                       <div className="font-bold text-xs flex items-center justify-between">
                         <span>Play AAB</span>
@@ -2478,11 +2636,10 @@ export function AdminCustomers() {
                       type="button"
                       disabled={isBuildingApp}
                       onClick={() => setBuildTargetFormat("ipa")}
-                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                        buildTargetFormat === "ipa"
-                          ? "border-indigo-600 bg-indigo-50/70 text-indigo-900 ring-1 ring-indigo-600"
-                          : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
-                      }`}
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${buildTargetFormat === "ipa"
+                        ? "border-indigo-600 bg-indigo-50/70 text-indigo-900 ring-1 ring-indigo-600"
+                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                        }`}
                     >
                       <div className="font-bold text-xs flex items-center justify-between">
                         <span>Apple iOS IPA</span>
@@ -2533,10 +2690,10 @@ export function AdminCustomers() {
                             buildProgressStep === 1
                               ? "25%"
                               : buildProgressStep === 2
-                              ? "55%"
-                              : buildProgressStep === 3
-                              ? "80%"
-                              : "100%",
+                                ? "55%"
+                                : buildProgressStep === 3
+                                  ? "80%"
+                                  : "100%",
                         }}
                       />
                     </div>
@@ -2559,7 +2716,7 @@ export function AdminCustomers() {
                       <span>Cloud Build Succeeded &amp; Package Compiled!</span>
                     </div>
                     <p className="text-[11px] text-emerald-700">
-                      App version incremented to <strong className="font-mono text-emerald-900">v{buildModalApp.version.replace("v","")}.1</strong>. The release package has been generated and is ready for download.
+                      App version incremented to <strong className="font-mono text-emerald-900">v{buildModalApp.version.replace("v", "")}.1</strong>. The release package has been generated and is ready for download.
                     </p>
                     <div className="pt-1">
                       <button
