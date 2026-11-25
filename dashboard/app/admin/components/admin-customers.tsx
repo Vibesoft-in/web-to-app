@@ -1870,7 +1870,7 @@ export function AdminCustomers() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Full entitlement, validity cycle, renewal settings, and payment details
+                    Full entitlement, validity cycle, renewal settings, payment details, and Super Admin cancellation controls
                   </p>
                 </div>
               </div>
