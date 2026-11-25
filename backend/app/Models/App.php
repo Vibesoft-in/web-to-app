@@ -202,6 +202,17 @@ class App extends Model
             return $sub->plan;
         }
 
+        // Fallback to tenant-level active subscription
+        $tenantSub = $this->tenant?->subscriptions()
+            ->where('status', 'active')
+            ->latest('id')
+            ->with('plan')
+            ->first();
+
+        if ($tenantSub?->plan) {
+            return $tenantSub->plan;
+        }
+
         if (\Illuminate\Support\Facades\Schema::hasTable('orders')) {
             $order = $this->orders()
                 ->where('status', 'paid')

@@ -26,6 +26,9 @@ const BREVO_CONFIG = {
 
 const SECRET_KEY = process.env.OTP_SECRET_KEY || "webintoapp_super_secret_otp_encryption_salt_2026";
 
+const SENDER_EMAIL = process.env.BREVO_FROM_EMAIL || "seo.vibesoft@gmail.com";
+const SENDER_NAME = process.env.BREVO_FROM_NAME || "WebIntoApp";
+
 export function getBrevoTransporter() {
   return nodemailer.createTransport(BREVO_CONFIG);
 }
@@ -126,7 +129,7 @@ export async function sendOtpEmailViaBrevo(
   `;
 
   await transporter.sendMail({
-    from: '"WebIntoApp" <noreply@livaan.in>',
+    from: `"${SENDER_NAME}" <${SENDER_EMAIL}>`,
     to: recipientEmail,
     subject: `Your WebIntoApp Verification Code: ${otp}`,
     html,
@@ -136,10 +139,27 @@ export async function sendOtpEmailViaBrevo(
 export async function sendPasswordResetEmailViaBrevo(
   recipientEmail: string,
   recipientName: string,
-  resetUrl: string
+  resetUrl: string,
+  otp?: string
 ): Promise<void> {
   const transporter = getBrevoTransporter();
   const name = recipientName?.trim() || "Valued Customer";
+
+  const otpBlock = otp
+    ? `
+      <div style="background-color: #FAF7F2; border: 2px dashed #78593D; border-radius: 14px; padding: 24px; text-align: center; margin: 28px 0;">
+        <div style="font-size: 12px; color: #8A7A6D; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 8px;">
+          Your 6-Digit Password Reset Code
+        </div>
+        <div style="font-size: 40px; font-weight: 900; letter-spacing: 10px; color: #78593D; font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', Monaco, monospace;">
+          ${otp}
+        </div>
+        <div style="font-size: 12px; color: #8A7A6D; margin-top: 10px;">
+          Valid for <strong>15 minutes</strong> &bull; Enter this code on the password reset page.
+        </div>
+      </div>
+    `
+    : "";
 
   const html = `
     <!DOCTYPE html>
@@ -176,8 +196,10 @@ export async function sendPasswordResetEmailViaBrevo(
                   <h2 style="color: #2D241E; margin-top: 0; font-size: 22px; font-weight: 800;">Password Reset Request</h2>
                   <p style="color: #5A4A3E; font-size: 15px; line-height: 1.6;">
                     Hi <strong>${name}</strong>,<br>
-                    We received a request to reset your password for your <strong>WebIntoApp</strong> account. Click the button below to set a new password:
+                    We received a request to reset your password for your <strong>WebIntoApp</strong> account. You can use the 6-digit verification code below or click the button to set a new password:
                   </p>
+
+                  ${otpBlock}
 
                   <div style="text-align: center; margin: 32px 0;">
                     <a href="${resetUrl}" style="display: inline-block; background-color: #78593D; color: #FFFFFF; font-size: 15px; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 12px; box-shadow: 0 4px 12px rgba(120, 89, 61, 0.25);">
@@ -187,7 +209,7 @@ export async function sendPasswordResetEmailViaBrevo(
 
                   <div style="background-color: #FAF7F2; border-left: 4px solid #78593D; border-radius: 8px; padding: 16px; margin: 24px 0;">
                     <div style="font-size: 12px; color: #5A4A3E; line-height: 1.5;">
-                      ⏱ This link is valid for <strong>60 minutes</strong>.<br>
+                      ⏱ This reset link is valid for <strong>60 minutes</strong>.<br>
                       If the button does not work, copy and paste this link into your browser:<br>
                       <a href="${resetUrl}" style="color: #78593D; word-break: break-all; font-size: 11px;">${resetUrl}</a>
                     </div>
@@ -214,9 +236,9 @@ export async function sendPasswordResetEmailViaBrevo(
   `;
 
   await transporter.sendMail({
-    from: '"WebIntoApp" <noreply@livaan.in>',
+    from: `"${SENDER_NAME}" <${SENDER_EMAIL}>`,
     to: recipientEmail,
-    subject: "Reset Your WebIntoApp Password",
+    subject: otp ? `Your WebIntoApp Password Reset Code: ${otp}` : "Reset Your WebIntoApp Password",
     html,
   });
 }

@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   // 1. Attempt to contact Laravel backend first
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(`${BACKEND_BASE_URL}/api/auth/forgot-password`, {
       method: "POST",
@@ -64,13 +64,14 @@ export async function POST(req: NextRequest) {
 
   // 2. Direct Resilient Brevo Fallback (ensures reset link always arrives in the desired email inbox)
   try {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
-    const resetUrl = `${origin}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
+    const resetUrl = `${origin}/reset-password?token=${token}&email=${encodeURIComponent(email)}&otp=${otp}`;
 
-    await sendPasswordResetEmailViaBrevo(email, "Valued Customer", resetUrl);
+    await sendPasswordResetEmailViaBrevo(email, "Valued Customer", resetUrl, otp);
 
     return NextResponse.json({
-      message: "If that email is registered, you will receive a reset link shortly.",
+      message: "If that email is registered, you will receive a 6-digit recovery code and reset link shortly.",
     });
   } catch (brevoErr: any) {
     console.error("Brevo fallback error:", brevoErr);

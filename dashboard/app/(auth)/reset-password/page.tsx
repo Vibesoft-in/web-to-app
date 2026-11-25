@@ -17,17 +17,24 @@ import {
   Loader2,
   Lock,
   Mail,
-  ShieldCheck,
   AlertCircle,
 } from "lucide-react";
 
 const resetSchema = z
   .object({
     email: z.string().email("Please enter a valid email address"),
-    token: z.string().min(1, "Password reset token is required"),
+    token: z.string().optional(),
+    otp: z.string().optional(),
     password: z.string().min(8, "Password must be at least 8 characters"),
     password_confirmation: z.string().min(8, "Please confirm your password"),
   })
+  .refine(
+    (data) => Boolean(data.token) || Boolean(data.otp && data.otp.trim().length >= 4),
+    {
+      message: "Please enter the 6-digit verification code sent to your email",
+      path: ["otp"],
+    }
+  )
   .refine((data) => data.password === data.password_confirmation, {
     message: "Passwords do not match",
     path: ["password_confirmation"],
@@ -41,6 +48,7 @@ function ResetPasswordForm() {
 
   const queryToken = searchParams.get("token") || "";
   const queryEmail = searchParams.get("email") || "";
+  const queryOtp = searchParams.get("otp") || "";
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -56,6 +64,7 @@ function ResetPasswordForm() {
     resolver: zodResolver(resetSchema),
     defaultValues: {
       token: queryToken,
+      otp: queryOtp,
       email: queryEmail,
       password: "",
       password_confirmation: "",
@@ -70,8 +79,9 @@ function ResetPasswordForm() {
       await apiClient("/api/auth/reset-password", {
         method: "POST",
         body: JSON.stringify({
-          token: data.token,
-          email: data.email,
+          token: data.token || undefined,
+          otp: data.otp ? data.otp.trim() : undefined,
+          email: data.email.trim(),
           password: data.password,
           password_confirmation: data.password_confirmation,
         }),
@@ -81,7 +91,7 @@ function ResetPasswordForm() {
     } catch (err: any) {
       setErrorMessage(
         err.message ||
-          "This password reset link is invalid or has expired. Please request a new recovery link."
+          "This verification code or reset link is invalid or has expired. Please check your email or request a new code."
       );
     } finally {
       setIsSubmitting(false);
@@ -116,30 +126,6 @@ function ResetPasswordForm() {
     );
   }
 
-  if (!queryToken) {
-    return (
-      <div className="text-center py-6 space-y-4">
-        <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200">
-          <AlertCircle className="w-7 h-7" />
-        </div>
-        <div className="space-y-1">
-          <h2 className="text-xl font-bold text-slate-900">Missing Reset Token</h2>
-          <p className="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
-            This password recovery link appears to be incomplete. Please check your email and click the full link, or request a new reset email.
-          </p>
-        </div>
-        <div className="pt-2">
-          <Link
-            href="/forgot-password"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs text-white bg-[#78593D] hover:bg-[#634830] transition shadow-sm"
-          >
-            <span>Request New Reset Link</span>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="mb-6">
@@ -147,7 +133,9 @@ function ResetPasswordForm() {
           Create New Password
         </h1>
         <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-          Choose a secure new password of at least 8 characters to protect your account.
+          {queryToken
+            ? "Your password reset link is verified. Enter a secure new password below."
+            : "Enter the 6-digit recovery code sent to your email and your new password."}
         </p>
       </div>
 
@@ -160,17 +148,15 @@ function ResetPasswordForm() {
               href="/forgot-password"
               className="text-[11px] underline font-bold hover:text-rose-900 block"
             >
-              Request a new password reset email &rarr;
+              Request a new password recovery code &rarr;
             </Link>
           </div>
         </div>
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Hidden Token Input */}
         <input type="hidden" {...register("token")} />
 
-        {/* Email Field */}
         <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
             Registered Email
@@ -180,6 +166,7 @@ function ResetPasswordForm() {
             <input
               {...register("email")}
               type="email"
+              placeholder="name@example.com"
               readOnly={Boolean(queryEmail)}
               className={`w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm transition ${
                 queryEmail ? "bg-slate-50 text-slate-700 cursor-not-allowed" : "bg-white text-slate-900"
@@ -191,7 +178,40 @@ function ResetPasswordForm() {
           )}
         </div>
 
-        {/* New Password Field */}
+        {!queryToken ? (
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                6-Digit Recovery Code (OTP)
+              </label>
+              <Link href="/forgot-password" className="text-[11px] text-[#78593D] font-bold hover:underline">
+                Resend Code
+              </Link>
+            </div>
+            <div className="relative">
+              <KeyRound className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+              <input
+                {...register("otp")}
+                type="text"
+                maxLength={6}
+                placeholder="000000"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-base font-mono font-bold tracking-[6px] text-slate-900 focus:border-[#78593D] focus:outline-none focus:ring-2 focus:ring-[#78593D]/10 transition"
+              />
+            </div>
+            {errors.otp && (
+              <p className="text-xs text-rose-600 mt-1">{errors.otp.message}</p>
+            )}
+            <p className="text-[11px] text-slate-400 mt-1">
+              Enter the 6-digit recovery code sent to your email address.
+            </p>
+          </div>
+        ) : (
+          <div className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+            <span>Reset Link Verified &bull; Enter your new password below</span>
+          </div>
+        )}
+
         <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
             New Password
@@ -217,7 +237,6 @@ function ResetPasswordForm() {
           )}
         </div>
 
-        {/* Confirm New Password Field */}
         <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
             Confirm New Password

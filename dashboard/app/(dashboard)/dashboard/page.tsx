@@ -633,11 +633,6 @@ function UserDashboardContent() {
     ? `${distinctAppPlans.length} Active Licenses (${distinctAppPlans.slice(0, 2).join(", ")}${distinctAppPlans.length > 2 ? "..." : ""})`
     : null;
 
-  // Commercial plans currently used and active across applications
-  const appsWithActivePlans = (apps || []).filter(
-    (a: any) => a.active_plan && a.active_plan.name && a.active_plan.name !== "None"
-  );
-
   // Verified package orders
   const packageOrders = (myOrders || []).filter(
     (ord: any) =>
@@ -648,7 +643,81 @@ function UserDashboardContent() {
       (ord.item_name && ord.item_name.toLowerCase().includes("plan"))
   );
 
-  const totalUsedPlansCount = appsWithActivePlans.length || (packageOrders.length > 0 ? packageOrders.length : (activeSub?.plan ? 1 : 0));
+  // Commercial plans currently used and active across applications
+  const appsWithActivePlans = (apps || []).filter(
+    (a: any) =>
+      (a.active_plan && a.active_plan.name && a.active_plan.name !== "None" && a.active_plan.name !== "Free Plan") ||
+      (a.plan && a.plan.name && a.plan.name !== "None" && a.plan.name !== "Free Plan")
+  );
+
+  // Comprehensive aggregate of all used and purchased plans by this customer
+  const allUsedPlans = (() => {
+    const list: any[] = [];
+    const boundAppIds = new Set<string>();
+
+    // 1. Applications with assigned commercial plans
+    (apps || []).forEach((appItem: any) => {
+      const plan = appItem.active_plan || appItem.plan;
+      if (plan && plan.name && plan.name !== "None" && plan.name !== "Free Plan") {
+        boundAppIds.add(String(appItem.id));
+        boundAppIds.add(String(appItem.ulid));
+        const linkedOrder = (myOrders || []).find(
+          (o: any) =>
+            String(o.app_id) === String(appItem.id) ||
+            String(o.app_id) === String(appItem.ulid) ||
+            (o.package?.name && o.package.name.toLowerCase() === plan.name.toLowerCase())
+        );
+        list.push({
+          id: `app_${appItem.ulid}`,
+          type: "app_bound",
+          plan,
+          planName: plan.name,
+          app: appItem,
+          linkedOrder,
+          status: "active",
+        });
+      }
+    });
+
+    // 2. Extra verified package licenses from order history not yet bound to an app
+    (packageOrders || []).forEach((orderItem: any) => {
+      const ordAppId = orderItem.app_id ? String(orderItem.app_id) : null;
+      const isAlreadyBound = ordAppId && boundAppIds.has(ordAppId);
+      if (!isAlreadyBound) {
+        const plan = orderItem.package || {
+          id: orderItem.package_id || orderItem.id,
+          name: orderItem.item_name || "Commercial Package",
+          price_monthly: orderItem.total_amount ? orderItem.total_amount * 100 : 899900,
+        };
+        list.push({
+          id: `order_${orderItem.id}`,
+          type: "package_order",
+          plan,
+          planName: plan.name,
+          app: null,
+          linkedOrder: orderItem,
+          status: "active",
+        });
+      }
+    });
+
+    // 3. Fallback to active tenant subscription if list is still empty
+    if (list.length === 0 && activeSub?.plan) {
+      list.push({
+        id: `sub_${activeSub.id || "primary"}`,
+        type: "subscription",
+        plan: activeSub.plan,
+        planName: activeSub.plan.name,
+        app: primaryApp || null,
+        linkedOrder: null,
+        status: activeSub.status || "active",
+      });
+    }
+
+    return list;
+  })();
+
+  const totalUsedPlansCount = allUsedPlans.length;
 
   const fallbackCommercialPackages = [
     {
@@ -2638,7 +2707,7 @@ function UserDashboardContent() {
               <div>
                 <h3 className="text-base sm:text-lg font-black text-[#1C1917] flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-[#78593D]" />
-                  <span>Your Used &amp; Active Plans ({appsWithActivePlans.length})</span>
+                  <span>Your Used &amp; Active Plans ({allUsedPlans.length})</span>
                 </h3>
                 <p className="text-xs text-[#7E756B]">
                   Commercial packages currently active, licensed, and powering your mobile applications.
@@ -2650,30 +2719,26 @@ function UserDashboardContent() {
               </span>
             </div>
 
-            {appsWithActivePlans.length > 0 ? (
+            {allUsedPlans.length > 0 ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {appsWithActivePlans.map((appItem: any) => {
-                  const plan = appItem.active_plan;
-                  const planName = plan?.name || "Commercial Plan";
+                {allUsedPlans.map((planItem: any) => {
+                  const plan = planItem.plan;
+                  const planName = planItem.planName || plan?.name || "Commercial Plan";
                   const isEnterprise = planName.toLowerCase().includes("enterprise");
                   const isPro = planName.toLowerCase().includes("pro");
                   const priceFormatted = plan?.price_monthly
                     ? formatPrice(plan.price_monthly)
-                    : plan?.price_formatted || (isEnterprise ? "₹14,999" : isPro ? "₹8,999" : "₹2,999");
-                  const latestBuild = appItem.builds?.[0];
-                  const isBuildReady = latestBuild?.status === "ready";
-                  const platformLabel = appItem.platform === "shopify" ? "Shopify" : appItem.platform === "wordpress" ? "WordPress" : "WooCommerce";
+                    : plan?.price_formatted || (planItem.linkedOrder?.total_amount ? formatPrice(planItem.linkedOrder.total_amount * 100) : (isEnterprise ? "₹14,999" : isPro ? "₹8,999" : "₹2,999"));
 
-                  // Match with order if available
-                  const linkedOrder = (myOrders || []).find(
-                    (o: any) =>
-                      String(o.app_id) === String(appItem.id) ||
-                      (o.package?.name && o.package.name.toLowerCase() === planName.toLowerCase())
-                  );
+                  const appItem = planItem.app;
+                  const linkedOrder = planItem.linkedOrder;
+                  const latestBuild = appItem?.builds?.[0];
+                  const isBuildReady = latestBuild?.status === "ready";
+                  const platformLabel = appItem ? (appItem.platform === "shopify" ? "Shopify" : appItem.platform === "wordpress" ? "WordPress" : "WooCommerce") : "Universal";
 
                   return (
                     <div
-                      key={appItem.ulid}
+                      key={planItem.id}
                       className="bg-white rounded-3xl border border-[#EBE6DF] hover:border-[#78593D]/40 p-6 sm:p-7 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-6"
                     >
                       <div className="space-y-5">
@@ -2708,43 +2773,69 @@ function UserDashboardContent() {
                         </div>
 
                         {/* Bound Application Details Box */}
-                        <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] space-y-2.5">
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-[#7E756B]">
-                            Bound Application:
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-10 h-10 rounded-xl bg-white border border-[#EBE6DF] flex items-center justify-center font-black text-sm text-[#78593D] shadow-xs flex-shrink-0">
-                                {(appItem.name || "A").charAt(0).toUpperCase()}
-                              </div>
-                              <div className="min-w-0">
-                                <Link
-                                  href={`/dashboard/apps/${appItem.ulid}`}
-                                  className="font-bold text-sm text-[#1C1917] hover:text-[#78593D] truncate block transition"
-                                >
-                                  {appItem.name || "Untitled Application"}
-                                </Link>
-                                <div className="flex items-center gap-2 text-[11px] text-[#7E756B] truncate">
-                                  <span className="font-semibold">{platformLabel} Store</span>
-                                  <span>&bull;</span>
-                                  <span className="font-mono text-[10px]">{appItem.package_name || appItem.ulid}</span>
+                        {appItem ? (
+                          <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] space-y-2.5">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-[#7E756B]">
+                              Bound Application:
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-xl bg-white border border-[#EBE6DF] flex items-center justify-center font-black text-sm text-[#78593D] shadow-xs flex-shrink-0">
+                                  {(appItem.name || "A").charAt(0).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <Link
+                                    href={`/dashboard/apps/${appItem.ulid}`}
+                                    className="font-bold text-sm text-[#1C1917] hover:text-[#78593D] truncate block transition"
+                                  >
+                                    {appItem.name || "Untitled Application"}
+                                  </Link>
+                                  <div className="flex items-center gap-2 text-[11px] text-[#7E756B] truncate">
+                                    <span className="font-semibold">{platformLabel} Store</span>
+                                    <span>&bull;</span>
+                                    <span className="font-mono text-[10px]">{appItem.package_name || appItem.ulid}</span>
+                                  </div>
                                 </div>
                               </div>
+
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex-shrink-0 ${
+                                  isBuildReady
+                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                    : "bg-amber-100 text-amber-800 border border-amber-200"
+                                }`}
+                              >
+                                {isBuildReady ? "Build Ready" : "In Setup"}
+                              </span>
                             </div>
-
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex-shrink-0 ${
-                                isBuildReady
-                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                                  : "bg-amber-100 text-amber-800 border border-amber-200"
-                              }`}
-                            >
-                              {isBuildReady ? "Build Ready" : "In Setup"}
-                            </span>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EBE6DF] space-y-2.5">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-[#7E756B]">
+                              License Status:
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shadow-xs flex-shrink-0">
+                                  <ShieldCheck className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-bold text-sm text-[#1C1917]">
+                                    Available Commercial License
+                                  </div>
+                                  <div className="text-[11px] text-[#7E756B]">
+                                    Ready to bind when creating or upgrading your next app
+                                  </div>
+                                </div>
+                              </div>
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex-shrink-0">
+                                Ready to Use
+                              </span>
+                            </div>
+                          </div>
+                        )}
 
-                        {/* Unlocked Capabilities */}
+                        {/* Included Capabilities */}
                         <div className="space-y-2">
                           <div className="text-[11px] font-bold uppercase tracking-wider text-[#7E756B]">
                             Included Capabilities in this License:
@@ -2755,7 +2846,7 @@ function UserDashboardContent() {
                               <span className="font-medium text-[#1C1917]">Android APK Generation</span>
                             </li>
                             <li className="flex items-center gap-2">
-                              {appItem.can_aab ? (
+                              {isPro || isEnterprise || appItem?.can_aab ? (
                                 <>
                                   <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                                   <span className="font-bold text-[#1C1917]">Google Play .AAB Bundle</span>
@@ -2768,7 +2859,7 @@ function UserDashboardContent() {
                               )}
                             </li>
                             <li className="flex items-center gap-2">
-                              {isPro || isEnterprise || appItem.can_ipa ? (
+                              {isPro || isEnterprise || appItem?.can_ipa ? (
                                 <>
                                   <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                                   <span className="font-bold text-[#1C1917]">iOS IPA Archive Package</span>
@@ -2781,7 +2872,7 @@ function UserDashboardContent() {
                               )}
                             </li>
                             <li className="flex items-center gap-2">
-                              {appItem.has_admin_panel ? (
+                              {appItem?.has_admin_panel || isEnterprise ? (
                                 <>
                                   <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                                   <span className="font-bold text-[#1C1917]">Dedicated Admin Panel</span>
@@ -2808,31 +2899,43 @@ function UserDashboardContent() {
                       {/* Action Buttons */}
                       <div className="pt-4 border-t border-[#EBE6DF] flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Link
-                            href={`/dashboard/apps/${appItem.ulid}/setup/${appItem.setup_step || "build"}`}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                          >
-                            <Rocket className="w-3.5 h-3.5" />
-                            <span>{isBuildReady ? "Build & Artifacts" : "Continue Setup"}</span>
-                          </Link>
+                          {appItem ? (
+                            <>
+                              <Link
+                                href={`/dashboard/apps/${appItem.ulid}/setup/${appItem.setup_step || "build"}`}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                              >
+                                <Rocket className="w-3.5 h-3.5" />
+                                <span>{isBuildReady ? "Build & Artifacts" : "Continue Setup"}</span>
+                              </Link>
 
-                          {appItem.has_admin_panel && (
+                              {appItem.has_admin_panel && (
+                                <Link
+                                  href={`/dashboard/apps/${appItem.ulid}/admin`}
+                                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 text-xs font-bold transition cursor-pointer"
+                                >
+                                  <LayoutDashboard className="w-3.5 h-3.5 text-purple-700" />
+                                  <span>Admin Portal</span>
+                                </Link>
+                              )}
+
+                              <Link
+                                href={`/dashboard/apps/${appItem.ulid}`}
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-[#FAF7F2] text-[#1C1917] border border-[#EBE6DF] text-xs font-bold transition cursor-pointer"
+                              >
+                                <span>Manage App</span>
+                                <ArrowRight className="w-3.5 h-3.5 text-[#7E756B]" />
+                              </Link>
+                            </>
+                          ) : (
                             <Link
-                              href={`/dashboard/apps/${appItem.ulid}/admin`}
-                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 text-xs font-bold transition cursor-pointer"
+                              href="/dashboard/apps/new"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#78593D] hover:bg-[#634932] text-white text-xs font-bold transition shadow-xs cursor-pointer"
                             >
-                              <LayoutDashboard className="w-3.5 h-3.5 text-purple-700" />
-                              <span>Admin Portal</span>
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Create App with this License</span>
                             </Link>
                           )}
-
-                          <Link
-                            href={`/dashboard/apps/${appItem.ulid}`}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-[#FAF7F2] text-[#1C1917] border border-[#EBE6DF] text-xs font-bold transition cursor-pointer"
-                          >
-                            <span>Manage App</span>
-                            <ArrowRight className="w-3.5 h-3.5 text-[#7E756B]" />
-                          </Link>
                         </div>
 
                         {linkedOrder && (

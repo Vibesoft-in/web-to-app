@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   // 1. First, attempt to contact Laravel backend if available
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
+    const timeout = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(`${BACKEND_BASE_URL}/api/auth/send-otp`, {
       method: "POST",

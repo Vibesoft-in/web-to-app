@@ -175,9 +175,22 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         return in_array($this->role, [UserRole::Owner, UserRole::Editor], strict: true);
     }
 
+    public function getIsBlockedAttribute(): bool
+    {
+        return $this->isBlocked();
+    }
+
     public function isBlocked(): bool
     {
-        return (bool) $this->is_blocked || BlockedEmail::where('email', strtolower($this->email))->exists();
+        $flag = (bool) ($this->attributes['is_blocked'] ?? false);
+        if ($flag) {
+            return true;
+        }
+        $email = $this->email ?? null;
+        if (! $email) {
+            return false;
+        }
+        return BlockedEmail::where('email', strtolower($email))->exists();
     }
 
     public function block(?string $reason = null, ?int $adminId = null): void
