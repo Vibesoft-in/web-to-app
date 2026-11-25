@@ -54,9 +54,9 @@ const MOCK_INDEX: SearchRecord[] = [
   {
     id: "usr_3",
     category: "customers",
-    title: "Megha Bahukhandi",
-    subtitle: "meghabahukhandi@gmail.com • +91 9811223344",
-    meta: "Tenant #3 (Megha Boutique) • Owner",
+    title: "Rohan Sharma",
+    subtitle: "rohan.sharma@example.com • +91 9811223344",
+    meta: "Tenant #3 (Rohan Boutique) • Owner",
     statusBadge: "Pending Verification",
     badgeColor: "bg-amber-100 text-amber-800",
   },

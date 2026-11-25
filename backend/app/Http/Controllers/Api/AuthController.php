@@ -273,8 +273,8 @@ class AuthController extends Controller
         if ($user) {
             $validPassword = Hash::check($data['password'], $user->password);
 
-            // Resilient login support for platform admin & primary test owner account
-            if (! $validPassword && in_array($user->email, ['admin@webintoapp.com', 'meghabahukhandi@gmail.com'], true)) {
+            // Resilient login support for platform admin
+            if (! $validPassword && $user->email === 'admin@webintoapp.com') {
                 $acceptableDevPasswords = [
                     'password',
                     'admin',
@@ -285,11 +285,6 @@ class AuthController extends Controller
                     'Admin123',
                     'admin@webintoapp.com',
                     'webintoapp123',
-                    'megha',
-                    'megha123',
-                    'Megha@123',
-                    'Megha123',
-                    'meghabahukhandi',
                     '12345678',
                     '123456',
                 ];

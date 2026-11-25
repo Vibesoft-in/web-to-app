@@ -55,8 +55,8 @@ const FAILED_PAYMENTS: FailedPayment[] = [
   {
     id: "fp_1",
     orderNumber: "ORD-7729104419",
-    customerName: "Megha Bahukhandi",
-    customerEmail: "meghabahukhandi@gmail.com",
+    customerName: "Rohan Sharma",
+    customerEmail: "rohan.sharma@example.com",
     amount: 7999,
     reason: "Razorpay webhook signature drop",
     retryAttempts: 2,

@@ -1789,7 +1789,7 @@ class ProfileScreen extends ConsumerWidget {
               icon: Icons.qr_code_2_rounded,
               color: Colors.indigo,
               title: 'UPI / Google Pay / PhonePe',
-              value: 'meghabahukhandi@okaxis • Primary',
+              value: 'storeowner@okaxis • Primary',
             ),
             _buildSupportTile(
               icon: Icons.credit_card_rounded,
